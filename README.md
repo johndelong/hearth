@@ -162,8 +162,10 @@ tag if it doesn't**. Snapshots land in `~/hearth-backups` (last 20 kept).
 
 ### What the wall panels do after a deploy
 
-Every panel polls `/api/version` once a minute and remembers the version it
-loaded against.
+Every API response carries the running version in an `x-hearth-version` header,
+and each panel remembers the version it loaded against. There is no polling for
+this — the app is already fetching the board every minute, so a deploy is noticed
+on the next request the panel makes anyway, and instantly on any tap.
 
 - **Idle panels reload themselves.** A screen nobody has touched drops into frame
   mode, notices the mismatch, and refreshes silently. The kitchen display needs no
@@ -178,9 +180,10 @@ it keeps running whatever JavaScript it loaded back then.
 
 Set `UPDATE_CHECK_TOKEN` in `.env` to a GitHub
 [fine-grained token](https://github.com/settings/tokens?type=beta) scoped to just
-this repository with **Contents: Read-only**. The server then checks for new
-releases every 30 minutes, and **Settings › Display › This dashboard** shows what's
-running, what's available, and a link to the release notes.
+this repository with **Contents: Read-only**. The server checks GitHub hourly —
+once for the whole house, not per panel — and **Settings › Display › This
+dashboard** shows what's running, what's available, a link to the release notes,
+and a **Check now** button when you don't want to wait for the next check.
 
 Without the token everything still works — the panel just won't know a newer
 release exists until you deploy it.

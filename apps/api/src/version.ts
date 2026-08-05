@@ -23,7 +23,7 @@ export interface VersionInfo {
 
 const REPO = process.env.UPDATE_REPO ?? 'johndelong/hearth';
 const TOKEN = process.env.UPDATE_CHECK_TOKEN ?? process.env.GITHUB_TOKEN ?? '';
-const INTERVAL_MS = Number(process.env.UPDATE_CHECK_INTERVAL_MS ?? 30 * 60_000);
+const INTERVAL_MS = Number(process.env.UPDATE_CHECK_INTERVAL_MS ?? 60 * 60_000);
 
 export const CURRENT_VERSION = process.env.APP_VERSION ?? 'dev';
 

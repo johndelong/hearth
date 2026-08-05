@@ -28,6 +28,14 @@ await app.register(cookie, { secret: process.env.COOKIE_SECRET ?? 'hearth-dev-se
 
 seedIfEmpty();
 
+/**
+ * Every API response carries the running version. The dashboard reads it off
+ * calls it already makes, so noticing a deploy costs no extra requests.
+ */
+app.addHook('onSend', async (_request, reply) => {
+  reply.header('x-hearth-version', CURRENT_VERSION);
+});
+
 await app.register(peopleRoutes);
 await app.register(choreRoutes);
 await app.register(settingsRoutes);

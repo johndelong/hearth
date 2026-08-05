@@ -26,12 +26,33 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The version the server last reported, learned from response headers rather
+ * than a dedicated poll. Listeners are notified only when it actually changes.
+ */
+let serverVersion: string | null = null;
+const versionListeners = new Set<(version: string) => void>();
+
+export function onServerVersion(fn: (version: string) => void): () => void {
+  versionListeners.add(fn);
+  if (serverVersion) fn(serverVersion);
+  return () => versionListeners.delete(fn);
+}
+
+function noteVersion(res: Response): void {
+  const seen = res.headers.get('x-hearth-version');
+  if (!seen || seen === serverVersion) return;
+  serverVersion = seen;
+  for (const fn of versionListeners) fn(seen);
+}
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: 'same-origin',
     headers: init?.body ? { 'content-type': 'application/json' } : undefined,
     ...init,
   });
+  noteVersion(res);
   if (!res.ok) {
     let body: unknown;
     let message = res.statusText;

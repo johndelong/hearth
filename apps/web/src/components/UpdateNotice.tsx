@@ -1,57 +1,39 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { onServerVersion } from '../api';
 import { EASE, col } from '../theme';
 import { Icon, TapButton } from './ui';
 
 export interface VersionState {
   /** The server is running different code than this tab loaded. Reload fixes it. */
   stale: boolean;
-  /** A newer release exists on GitHub but the mini has not been redeployed. */
-  releaseAvailable: string | null;
-  releaseUrl: string | null;
   current: string;
 }
 
 /**
  * Watches the server's version.
  *
- * Two different problems wear the same hat. A wall panel left open for weeks is
- * running whatever JavaScript it loaded back then, so after a deploy it needs a
- * reload — that is `stale`, and it is the one that actually breaks things. A
- * newer release sitting on GitHub is just information for whoever deploys.
+ * A wall panel left open for weeks is running whatever JavaScript it loaded back
+ * then, so after a deploy it needs a reload. Rather than polling for that, the
+ * version rides along as a header on every API response — the app is already
+ * fetching the board once a minute, so this costs nothing extra and reacts as
+ * fast as the next request, including immediately on any tap.
  */
 export function useVersionWatch(idle: boolean): VersionState {
-  const [state, setState] = useState<VersionState>({
-    stale: false,
-    releaseAvailable: null,
-    releaseUrl: null,
-    current: 'dev',
-  });
+  const [state, setState] = useState<VersionState>({ stale: false, current: 'dev' });
   /** The version this tab booted against — the baseline for staleness. */
   const bootVersion = useRef<string | null>(null);
 
-  const poll = useCallback(async () => {
-    try {
-      const info = await api.version();
-      if (bootVersion.current === null) bootVersion.current = info.current;
-      setState({
-        // `dev` builds change constantly; only compare real releases.
-        stale: info.current !== bootVersion.current && info.current !== 'dev',
-        releaseAvailable: info.available && info.available !== info.current ? info.available : null,
-        releaseUrl: info.releaseUrl,
-        current: info.current,
-      });
-    } catch {
-      // A failed check means the server is mid-restart. Staying quiet is right:
-      // the next poll picks up the new version and prompts the reload.
-    }
-  }, []);
-
   useEffect(() => {
-    void poll();
-    const timer = window.setInterval(() => void poll(), 60_000);
-    return () => window.clearInterval(timer);
-  }, [poll]);
+    return onServerVersion((version) => {
+      if (bootVersion.current === null) bootVersion.current = version;
+      setState((prev) => ({
+        ...prev,
+        current: version,
+        // `dev` rebuilds constantly in development; only flag real releases.
+        stale: version !== bootVersion.current && version !== 'dev',
+      }));
+    });
+  }, []);
 
   /**
    * A panel nobody is touching can just reload itself. This is the whole reason
