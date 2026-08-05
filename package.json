@@ -11,7 +11,10 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "npm run dev --workspace=@dashboard/api & npm run dev --workspace=@dashboard/web",
+    "predev": "npm run build --workspace=@dashboard/shared",
+    "dev": "concurrently -n api,web -c cyan,magenta -k --kill-signal SIGTERM \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev --workspace=@dashboard/api",
+    "dev:web": "npm run dev --workspace=@dashboard/web",
     "build": "npm run build --workspace=@dashboard/shared && npm run build --workspace=@dashboard/api && npm run build --workspace=@dashboard/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "start": "node apps/api/dist/index.js"
@@ -20,5 +23,8 @@
     "esbuild@0.28.1": true,
     "esbuild@0.25.12": true,
     "fsevents@2.3.3": true
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4"
   }
 }
