@@ -1,4 +1,4 @@
-# Family Dashboard
+# Hearth
 
 A wall-panel dashboard for the house: the family calendar (synced from Google) and
 the kids' chore boards (kept locally). Built to run in a container on the Mac mini
@@ -119,7 +119,7 @@ cp .env.example .env    # fill in PUBLIC_URL, Google credentials, COOKIE_SECRET
 docker compose up -d --build
 ```
 
-The database lives in the `dashboard-data` volume. `TZ` matters — chore resets and
+The database lives in the `hearth-data` volume. `TZ` matters — chore resets and
 the calendar's day boundaries follow it.
 
 For the tablets: open `http://mac-mini.local:8080` and add it to the home screen.

@@ -1,13 +1,13 @@
 services:
-  dashboard:
+  hearth:
     build: .
-    image: home-dashboard:latest
-    container_name: family-dashboard
+    image: hearth:latest
+    container_name: hearth
     restart: unless-stopped
     ports:
       - '8080:8080'
     volumes:
-      - dashboard-data:/data
+      - hearth-data:/data
     environment:
       # Timezone drives chore resets and the day view, so it must be local time.
       TZ: America/Detroit
@@ -19,4 +19,4 @@ services:
       COOKIE_SECRET: ${COOKIE_SECRET:-change-me}
 
 volumes:
-  dashboard-data:
+  hearth-data:

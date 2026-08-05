@@ -22,7 +22,7 @@ const app = Fastify({
   trustProxy: process.env.TRUST_PROXY === 'true',
 });
 
-await app.register(cookie, { secret: process.env.COOKIE_SECRET ?? 'family-dashboard-dev-secret' });
+await app.register(cookie, { secret: process.env.COOKIE_SECRET ?? 'hearth-dev-secret' });
 
 seedIfEmpty();
 

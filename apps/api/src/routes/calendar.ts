@@ -190,7 +190,7 @@ function toGoogleEvent(input: Partial<EventInput>) {
 }
 
 function closingPage(message: string): string {
-  return `<!doctype html><meta charset="utf-8"><title>Family Dashboard</title>
+  return `<!doctype html><meta charset="utf-8"><title>Hearth</title>
 <body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#f4f5f8;color:#1e2230">
 <div style="text-align:center;max-width:30rem;padding:2rem">
   <p style="font-size:1.1rem">${message}</p>
