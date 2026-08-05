@@ -148,8 +148,14 @@ git tag v0.2.0 && git push --tags
 ```
 
 That's all — `.github/workflows/release.yml` takes it from there. It typechecks
-and builds the tag first, and only then publishes a GitHub Release with generated
-notes. The build gate matters: a tag that doesn't compile would otherwise cost you
+and builds the tag first, and only then publishes a GitHub Release.
+
+Notes come from GitHub's own generator, which categorises and links merged pull
+requests. That generator works *from* pull requests, though, so commits pushed
+straight to `main` yield nothing but a compare link — when it finds none, the
+workflow falls back to listing commit subjects. Either way the notes are worth
+reading, which is a reason to keep writing commit subjects as statements of what
+changed. The build gate matters: a tag that doesn't compile would otherwise cost you
 a deploy and an automatic rollback to find out. The Release itself matters because
 the dashboard's update notice reads GitHub's *published releases* — a bare tag is
 invisible to that API.

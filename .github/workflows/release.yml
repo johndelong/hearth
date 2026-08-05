@@ -35,27 +35,39 @@ jobs:
         with:
           # Full history so the generated notes can diff against the last tag.
           fetch-depth: 0
-      # GitHub's --generate-notes builds its list from merged pull requests, so
-      # on a repo committed to directly it produces nothing but a compare link.
-      # Build the notes from the commit subjects instead.
+      # Prefer GitHub's own notes: when work arrives through pull requests they
+      # are categorised and linked, which a commit list cannot match. But they
+      # are built *from* pull requests, so commits pushed straight to main
+      # produce nothing but a compare link. Fall back to commit subjects only
+      # in that case.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           previous=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
-          {
-            if [ -n "$previous" ]; then
-              echo "## Changes since ${previous}"
+
+          if [ -n "$previous" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${GITHUB_REF_NAME}" \
+              -f previous_tag_name="${previous}" -q .body > notes.md
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${GITHUB_REF_NAME}" -q .body > notes.md
+          fi
+
+          # GitHub lists pull requests as "* ...". No bullets means it found
+          # none, so describe the commits instead and keep its compare link.
+          if ! grep -qE '^\* ' notes.md; then
+            range="${previous:+${previous}..}${GITHUB_REF_NAME}"
+            {
+              echo "## Changes"
               echo
-              git log --no-merges --format='- %s' "${previous}..${GITHUB_REF_NAME}"
+              git log --no-merges --format='- %s' "$range"
               echo
-              echo "**Full Changelog**: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${previous}...${GITHUB_REF_NAME}"
-            else
-              echo "First release."
-              echo
-              git log --no-merges --format='- %s' "${GITHUB_REF_NAME}"
-            fi
-          } > notes.md
+              cat notes.md
+            } > notes.combined.md
+            mv notes.combined.md notes.md
+          fi
 
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
