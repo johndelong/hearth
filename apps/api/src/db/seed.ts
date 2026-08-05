@@ -16,20 +16,20 @@ const PEOPLE: Array<[string, string, number, 'kid' | 'parent' | 'shared', string
   ['family', 'Family', -1, 'shared', null, null, false],
 ];
 
-const CHORES: Array<[string, string, string, number]> = [
-  ['parent1', 'Meal plan + order', 'Weekly', 10],
-  ['parent1', 'Laundry — whites', 'Weekdays', 5],
-  ['parent2', 'Trash & recycling', 'Weekly', 10],
-  ['parent2', 'Mow the yard', 'Weekends', 15],
-  ['parent2', 'Dishwasher — night', 'Daily', 5],
-  ['kid1', 'Feed Biscuit', 'Daily', 5],
-  ['kid1', 'Set the table', 'Daily', 5],
-  ['kid1', 'Clean your room', 'Weekends', 15],
-  ['kid2', 'Water the plants', 'Weekdays', 5],
-  ['kid2', 'Put away shoes', 'Daily', 5],
-  ['kid2', 'Feed Biscuit — dinner', 'Daily', 5],
-  ['kid3', 'Toys in the bin', 'Daily', 5],
-  ['kid3', 'Books on the shelf', 'Daily', 5],
+const CHORES: Array<[string, string, string]> = [
+  ['parent1', 'Meal plan + order', 'Weekly'],
+  ['parent1', 'Laundry — whites', 'Weekdays'],
+  ['parent2', 'Trash & recycling', 'Weekly'],
+  ['parent2', 'Mow the yard', 'Weekends'],
+  ['parent2', 'Dishwasher — night', 'Daily'],
+  ['kid1', 'Feed Biscuit', 'Daily'],
+  ['kid1', 'Set the table', 'Daily'],
+  ['kid1', 'Clean your room', 'Weekends'],
+  ['kid2', 'Water the plants', 'Weekdays'],
+  ['kid2', 'Put away shoes', 'Daily'],
+  ['kid2', 'Feed Biscuit — dinner', 'Daily'],
+  ['kid3', 'Toys in the bin', 'Daily'],
+  ['kid3', 'Books on the shelf', 'Daily'],
 ];
 
 const EXTRAS: Array<[string, number]> = [
@@ -66,9 +66,9 @@ export function seedIfEmpty(): void {
     );
 
     const chore = db.prepare(
-      'INSERT INTO chores (id, person_id, title, repeat, points, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO chores (id, person_id, title, repeat, sort_order) VALUES (?, ?, ?, ?, ?)',
     );
-    CHORES.forEach(([who, title, repeat, points], i) => chore.run(`ch${i}`, who, title, repeat, points, i));
+    CHORES.forEach(([who, title, repeat], i) => chore.run(`ch${i}`, who, title, repeat, i));
 
     const extra = db.prepare('INSERT INTO extras (id, title, points) VALUES (?, ?, ?)');
     EXTRAS.forEach(([title, points], i) => extra.run(`xj${i}`, title, points));

@@ -172,7 +172,6 @@ export function ChoreEditor({
   const [title, setTitle] = useState(chore?.title ?? '');
   const [personId, setPersonId] = useState(chore?.personId ?? people[0]?.id ?? '');
   const [repeat, setRepeat] = useState(chore?.repeat ?? 'Daily');
-  const [points, setPoints] = useState(chore?.points ?? 5);
 
   return (
     <Modal
@@ -183,7 +182,7 @@ export function ChoreEditor({
           {chore && onDelete && <GhostButton onClick={onDelete} danger>Delete</GhostButton>}
           <GhostButton onClick={onClose}>Cancel</GhostButton>
           <PrimaryButton
-            onClick={() => onSave({ title: title.trim(), personId, repeat, points })}
+            onClick={() => onSave({ title: title.trim(), personId, repeat })}
             disabled={!title.trim() || !personId}
           >
             Save
@@ -223,15 +222,10 @@ export function ChoreEditor({
         </div>
       </Field>
 
-      <Field label="Points">
-        <input
-          type="number"
-          min={0}
-          value={points}
-          onChange={(e) => setPoints(Number(e.target.value))}
-          style={fieldStyle}
-        />
-      </Field>
+      <p style={{ margin: 0, fontSize: 14.5, fontWeight: 600, color: 'var(--ink2)' }}>
+        Chores are the everyday expectation and earn no points. Points come from
+        extra jobs, which unlock once the day's chores are done.
+      </p>
     </Modal>
   );
 }

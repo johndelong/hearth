@@ -20,7 +20,6 @@ interface ChoreRow {
   person_id: string;
   title: string;
   repeat: Chore['repeat'];
-  points: number;
   active: number;
   sort_order: number;
   done: number;
@@ -49,7 +48,6 @@ export function listChores(): Chore[] {
       personId: r.person_id,
       title: r.title,
       repeat: r.repeat,
-      points: r.points,
       active: toBool(r.active),
       sortOrder: r.sort_order,
       done: toBool(r.done),
@@ -59,13 +57,12 @@ export function listChores(): Chore[] {
 export function createChore(input: ChoreInput): Chore {
   const choreId = id('ch');
   db.prepare(
-    'INSERT INTO chores (id, person_id, title, repeat, points, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO chores (id, person_id, title, repeat, active, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
   ).run(
     choreId,
     input.personId,
     input.title,
     input.repeat ?? 'Daily',
-    input.points ?? 5,
     fromBool(input.active ?? true),
     input.sortOrder ?? 0,
   );
@@ -77,7 +74,6 @@ export function updateChore(choreId: string, patch: Partial<ChoreInput>): Chore 
     personId: 'person_id',
     title: 'title',
     repeat: 'repeat',
-    points: 'points',
     active: 'active',
     sortOrder: 'sort_order',
   };
@@ -112,7 +108,6 @@ function rawChore(choreId: string): Chore | null {
     personId: r.person_id,
     title: r.title,
     repeat: r.repeat,
-    points: r.points,
     active: toBool(r.active),
     sortOrder: r.sort_order,
     done: false,
@@ -120,30 +115,23 @@ function rawChore(choreId: string): Chore | null {
 }
 
 /**
- * Check a chore off (or undo it) and move points in the same transaction, so a
- * board can never disagree with the points total.
+ * Check a chore off, or undo it. Chores pay no points — they are the baseline
+ * expectation, and only extra jobs earn.
  */
-export const setChoreDone = db.transaction((choreId: string, done: boolean): Chore | null => {
+export function setChoreDone(choreId: string, done: boolean): Chore | null {
   const chore = rawChore(choreId);
   if (!chore) return null;
   const period = periodKey(getSettings().choreReset);
-  const ref = `${choreId}:${period}`;
 
   if (done) {
     db.prepare(
       'INSERT OR IGNORE INTO chore_completions (chore_id, period, completed_at) VALUES (?, ?, ?)',
     ).run(choreId, period, nowIso());
-    // The unique index on (ref_type, ref_id) makes a double-tap a no-op.
-    db.prepare(
-      `INSERT OR IGNORE INTO point_events (id, person_id, delta, reason, ref_type, ref_id, created_at)
-       VALUES (?, ?, ?, ?, 'chore', ?, ?)`,
-    ).run(id('pt'), chore.personId, chore.points, chore.title, ref, nowIso());
   } else {
     db.prepare('DELETE FROM chore_completions WHERE chore_id = ? AND period = ?').run(choreId, period);
-    db.prepare("DELETE FROM point_events WHERE ref_type = 'chore' AND ref_id = ?").run(ref);
   }
   return { ...chore, done };
-});
+}
 
 // ---------- extras and claims ----------
 

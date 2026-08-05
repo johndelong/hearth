@@ -42,7 +42,6 @@ export interface Chore {
   personId: string;
   title: string;
   repeat: Repeat;
-  points: number;
   active: boolean;
   sortOrder: number;
   /** Whether it is checked off for the current board period. Derived, read-only. */
@@ -98,13 +97,16 @@ export interface Redemption {
 /**
  * Points are an append-only ledger rather than a running total, so a mis-tap
  * can be reversed and the history stays explainable to a kid.
+ *
+ * Only extra jobs and redemptions move points. Regular chores are the
+ * baseline expectation and pay nothing.
  */
 export interface PointEvent {
   id: string;
   personId: string;
   delta: number;
   reason: string;
-  refType: 'chore' | 'claim' | 'redemption' | 'manual';
+  refType: 'claim' | 'redemption' | 'manual';
   refId: string | null;
   createdAt: string;
 }

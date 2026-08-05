@@ -23,7 +23,8 @@ interface Row {
   title: string;
   /** Repeat rule for a chore; extra jobs show that they were claimed. */
   sub: string;
-  points: number;
+  /** Only extra jobs are worth points — chores are the baseline. */
+  points: number | null;
   done: boolean;
 }
 
@@ -62,6 +63,35 @@ export function ChoresScreen({
     };
   }, []);
 
+  /**
+   * Extra jobs stay locked until the day's chores are done. `unlocked` tracks
+   * who has cleared their chores so the button can pulse on the transition
+   * rather than on every render.
+   */
+  const [justUnlocked, setJustUnlocked] = useState<string[]>([]);
+  const wasUnlocked = useRef<Record<string, boolean>>({});
+
+  const choresDoneFor = useCallback(
+    (personId: string) => board.chores.filter((c) => c.personId === personId).every((c) => c.done),
+    [board.chores],
+  );
+
+  useEffect(() => {
+    const newlyUnlocked: string[] = [];
+    for (const person of people) {
+      if (!person.onChores || person.role === 'shared') continue;
+      const open = choresDoneFor(person.id);
+      // Only celebrate a board that actually had chores to finish.
+      const hadChores = board.chores.some((c) => c.personId === person.id);
+      if (open && hadChores && wasUnlocked.current[person.id] === false) newlyUnlocked.push(person.id);
+      wasUnlocked.current[person.id] = open;
+    }
+    if (newlyUnlocked.length) {
+      setJustUnlocked(newlyUnlocked);
+      window.setTimeout(() => setJustUnlocked([]), 1600);
+    }
+  }, [people, board.chores, choresDoneFor]);
+
   const boards = useMemo(() => people.filter((p) => p.onChores && p.role !== 'shared'), [people]);
 
   const pointsFor = (personId: string) => board.points.find((p) => p.personId === personId)?.points ?? 0;
@@ -74,7 +104,7 @@ export function ChoresScreen({
         id: c.id,
         title: c.title,
         sub: c.repeat,
-        points: c.points,
+        points: null,
         done: c.done,
       })),
     ...board.claims
@@ -103,13 +133,14 @@ export function ChoresScreen({
     onBoardChange(optimistic);
 
     if (next) {
-      // An extra job earns a sweep of light; every completion pops the points.
+      // Every completed row gets the sweep of light.
+      setShimmer(row.id);
+      restart('shimmer', 1400, () => setShimmer(null));
+      // Only extra jobs move points, so only they pop the pill.
       if (row.kind === 'claim') {
-        setShimmer(row.id);
-        restart('shimmer', 1400, () => setShimmer(null));
+        setCheering(person.id);
+        restart('cheer', 900, () => setCheering(null));
       }
-      setCheering(person.id);
-      restart('cheer', 900, () => setCheering(null));
     }
 
     try {
@@ -125,8 +156,10 @@ export function ChoresScreen({
             setBursting(person.id);
             restart('burst', 2700, () => setBursting(null));
           }
-        } else {
+        } else if (row.points !== null) {
           say(`+${row.points} for ${person.name}`, person.hue);
+        } else {
+          say(`${row.title} — done`, person.hue);
         }
       }
     } catch (err) {
@@ -313,7 +346,7 @@ export function ChoresScreen({
                     </span>
                   </span>
 
-                  {isKid && (
+                  {isKid && row.points !== null && (
                     <span style={{ flex: 'none', fontSize: 14, fontWeight: 800, color: 'var(--ink2)' }}>
                       +{row.points}
                     </span>
@@ -328,26 +361,36 @@ export function ChoresScreen({
               )}
             </div>
 
-            {isKid && settings.claimExtras && (
-              <TapButton
-                onClick={() => onPickExtra(person)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  padding: 11,
-                  borderRadius: 16,
-                  border: `1px dashed ${col(62, night)}`,
-                  color: deep(62, night),
-                  fontSize: 14.5,
-                  fontWeight: 800,
-                  opacity: 0.85,
-                }}
-              >
-                <Icon name="star" size={17} /> Pick an extra job
-              </TapButton>
-            )}
+            {isKid && settings.claimExtras && (() => {
+              const unlocked = choresDoneFor(person.id);
+              return (
+                <TapButton
+                  onClick={() => unlocked && onPickExtra(person)}
+                  disabled={!unlocked}
+                  title={unlocked ? undefined : 'Finish your chores first'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    padding: 11,
+                    borderRadius: 16,
+                    border: `1px dashed ${unlocked ? col(62, night) : 'var(--line)'}`,
+                    color: unlocked ? deep(62, night) : 'var(--ink2)',
+                    fontSize: 14.5,
+                    fontWeight: 800,
+                    opacity: unlocked ? 0.85 : 0.45,
+                    transition: `opacity .4s ${EASE}, border-color .4s ${EASE}, color .4s ${EASE}`,
+                    animation: justUnlocked.includes(person.id)
+                      ? `unlockPulse 1.5s ${EASE} both`
+                      : undefined,
+                  }}
+                >
+                  <Icon name={unlocked ? 'star' : 'lock'} size={17} />
+                  {unlocked ? 'Pick an extra job' : 'Finish your chores first'}
+                </TapButton>
+              );
+            })()}
           </Card>
         );
       })}

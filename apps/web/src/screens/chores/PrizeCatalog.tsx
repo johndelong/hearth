@@ -226,7 +226,9 @@ export function PrizeCatalog({
                         width: `${pct}%`,
                         borderRadius: 999,
                         background: col(affordable ? 148 : person.hue, night),
-                        animation: `growW .8s ${EASE} both`,
+                        // Eases from wherever it was, rather than replaying
+                        // from zero, so redeeming visibly draws the bar down.
+                        transition: `width .9s ${EASE}, background .4s ease`,
                       }}
                     />
                   </div>

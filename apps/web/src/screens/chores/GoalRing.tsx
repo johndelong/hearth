@@ -6,11 +6,16 @@ import { EASE, col, deep, soft } from '../../theme';
 /**
  * The tappable progress ring beside a kid's name.
  *
- * A conic-gradient arc shows how close they are to their chosen prize, masked
- * into a ring so the prize's own art sits in the middle. Once they can afford
- * it the whole thing lifts and throws off sparks — the point is that a kid
- * glances at the board and knows.
+ * An arc shows how close they are to their chosen prize, drawn around the
+ * prize's own art. Once they can afford it the whole thing lifts and throws
+ * off sparks — the point is that a kid glances at the board and knows.
  */
+
+/** Ring geometry: 74px box, 6px band — matches the design's masked arc. */
+const RING_W = 6;
+const RING_R = (74 - RING_W) / 2;
+const RING_C = 2 * Math.PI * RING_R;
+
 export function GoalRing({
   person,
   goal,
@@ -58,20 +63,34 @@ export function GoalRing({
         animation: reached ? 'cheerLift 2.4s ease-in-out infinite' : undefined,
       }}
     >
-      {/* Progress arc, masked into a ring. */}
-      <span
-        style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '50%',
-          pointerEvents: 'none',
-          background: goal
-            ? `conic-gradient(from -90deg, ${accent} ${pct}%, var(--chip) 0)`
-            : 'var(--chip)',
-          WebkitMask: 'radial-gradient(circle at center, transparent 0 calc(50% - 6px), #000 calc(50% - 6px))',
-          mask: 'radial-gradient(circle at center, transparent 0 calc(50% - 6px), #000 calc(50% - 6px))',
-        }}
-      />
+      {/*
+        Progress arc as an SVG ring. stroke-dashoffset is a plainly animatable
+        property, so the arc eases to its new length when points land rather
+        than snapping — which a conic-gradient cannot do without registering a
+        custom property, and that proved unreliable to drive from React.
+      */}
+      <svg
+        viewBox="0 0 74 74"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+        aria-hidden="true"
+      >
+        <circle cx="37" cy="37" r={RING_R} fill="none" stroke="var(--chip)" strokeWidth={RING_W} />
+        {goal && (
+          <circle
+            cx="37"
+            cy="37"
+            r={RING_R}
+            fill="none"
+            stroke={accent}
+            strokeWidth={RING_W}
+            strokeLinecap="round"
+            strokeDasharray={RING_C}
+            strokeDashoffset={RING_C * (1 - pct / 100)}
+            transform="rotate(-90 37 37)"
+            style={{ transition: `stroke-dashoffset .9s ${EASE}, stroke .4s ease` }}
+          />
+        )}
+      </svg>
 
       {reached && (
         <span style={{ position: 'absolute', inset: -12, pointerEvents: 'none' }}>
