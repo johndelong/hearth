@@ -9,7 +9,7 @@ import {
 } from '@dashboard/shared';
 import { useState } from 'react';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
-import { TapButton } from './ui';
+import { Button, TapButton } from './ui';
 import { col } from '../theme';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -122,23 +122,15 @@ export function PersonEditor({
       <Field label="Role">
         <div style={{ display: 'flex', gap: 10 }}>
           {ROLES.map((r) => (
-            <TapButton
+            <Button
               key={r}
+              size="lg"
+              selected={role === r}
               onClick={() => setRole(r)}
-              style={{
-                flex: 1,
-                minHeight: 52,
-                borderRadius: 999,
-                border: role === r ? '1px solid transparent' : '1px solid var(--line)',
-                background: role === r ? 'var(--ink)' : 'transparent',
-                color: role === r ? 'var(--card)' : 'var(--ink2)',
-                fontSize: 16.5,
-                fontWeight: 800,
-                textTransform: 'capitalize',
-              }}
+              style={{ flex: 1, fontSize: 16.5, textTransform: 'capitalize' }}
             >
               {r}
-            </TapButton>
+            </Button>
           ))}
         </div>
       </Field>
@@ -218,22 +210,15 @@ export function ChoreEditor({
       <Field label="Repeats">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {REPEATS.map((r) => (
-            <TapButton
+            <Button
               key={r}
+              size="lg"
+              selected={repeat === r}
               onClick={() => setRepeat(r)}
-              style={{
-                flex: '1 1 120px',
-                minHeight: 52,
-                borderRadius: 999,
-                border: repeat === r ? '1px solid transparent' : '1px solid var(--line)',
-                background: repeat === r ? 'var(--ink)' : 'transparent',
-                color: repeat === r ? 'var(--card)' : 'var(--ink2)',
-                fontSize: 16,
-                fontWeight: 800,
-              }}
+              style={{ flex: '1 1 120px', fontSize: 16 }}
             >
               {r}
-            </TapButton>
+            </Button>
           ))}
         </div>
       </Field>

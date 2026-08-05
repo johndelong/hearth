@@ -1,6 +1,6 @@
 import type { Extra, Person, Reward } from '@dashboard/shared';
 import { GhostButton, Modal } from './Modal';
-import { TapButton } from './ui';
+import { Button, TapButton } from './ui';
 import { deep, soft } from '../theme';
 
 /** Kid-facing list of extra jobs they can pick up for points. */
@@ -108,38 +108,27 @@ export function RewardPicker({
               </span>
             </span>
 
-            <TapButton
+            <Button
+              size="sm"
               onClick={() => onSetGoal(reward)}
-              style={{
-                flex: 'none',
-                minHeight: 46,
-                padding: '10px 18px',
-                borderRadius: 999,
-                border: '1px solid var(--line)',
-                color: 'var(--ink2)',
-                fontSize: 15,
-                fontWeight: 800,
-              }}
+              style={{ flex: 'none', fontSize: 15 }}
             >
               {isGoal ? 'Goal' : 'Set goal'}
-            </TapButton>
+            </Button>
 
-            <TapButton
+            <Button
+              size="sm"
+              variant={affordable ? 'primary' : 'quiet'}
               onClick={() => onRedeem(reward)}
               disabled={!affordable}
               style={{
                 flex: 'none',
-                minHeight: 46,
-                padding: '10px 20px',
-                borderRadius: 999,
-                background: affordable ? 'var(--ink)' : 'var(--chip)',
-                color: affordable ? 'var(--card)' : 'var(--ink2)',
                 fontSize: 15,
-                fontWeight: 800,
+                background: affordable ? 'var(--ink)' : 'var(--chip)',
               }}
             >
               Redeem
-            </TapButton>
+            </Button>
           </div>
         );
       })}

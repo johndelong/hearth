@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect } from 'react';
-import { CARD, EASE } from '../theme';
+import { EASE } from '../theme';
+import { Button } from './ui';
 
 export function Modal({
   title,
@@ -114,6 +115,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
+/** Modal footer actions — thin aliases so intent reads at the call site. */
 export function PrimaryButton({
   children,
   onClick,
@@ -124,25 +126,9 @@ export function PrimaryButton({
   disabled?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        minHeight: 52,
-        padding: '13px 28px',
-        borderRadius: 999,
-        border: 'none',
-        background: 'var(--ink)',
-        color: 'var(--card)',
-        fontSize: 17,
-        fontWeight: 800,
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
-      }}
-    >
+    <Button variant="primary" size="lg" onClick={onClick} disabled={disabled}>
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -156,25 +142,14 @@ export function GhostButton({
   danger?: boolean;
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      size="lg"
       onClick={onClick}
-      style={{
-        minHeight: 52,
-        padding: '13px 24px',
-        borderRadius: 999,
-        border: '1px solid var(--line)',
-        background: 'transparent',
-        color: danger ? 'oklch(0.62 0.19 25)' : 'var(--ink2)',
-        fontSize: 16.5,
-        fontWeight: 800,
-        cursor: 'pointer',
-        marginRight: danger ? 'auto' : undefined,
-      }}
+      danger={danger}
+      // A destructive action sits apart from confirm/cancel.
+      style={danger ? { marginRight: 'auto' } : undefined}
     >
       {children}
-    </button>
+    </Button>
   );
 }
-
-export { CARD };

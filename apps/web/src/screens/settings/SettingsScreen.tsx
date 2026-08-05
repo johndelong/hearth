@@ -6,7 +6,7 @@ import type {
 } from '@dashboard/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { type Board, api } from '../../api';
-import { Avatar, Icon, TapButton } from '../../components/ui';
+import { Avatar, Button, Icon, Switch, TapButton } from '../../components/ui';
 import { EASE, type IconName, col, deep, soft } from '../../theme';
 import { ChipRow, ItemRow, Panel, ToggleRow, rowStyle } from './controls';
 
@@ -254,16 +254,16 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
                     : 'Signed in'}
               </div>
             </div>
-            <TapButton
+            <Button
               onClick={async () => {
                 await api.disconnectAccount(account.id);
                 say(`${account.email} disconnected`, 25);
                 await load();
               }}
-              style={disconnectStyle}
+              style={{ flex: 'none' }}
             >
               Disconnect
-            </TapButton>
+            </Button>
           </div>
         ))}
         {accounts.length === 0 && (
@@ -272,12 +272,10 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
           </div>
         )}
         {accounts.length > 0 && (
-          <TapButton onClick={() => void sync()} style={{ ...disconnectStyle, alignSelf: 'flex-start' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="sync" size={17} />
-              {syncing ? 'Syncing…' : 'Sync now'}
-            </span>
-          </TapButton>
+          <Button onClick={() => void sync()} style={{ alignSelf: 'flex-start' }}>
+            <Icon name="sync" size={17} />
+            {syncing ? 'Syncing…' : 'Sync now'}
+          </Button>
         )}
       </Panel>
 
@@ -313,7 +311,8 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
               ))}
             </select>
 
-            <ToggleRowInline
+            <Switch
+              night={night}
               on={cal.enabled}
               onChange={async (enabled) => {
                 setCalendars((cs) => cs.map((c) => (c.id === cal.id ? { ...c, enabled } : c)));
@@ -343,11 +342,13 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
           onChange={(dayHours) => void patchSettings({ dayHours })}
         />
         <ToggleRow
+          night={night}
           label="Show the all-day row"
           on={settings.showAllDay}
           onChange={(showAllDay) => void patchSettings({ showAllDay })}
         />
         <ToggleRow
+          night={night}
           label="Show family birthdays"
           sub="An all-day event on everyone's big day"
           on={settings.birthdaysOnCal}
@@ -355,43 +356,6 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
         />
       </Panel>
     </>
-  );
-}
-
-function ToggleRowInline({ on, onChange }: { on: boolean; onChange: (next: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={() => onChange(!on)}
-      style={{
-        flex: 'none',
-        position: 'relative',
-        width: 66,
-        height: 38,
-        borderRadius: 999,
-        border: on ? '1px solid transparent' : '1px solid var(--line)',
-        padding: 0,
-        cursor: 'pointer',
-        background: on ? 'oklch(0.68 0.14 148)' : 'var(--chip)',
-        transition: `background .28s ${EASE}`,
-      }}
-    >
-      <span
-        style={{
-          position: 'absolute',
-          top: 4,
-          left: on ? 32 : 4,
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
-          background: '#fff',
-          boxShadow: '0 2px 5px rgba(20,24,40,.3)',
-          transition: `left .28s ${EASE}`,
-        }}
-      />
-    </button>
   );
 }
 
@@ -440,7 +404,8 @@ function ChoresSection({
                   {board.points.find((pt) => pt.personId === p.id)?.points ?? 0} pts
                 </div>
               </div>
-              <ToggleRowInline
+              <Switch
+                night={night}
                 on={p.onChores}
                 onChange={async (onChores) => {
                   await api.updatePerson(p.id, { onChores });
@@ -459,12 +424,14 @@ function ChoresSection({
           onChange={(choreReset) => void patchSettings({ choreReset })}
         />
         <ToggleRow
+          night={night}
           label="Kids can claim extra jobs"
           sub="Extra jobs show in the kid's own list"
           on={settings.claimExtras}
           onChange={(claimExtras) => void patchSettings({ claimExtras })}
         />
         <ToggleRow
+          night={night}
           label="Celebrate a cleared board"
           sub="Confetti and a cheer when someone finishes"
           on={settings.choreConfetti}
@@ -513,7 +480,7 @@ function ChoresSection({
 
 // ---------- display ----------
 
-function DisplaySection({ settings, say, onSettingsChange }: Props) {
+function DisplaySection({ settings, night, say, onSettingsChange }: Props) {
   const patchSettings = async (patch: Partial<Settings>) => {
     onSettingsChange({ ...settings, ...patch });
     try {
@@ -544,6 +511,7 @@ function DisplaySection({ settings, say, onSettingsChange }: Props) {
         onChange={(navModel) => void patchSettings({ navModel })}
       />
       <ToggleRow
+        night={night}
         label="Playful copy"
         sub="Warmer greetings and cheers"
         on={settings.playful}
@@ -597,58 +565,38 @@ function SecuritySection({ settings, say, onSettingsChange, onLock }: Props) {
           onChange={(e) => setConfirm(e.target.value.replace(/\D/g, '').slice(0, 8))}
           style={inputStyle}
         />
-        <TapButton
+        <Button
+          variant="primary"
+          size="lg"
           onClick={() => void save()}
           disabled={pin.length < 4}
-          style={{
-            minHeight: 52,
-            padding: '13px 28px',
-            borderRadius: 999,
-            background: 'var(--ink)',
-            color: 'var(--card)',
-            fontSize: 17,
-            fontWeight: 800,
-            alignSelf: 'flex-start',
-          }}
+          style={{ alignSelf: 'flex-start' }}
         >
           Save PIN
-        </TapButton>
+        </Button>
       </Panel>
 
       {settings.pinSet && (
         <Panel title="This screen" sub="Lock Settings again when you walk away" delay={60}>
-          <TapButton onClick={onLock} style={{ ...disconnectStyle, alignSelf: 'flex-start' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="lock" size={17} /> Lock now
-            </span>
-          </TapButton>
-          <TapButton
+          <Button onClick={onLock} style={{ alignSelf: 'flex-start' }}>
+            <Icon name="lock" size={17} /> Lock now
+          </Button>
+          <Button
+            danger
             onClick={async () => {
               await api.clearPin();
               onSettingsChange({ ...settings, pinSet: false });
               say('Parent PIN removed', 25);
             }}
-            style={{ ...disconnectStyle, alignSelf: 'flex-start', color: 'oklch(0.62 0.19 25)' }}
+            style={{ alignSelf: 'flex-start' }}
           >
             Remove the PIN
-          </TapButton>
+          </Button>
         </Panel>
       )}
     </>
   );
 }
-
-const disconnectStyle: React.CSSProperties = {
-  flex: 'none',
-  minHeight: 50,
-  padding: '13px 24px',
-  borderRadius: 999,
-  border: '1px solid var(--line)',
-  background: 'transparent',
-  color: 'var(--ink2)',
-  fontSize: 16.5,
-  fontWeight: 800,
-};
 
 const selectStyle: React.CSSProperties = {
   flex: 'none',

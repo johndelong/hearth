@@ -1,7 +1,7 @@
 import type { CalendarEvent, Person, Settings } from '@dashboard/shared';
 import { useEffect, useRef } from 'react';
-import { Avatar, TapButton } from '../../components/ui';
-import { CARD, EASE, col, deep, soft } from '../../theme';
+import { Avatar, Card, TapButton } from '../../components/ui';
+import { EASE, col, deep, soft } from '../../theme';
 import { dayHourRange, eventsOn, fmtTime, sameDay } from './useEvents';
 
 interface Props {
@@ -80,10 +80,7 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
         </div>
       )}
 
-      <div
-        ref={scroller}
-        style={{ ...cardBox, flex: 1, overflowY: 'auto', padding: '10px 20px 28px' }}
-      >
+      <Card ref={scroller} style={{ flex: 1, overflowY: 'auto' }} padding="10px 20px 28px">
         {hours.map((h, hi) => {
           const rowEvents = timed.filter((e) => new Date(e.start).getHours() === h);
           const isNow = isToday && now.getHours() === h;
@@ -177,15 +174,7 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
             Nothing scheduled. Enjoy the quiet.
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
-
-const cardBox = {
-  background: 'var(--card)',
-  borderRadius: 26,
-  boxShadow: '0 1px 2px rgba(20,24,40,.05),0 16px 34px -22px rgba(20,24,40,.26)',
-} as const;
-
-export { CARD };

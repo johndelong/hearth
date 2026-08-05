@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
-import { EASE, ICONS, type IconName, col } from '../theme';
+import { forwardRef, useEffect, useRef, useState } from 'react';
+import { CARD, EASE, ICONS, type IconName, col } from '../theme';
 
 export function Icon({
   name,
@@ -207,5 +207,231 @@ export function Confetti({ hues, big }: { hues: number[]; big?: boolean }) {
         />
       ))}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Surfaces and controls
+ *
+ * Every rounded card, pill button, and toggle in the app comes from
+ * here. Screens compose these rather than re-declaring padding, radius,
+ * and color — so changing the look of a button is one edit, not thirty.
+ * ------------------------------------------------------------------ */
+
+/**
+ * The standard raised panel: white surface, 26px radius, soft lift.
+ * Forwards a ref because scrolling panes (the day view) need to reach the node.
+ */
+export const Card = forwardRef<
+  HTMLDivElement,
+  {
+    children: ReactNode;
+    style?: CSSProperties;
+    padding?: number | string;
+    /** Stagger for the rise-in entrance, in ms. Omit for no animation. */
+    delay?: number;
+  }
+>(function Card({ children, style, padding = 0, delay }, ref) {
+  return (
+    <div
+      ref={ref}
+      style={{
+        ...cardSurface,
+        padding,
+        ...(delay === undefined ? null : { animation: `riseIn .5s ${EASE} ${delay}ms both` }),
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+});
+
+/** Parsed from the CARD token so the two can never drift apart. */
+const cardSurface: CSSProperties = Object.fromEntries(
+  CARD.split(';').map((rule) => {
+    const [prop, ...rest] = rule.split(':');
+    const name = prop!.trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    return [name, rest.join(':').trim()];
+  }),
+) as CSSProperties;
+
+export type ButtonVariant = 'primary' | 'ghost' | 'quiet';
+export type ButtonSize = 'sm' | 'md' | 'lg';
+
+const SIZES: Record<ButtonSize, CSSProperties> = {
+  sm: { minHeight: 46, padding: '11px 22px', fontSize: 16 },
+  md: { minHeight: 50, padding: '12px 22px', fontSize: 16.5 },
+  lg: { minHeight: 52, padding: '13px 26px', fontSize: 17 },
+};
+
+/**
+ * The one pill button. `selected` flips any variant to the filled state
+ * used by the view switchers, role pickers, and chip rows.
+ */
+export function Button({
+  children,
+  onClick,
+  onHold,
+  variant = 'ghost',
+  size = 'md',
+  selected = false,
+  danger = false,
+  disabled,
+  title,
+  style,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  onHold?: () => void;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  selected?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  title?: string;
+  style?: CSSProperties;
+}) {
+  const filled = selected || variant === 'primary';
+  return (
+    <TapButton
+      onClick={onClick}
+      onHold={onHold}
+      disabled={disabled}
+      title={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        borderRadius: 999,
+        fontWeight: 800,
+        whiteSpace: 'nowrap',
+        ...SIZES[size],
+        background: filled ? 'var(--ink)' : 'transparent',
+        color: danger ? 'oklch(0.62 0.19 25)' : filled ? 'var(--card)' : 'var(--ink2)',
+        border: variant === 'quiet' || filled ? '1px solid transparent' : '1px solid var(--line)',
+        transition: `all .25s ${EASE}`,
+        ...style,
+      }}
+    >
+      {children}
+    </TapButton>
+  );
+}
+
+/** Square icon-only button, sized to match the pill heights. */
+export function IconButton({
+  name,
+  onClick,
+  size = 'sm',
+  title,
+  style,
+}: {
+  name: IconName;
+  onClick?: () => void;
+  size?: ButtonSize;
+  title?: string;
+  style?: CSSProperties;
+}) {
+  const box = SIZES[size].minHeight as number;
+  return (
+    <TapButton
+      onClick={onClick}
+      title={title}
+      style={{
+        display: 'grid',
+        placeItems: 'center',
+        width: box,
+        height: box,
+        padding: 0,
+        borderRadius: 999,
+        border: '1px solid var(--line)',
+        color: 'var(--ink2)',
+        ...style,
+      }}
+    >
+      <Icon name={name} size={22} />
+    </TapButton>
+  );
+}
+
+/** The on/off toggle used throughout Settings. */
+export function Switch({
+  on,
+  onChange,
+  night,
+  label,
+}: {
+  on: boolean;
+  onChange: (next: boolean) => void;
+  night?: boolean;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={() => onChange(!on)}
+      style={{
+        flex: 'none',
+        position: 'relative',
+        width: 66,
+        height: 38,
+        borderRadius: 999,
+        border: on ? '1px solid transparent' : '1px solid var(--line)',
+        padding: 0,
+        cursor: 'pointer',
+        background: on ? col(148, night ?? false) : 'var(--chip)',
+        transition: `background .28s ${EASE}`,
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          top: 4,
+          left: on ? 32 : 4,
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          background: night ? '#0f1116' : '#fff',
+          boxShadow: '0 2px 5px rgba(20,24,40,.3)',
+          transition: `left .28s ${EASE}`,
+        }}
+      />
+    </button>
+  );
+}
+
+/** Small rounded label — point values, counts, status. */
+export function Tag({
+  children,
+  background,
+  color,
+  style,
+}: {
+  children: ReactNode;
+  background?: string;
+  color?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <span
+      style={{
+        flex: 'none',
+        padding: '6px 13px',
+        borderRadius: 999,
+        fontFamily: 'Outfit',
+        fontWeight: 600,
+        fontSize: 16,
+        background: background ?? 'var(--chip)',
+        color: color ?? 'var(--ink2)',
+        ...style,
+      }}
+    >
+      {children}
+    </span>
   );
 }

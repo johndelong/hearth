@@ -1,7 +1,7 @@
 import type { Chore, Claim, Person, Reward, Settings } from '@dashboard/shared';
 import { useMemo, useState } from 'react';
 import { type Board, api } from '../../api';
-import { Avatar, Icon, TapButton } from '../../components/ui';
+import { Avatar, Button, Card, Icon, Tag, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
 
 interface Props {
@@ -118,18 +118,11 @@ export function ChoresScreen({
         const isKid = person.role === 'kid';
 
         return (
-          <section
+          <Card
             key={person.id}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 14,
-              padding: '20px 20px 18px',
-              borderRadius: 26,
-              background: 'var(--card)',
-              boxShadow: '0 1px 2px rgba(20,24,40,.05),0 16px 34px -22px rgba(20,24,40,.26)',
-              animation: `riseIn .5s ${EASE} ${bi * 60}ms both`,
-            }}
+            padding="20px 20px 18px"
+            delay={bi * 60}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
           >
             <header style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
               <Avatar name={person.name} hue={person.hue} night={night} size={46} avatarUrl={person.avatarUrl} />
@@ -141,18 +134,13 @@ export function ChoresScreen({
                 </div>
               </div>
               {left === 0 && rows.length > 0 && (
-                <span
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: 999,
-                    background: soft(148, night),
-                    color: deep(148, night),
-                    fontSize: 13.5,
-                    fontWeight: 800,
-                  }}
+                <Tag
+                  background={soft(148, night)}
+                  color={deep(148, night)}
+                  style={{ padding: '5px 12px', fontFamily: 'Nunito', fontSize: 13.5, fontWeight: 800 }}
                 >
                   Done
-                </span>
+                </Tag>
               )}
             </header>
 
@@ -227,17 +215,17 @@ export function ChoresScreen({
                 {goal && <GoalBar goal={goal} points={points} hue={person.hue} night={night} />}
                 <div style={{ display: 'flex', gap: 9, marginTop: 2 }}>
                   {settings.claimExtras && (
-                    <TapButton onClick={() => onPickExtra(person)} style={pillStyle}>
+                    <Button onClick={() => onPickExtra(person)} style={{ flex: 1, fontSize: 15.5 }}>
                       <Icon name="plus" size={17} /> Extra job
-                    </TapButton>
+                    </Button>
                   )}
-                  <TapButton onClick={() => onPickReward(person)} style={pillStyle}>
+                  <Button onClick={() => onPickReward(person)} style={{ flex: 1, fontSize: 15.5 }}>
                     <Icon name="gift" size={17} /> Rewards
-                  </TapButton>
+                  </Button>
                 </div>
               </>
             )}
-          </section>
+          </Card>
         );
       })}
     </div>
@@ -270,20 +258,5 @@ function GoalBar({ goal, points, hue, night }: { goal: Reward; points: number; h
     </div>
   );
 }
-
-const pillStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-  flex: 1,
-  minHeight: 50,
-  padding: '12px 16px',
-  borderRadius: 999,
-  border: '1px solid var(--line)',
-  color: 'var(--ink2)',
-  fontSize: 15.5,
-  fontWeight: 800,
-} as const;
 
 export type { Claim };

@@ -6,7 +6,7 @@ import { IdleFrame } from './components/IdleFrame';
 import { PinPad } from './components/PinPad';
 import { ChoreEditor, ExtraEditor, PersonEditor, RewardEditor } from './components/editors';
 import { ExtraPicker, RewardPicker } from './components/pickers';
-import { Confetti, Icon, TapButton, Toast } from './components/ui';
+import { Button, Confetti, Icon, IconButton, TapButton, Toast } from './components/ui';
 import { CalendarScreen } from './screens/calendar/CalendarScreen';
 import type { CalView } from './screens/calendar/useEvents';
 import { useEvents } from './screens/calendar/useEvents';
@@ -162,41 +162,42 @@ export default function App() {
           {tab === 'today' && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <TapButton onClick={() => setAnchor((a) => shift(a, calView, -1))} style={iconBtn}>
-                  <Icon name="chevronLeft" size={22} />
-                </TapButton>
-                <TapButton onClick={() => setAnchor(new Date())} style={{ ...iconBtn, width: 'auto', padding: '0 16px', fontSize: 15.5, fontWeight: 800 }}>
+                <IconButton name="chevronLeft" title="Previous" onClick={() => setAnchor((a) => shift(a, calView, -1))} />
+                <Button size="sm" onClick={() => setAnchor(new Date())} style={{ fontSize: 15.5 }}>
                   Today
-                </TapButton>
-                <TapButton onClick={() => setAnchor((a) => shift(a, calView, 1))} style={iconBtn}>
-                  <Icon name="chevronRight" size={22} />
-                </TapButton>
+                </Button>
+                <IconButton name="chevronRight" title="Next" onClick={() => setAnchor((a) => shift(a, calView, 1))} />
               </div>
 
               <div style={{ display: 'flex', gap: 4, padding: 5, borderRadius: 999, background: 'var(--chip)' }}>
                 {(['day', 'week', 'month'] as const).map((v) => (
-                  <TapButton
+                  <Button
                     key={v}
+                    variant="quiet"
                     onClick={() => setCalView(v)}
                     style={{
+                      minHeight: 0,
                       padding: '9px 20px',
-                      borderRadius: 999,
+                      fontSize: 15.5,
+                      textTransform: 'capitalize',
+                      // Selected reads as a raised chip, not a filled pill.
                       background: calView === v ? 'var(--card)' : 'transparent',
                       color: calView === v ? 'var(--ink)' : 'var(--ink2)',
-                      fontSize: 15.5,
-                      fontWeight: 800,
                       boxShadow: calView === v ? '0 2px 6px rgba(20,24,40,.14)' : 'none',
-                      textTransform: 'capitalize',
                     }}
                   >
                     {v}
-                  </TapButton>
+                  </Button>
                 ))}
               </div>
 
-              <TapButton onClick={() => setEditor({ kind: 'event', event: null })} style={addBtn}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setEditor({ kind: 'event', event: null })}
+              >
                 <Icon name="plus" size={18} /> Add
-              </TapButton>
+              </Button>
             </>
           )}
         </header>
@@ -662,25 +663,3 @@ function headerCopy({
   return { title: `${MONTHS_LONG[anchor.getMonth()]} ${anchor.getFullYear()}`, sub: '' };
 }
 
-const iconBtn: React.CSSProperties = {
-  display: 'grid',
-  placeItems: 'center',
-  width: 46,
-  height: 46,
-  borderRadius: 999,
-  border: '1px solid var(--line)',
-  color: 'var(--ink2)',
-};
-
-const addBtn: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  minHeight: 46,
-  padding: '11px 22px',
-  borderRadius: 999,
-  background: 'var(--ink)',
-  color: 'var(--card)',
-  fontSize: 16,
-  fontWeight: 800,
-};

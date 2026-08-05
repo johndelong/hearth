@@ -1,5 +1,5 @@
 import type { CalendarEvent, Person, Settings } from '@dashboard/shared';
-import { TapButton } from '../../components/ui';
+import { Card, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
 import { eventsOn, fmtTime, rangeFor, sameDay } from './useEvents';
 
@@ -34,19 +34,19 @@ export function WeekView({ anchor, now, events, byPerson, night, settings, onEdi
         const today = sameDay(day, now);
         const dayEvents = eventsOn(events, day);
         return (
-          <div
+          <Card
             key={day.toISOString()}
+            delay={di * 40}
             style={{
               display: 'flex',
               flexDirection: 'column',
               minHeight: 0,
               borderRadius: 24,
-              background: 'var(--card)',
+              // Today lifts slightly further off the page.
               boxShadow: today
                 ? '0 1px 2px rgba(20,24,40,.05),0 20px 40px -24px rgba(20,24,40,.4)'
-                : '0 1px 2px rgba(20,24,40,.05),0 16px 34px -22px rgba(20,24,40,.26)',
+                : undefined,
               outline: today ? '2px solid var(--ink)' : 'none',
-              animation: `riseIn .45s ${EASE} ${di * 40}ms both`,
             }}
           >
             <div style={{ padding: '16px 16px 10px', flex: 'none' }}>
@@ -103,7 +103,7 @@ export function WeekView({ anchor, now, events, byPerson, night, settings, onEdi
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         );
       })}
     </div>
