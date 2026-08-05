@@ -142,8 +142,13 @@ The database lives in the `hearth-data` volume, so it survives every redeploy.
 From your laptop:
 
 ```bash
-git tag v0.2.0 && git push --tags
+gh release create v0.2.0 --generate-notes
 ```
+
+Use `gh release create` rather than a bare `git tag`. Both give `deploy.sh` the
+tag it needs, but the dashboard's update notice reads GitHub's *published
+releases* — a tag with no release attached is invisible to it, so the panel would
+never mention the new version.
 
 Then on the mini:
 
