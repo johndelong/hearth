@@ -1,8 +1,10 @@
 node_modules/
 dist/
-data/*.db
-data/*.db-shm
-data/*.db-wal
+# SQLite lives wherever DATABASE_PATH points — apps/api/data when the dev
+# server runs from its own workspace — so match the files, not one directory.
+*.db
+*.db-shm
+*.db-wal
 .env
 .env.local
 *.log
