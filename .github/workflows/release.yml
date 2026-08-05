@@ -35,11 +35,29 @@ jobs:
         with:
           # Full history so the generated notes can diff against the last tag.
           fetch-depth: 0
+      # GitHub's --generate-notes builds its list from merged pull requests, so
+      # on a repo committed to directly it produces nothing but a compare link.
+      # Build the notes from the commit subjects instead.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          previous=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          {
+            if [ -n "$previous" ]; then
+              echo "## Changes since ${previous}"
+              echo
+              git log --no-merges --format='- %s' "${previous}..${GITHUB_REF_NAME}"
+              echo
+              echo "**Full Changelog**: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${previous}...${GITHUB_REF_NAME}"
+            else
+              echo "First release."
+              echo
+              git log --no-merges --format='- %s' "${GITHUB_REF_NAME}"
+            fi
+          } > notes.md
+
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
-            --generate-notes \
+            --notes-file notes.md \
             --verify-tag
