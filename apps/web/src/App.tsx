@@ -4,6 +4,7 @@ import { ApiError, api } from './api';
 import { EventEditor } from './components/EventEditor';
 import { IdleFrame } from './components/IdleFrame';
 import { PinPad } from './components/PinPad';
+import { UpdateToast, useVersionWatch } from './components/UpdateNotice';
 import { ChoreEditor, ExtraEditor, PersonEditor, RewardEditor } from './components/editors';
 import { ExtraPicker } from './components/pickers';
 import { Button, Confetti, Icon, IconButton, TapButton, Toast } from './components/ui';
@@ -33,6 +34,8 @@ export default function App() {
   const now = useClock();
   const [idle, poke] = useIdle(settings.idleMin);
   const [toast, say] = useToast();
+  // Reloads itself when idle; prompts when someone is using the panel.
+  const version = useVersionWatch(idle);
 
   const [tab, setTab] = useState<Tab>('today');
   const [calView, setCalView] = useState<CalView>('day');
@@ -289,7 +292,11 @@ export default function App() {
       )}
 
       {confetti && <Confetti hues={confetti} big />}
-      <Toast toast={toast} />
+      {version.stale && !idle ? (
+        <UpdateToast version={version.current} onReload={() => window.location.reload()} />
+      ) : (
+        <Toast toast={toast} />
+      )}
 
       {pinPrompt && (
         <PinPad

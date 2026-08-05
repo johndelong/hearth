@@ -5,7 +5,7 @@ import type {
   SubscribedCalendar,
 } from '@dashboard/shared';
 import { useCallback, useEffect, useState } from 'react';
-import { type Board, api } from '../../api';
+import { type Board, type VersionInfo, api } from '../../api';
 import { Avatar, Button, Icon, Switch, TapButton } from '../../components/ui';
 import { EASE, type IconName, col, deep, soft } from '../../theme';
 import { ChipRow, ItemRow, Panel, ToggleRow, rowStyle } from './controls';
@@ -480,6 +480,78 @@ function ChoresSection({
 
 // ---------- display ----------
 
+/** What this panel is running, and whether a newer release is waiting. */
+function AboutPanel({ say }: { say: (text: string, hue?: number) => void }) {
+  const [info, setInfo] = useState<VersionInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    void api.version().then(setInfo).catch(() => undefined);
+  }, []);
+
+  if (!info) return null;
+  const behind = info.available && info.available !== info.current;
+
+  return (
+    <Panel title="This dashboard" sub="Version and updates" delay={60}>
+      <div style={rowStyle}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>Running {info.current}</div>
+          <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
+            {!info.checkEnabled
+              ? 'Release checking is off — set UPDATE_CHECK_TOKEN to enable it'
+              : info.error
+                ? `Last check failed: ${info.error}`
+                : behind
+                  ? `${info.available} is available — deploy it on the Mac mini`
+                  : 'Up to date'}
+          </div>
+        </div>
+        {info.checkEnabled && (
+          <Button
+            onClick={async () => {
+              setChecking(true);
+              try {
+                setInfo(await api.checkVersion());
+                say('Checked for updates', 148);
+              } catch (err) {
+                say(err instanceof Error ? err.message : 'Check failed', 25);
+              } finally {
+                setChecking(false);
+              }
+            }}
+            style={{ flex: 'none' }}
+          >
+            {checking ? 'Checking…' : 'Check now'}
+          </Button>
+        )}
+      </div>
+
+      {behind && info.releaseUrl && (
+        <a
+          href={info.releaseUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '12px 16px',
+            borderRadius: 16,
+            border: '1px solid var(--line)',
+            fontSize: 15.5,
+            fontWeight: 800,
+            color: 'var(--ink2)',
+            textDecoration: 'none',
+          }}
+        >
+          <Icon name="list" size={17} /> Release notes for {info.available}
+        </a>
+      )}
+    </Panel>
+  );
+}
+
 function DisplaySection({ settings, night, say, onSettingsChange }: Props) {
   const patchSettings = async (patch: Partial<Settings>) => {
     onSettingsChange({ ...settings, ...patch });
@@ -491,7 +563,8 @@ function DisplaySection({ settings, night, say, onSettingsChange }: Props) {
   };
 
   return (
-    <Panel title="Screen">
+    <>
+      <Panel title="Screen">
       <ChipRow
         label="Theme"
         options={['Auto', 'Day', 'Night'] as const}
@@ -517,7 +590,9 @@ function DisplaySection({ settings, night, say, onSettingsChange }: Props) {
         on={settings.playful}
         onChange={(playful) => void patchSettings({ playful })}
       />
-    </Panel>
+      </Panel>
+      <AboutPanel say={say} />
+    </>
   );
 }
 

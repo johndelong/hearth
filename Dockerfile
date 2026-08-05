@@ -4,6 +4,10 @@
 # module, so the image needs no C toolchain and no native rebuild step.
 ARG NODE_VERSION=24-alpine
 
+# The release this image was built from, reported at /api/version so the
+# dashboard can tell a stale browser tab from a stale deployment.
+ARG APP_VERSION=dev
+
 # ---------- build ----------
 FROM node:${NODE_VERSION} AS build
 WORKDIR /app
@@ -31,7 +35,9 @@ RUN npm ci --omit=dev --ignore-scripts
 FROM node:${NODE_VERSION} AS runtime
 WORKDIR /app
 
-ENV NODE_ENV=production \
+ARG APP_VERSION=dev
+ENV APP_VERSION=${APP_VERSION} \
+    NODE_ENV=production \
     PORT=8080 \
     HOST=0.0.0.0 \
     DATABASE_PATH=/data/dashboard.db \

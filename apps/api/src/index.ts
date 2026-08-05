@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
+import { requireParent } from './auth.js';
 import './db/index.js';
 import { seedIfEmpty } from './db/seed.js';
 import { startSyncLoop } from './google/sync.js';
@@ -11,6 +12,7 @@ import { calendarRoutes } from './routes/calendar.js';
 import { choreRoutes } from './routes/chores.js';
 import { peopleRoutes } from './routes/people.js';
 import { settingsRoutes } from './routes/settings.js';
+import { CURRENT_VERSION, checkNow, startVersionChecks, versionInfo } from './version.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 8080);
@@ -31,7 +33,16 @@ await app.register(choreRoutes);
 await app.register(settingsRoutes);
 await app.register(calendarRoutes);
 
-app.get('/api/health', async () => ({ ok: true, time: new Date().toISOString() }));
+app.get('/api/health', async () => ({ ok: true, version: CURRENT_VERSION, time: new Date().toISOString() }));
+
+/**
+ * The dashboard polls this. A change in `current` means this tab is running
+ * older code than the server and should reload; `available` means a newer
+ * release exists and the mini has not been redeployed yet.
+ */
+app.get('/api/version', async () => versionInfo());
+
+app.post('/api/version/check', { preHandler: requireParent, handler: async () => checkNow() });
 
 // In production the API also serves the built web client from the same origin,
 // which keeps the container to a single process and avoids CORS entirely.
@@ -45,6 +56,7 @@ if (existsSync(webRoot)) {
 }
 
 startSyncLoop();
+startVersionChecks();
 
 try {
   await app.listen({ port: PORT, host: HOST });

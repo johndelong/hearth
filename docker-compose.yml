@@ -1,6 +1,10 @@
 services:
   hearth:
-    build: .
+    build:
+      context: .
+      args:
+        # deploy.sh sets this from `git describe`; defaults to dev otherwise.
+        APP_VERSION: ${APP_VERSION:-dev}
     image: hearth:latest
     container_name: hearth
     restart: unless-stopped
@@ -17,6 +21,10 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       COOKIE_SECRET: ${COOKIE_SECRET:-change-me}
+      # Optional: a read-only token lets the dashboard notice new releases.
+      # Without it the app still detects stale tabs after a deploy.
+      UPDATE_CHECK_TOKEN: ${UPDATE_CHECK_TOKEN:-}
+      UPDATE_REPO: ${UPDATE_REPO:-johndelong/hearth}
 
 volumes:
   hearth-data:

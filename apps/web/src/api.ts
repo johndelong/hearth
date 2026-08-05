@@ -62,7 +62,20 @@ export interface Board {
   redemptions: Redemption[];
 }
 
+export interface VersionInfo {
+  current: string;
+  available: string | null;
+  releaseUrl: string | null;
+  releaseNotes: string | null;
+  checkedAt: string | null;
+  error: string | null;
+  checkEnabled: boolean;
+}
+
 export const api = {
+  version: () => call<VersionInfo>('/api/version'),
+  checkVersion: () => post<VersionInfo>('/api/version/check'),
+
   people: () => call<Person[]>('/api/people'),
   createPerson: (body: Record<string, unknown>) => post<Person>('/api/people', body),
   updatePerson: (id: string, body: Record<string, unknown>) => patch<Person>(`/api/people/${id}`, body),

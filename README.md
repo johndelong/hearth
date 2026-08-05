@@ -79,9 +79,12 @@ restarts. The PIN is stored scrypt-hashed, never in plain text.
 
 ## Chore boards
 
-Each chore has a repeat rule (Daily, Weekdays, Weekends, Weekly) and a point value.
-Points are an append-only ledger rather than a running total, so unchecking a chore
-reverses exactly what it added, and a double-tap can never pay twice.
+Each chore has a repeat rule (Daily, Weekdays, Weekends, Weekly). Chores earn no
+points — they are the everyday expectation. Points come from **extra jobs**, which
+stay locked until that person's chores for the day are done.
+
+Points are an append-only ledger rather than a running total, so unchecking an
+extra job reverses exactly what it added, and a double-tap can never pay twice.
 
 Boards "reset" by filing completions under a period key — nightly, or weekly from
 Sunday or Monday per the setting. Nothing is deleted and no scheduled job runs, so a
@@ -114,13 +117,81 @@ Restart the server and it applies. Rules worth knowing:
 
 ## Deploying to the Mac mini
 
+### First time
+
+On the mini, with Docker Desktop installed and running:
+
 ```bash
-cp .env.example .env    # fill in PUBLIC_URL, Google credentials, COOKIE_SECRET
-docker compose up -d --build
+# The repo is private, so give the mini read-only access. On the mini:
+ssh-keygen -t ed25519 -C "hearth-mac-mini" -f ~/.ssh/hearth_deploy
+cat ~/.ssh/hearth_deploy.pub
+# Add that key at: github.com/johndelong/hearth → Settings → Deploy keys
+#   (leave "Allow write access" unchecked)
+
+git clone git@github.com:johndelong/hearth.git ~/hearth
+cd ~/hearth
+cp .env.example .env        # fill in PUBLIC_URL, Google credentials, COOKIE_SECRET
+./scripts/deploy.sh         # builds and starts the newest release tag
 ```
 
-The database lives in the `hearth-data` volume. `TZ` matters — chore resets and
-the calendar's day boundaries follow it.
+The database lives in the `hearth-data` volume, so it survives every redeploy.
+`TZ` matters — chore resets and the calendar's day boundaries follow it.
+
+### Cutting a release and shipping it
+
+From your laptop:
+
+```bash
+git tag v0.2.0 && git push --tags
+```
+
+Then on the mini:
+
+```bash
+cd ~/hearth && ./scripts/deploy.sh
+```
+
+That one command snapshots the database, checks out the newest tag, rebuilds,
+waits for the new container to report healthy, and **rolls back to the previous
+tag if it doesn't**. Snapshots land in `~/hearth-backups` (last 20 kept).
+
+```bash
+./scripts/deploy.sh --check     # what's running vs what's tagged; needs no Docker
+./scripts/deploy.sh v0.1.0      # deploy a specific tag, i.e. roll back on purpose
+```
+
+### What the wall panels do after a deploy
+
+Every panel polls `/api/version` once a minute and remembers the version it
+loaded against.
+
+- **Idle panels reload themselves.** A screen nobody has touched drops into frame
+  mode, notices the mismatch, and refreshes silently. The kitchen display needs no
+  attention after a deploy.
+- **Panels in use ask first.** A tablet someone is holding gets a "Hearth v0.2.0 is
+  ready · Refresh" toast rather than reloading under their finger.
+
+This matters because a wall panel can sit on the same page for weeks; without it,
+it keeps running whatever JavaScript it loaded back then.
+
+### Optional: notice new releases from the dashboard
+
+Set `UPDATE_CHECK_TOKEN` in `.env` to a GitHub
+[fine-grained token](https://github.com/settings/tokens?type=beta) scoped to just
+this repository with **Contents: Read-only**. The server then checks for new
+releases every 30 minutes, and **Settings › Display › This dashboard** shows what's
+running, what's available, and a link to the release notes.
+
+Without the token everything still works — the panel just won't know a newer
+release exists until you deploy it.
+
+The deploy itself is deliberately a command you run, not a button in the app. A
+container can't rebuild itself: the process doing the work gets killed partway
+through when its own container is replaced. (Immich works the same way — it tells
+you a release is out, you run the compose command.) Automating it would mean
+running something outside Docker on the mini — a launchd agent, or Watchtower
+against a registry — which is worth adding later if the manual step gets old.
+Nothing above changes when you do.
 
 For the tablets: open `http://mac-mini.local:8080` and add it to the home screen.
 The page is marked as a web app, so it opens without browser chrome.
@@ -141,3 +212,6 @@ matters.
 | `COOKIE_SECRET` | dev value | Signs the parent-session cookie |
 | `TRUST_PROXY` | `false` | Set `true` only behind a reverse proxy |
 | `TZ` | system | Local time for resets and day boundaries |
+| `APP_VERSION` | `dev` | Stamped in at build time; reported at `/api/version` |
+| `UPDATE_CHECK_TOKEN` | — | Read-only GitHub token; enables the new-release notice |
+| `UPDATE_REPO` | `johndelong/hearth` | Repo to check for releases |
