@@ -93,6 +93,34 @@ button {
   100% { opacity: 1; }
 }
 
+/* Confetti that stays inside a person's card, rather than the whole screen. */
+@keyframes cardConf {
+  0% { opacity: 0; transform: translateY(-18px) rotate(0); }
+  6% { opacity: 1; }
+  100% { opacity: 1; transform: translateY(660px) rotate(720deg); }
+}
+
+/* Light sweeping across a row when an extra job is completed. */
+@keyframes sheenSweep {
+  0% { transform: translateX(-130%) skewX(-16deg); opacity: 0; }
+  18% { opacity: 0.9; }
+  100% { transform: translateX(240%) skewX(-16deg); opacity: 0; }
+}
+
+/* Little bursts around a goal ring once the goal is affordable. */
+@keyframes sparkle {
+  0% { opacity: 0; transform: scale(0.2) rotate(0); }
+  35% { opacity: 1; transform: scale(1) rotate(60deg); }
+  100% { opacity: 0; transform: scale(0.35) translateY(-18px) rotate(160deg); }
+}
+
+/* The points pill reacting when points land. */
+@keyframes ptsPop {
+  0% { opacity: 0; transform: translateY(8px) scale(0.8); }
+  45% { opacity: 1; transform: translateY(-4px) scale(1.12); }
+  100% { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

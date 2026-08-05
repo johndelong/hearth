@@ -5,12 +5,13 @@ import { EventEditor } from './components/EventEditor';
 import { IdleFrame } from './components/IdleFrame';
 import { PinPad } from './components/PinPad';
 import { ChoreEditor, ExtraEditor, PersonEditor, RewardEditor } from './components/editors';
-import { ExtraPicker, RewardPicker } from './components/pickers';
+import { ExtraPicker } from './components/pickers';
 import { Button, Confetti, Icon, IconButton, TapButton, Toast } from './components/ui';
 import { CalendarScreen } from './screens/calendar/CalendarScreen';
 import type { CalView } from './screens/calendar/useEvents';
 import { useEvents } from './screens/calendar/useEvents';
 import { ChoresScreen } from './screens/chores/ChoresScreen';
+import { PrizeCatalog } from './screens/chores/PrizeCatalog';
 import { SettingsScreen, type SettingsSection } from './screens/settings/SettingsScreen';
 import { type Tab, useAppData, useClock, useIdle, useNight, useToast } from './state';
 import { EASE, type IconName, MONTHS_LONG, rootVars } from './theme';
@@ -22,7 +23,7 @@ type Editor =
   | { kind: 'reward'; reward: Reward | { id?: string; label: string; cost: number } | null }
   | { kind: 'event'; event: CalendarEvent | null }
   | { kind: 'pickExtra'; person: Person }
-  | { kind: 'pickReward'; person: Person }
+  | { kind: 'catalog'; person: Person }
   | null;
 
 export default function App() {
@@ -224,10 +225,9 @@ export default function App() {
               night={night}
               say={say}
               onBoardChange={data.setBoard}
-              onCelebrate={celebrate}
               onEditChore={(chore) => setEditor({ kind: 'chore', chore })}
               onPickExtra={(person) => setEditor({ kind: 'pickExtra', person })}
-              onPickReward={(person) => setEditor({ kind: 'pickReward', person })}
+              onOpenCatalog={(person) => setEditor({ kind: 'catalog', person })}
             />
           )}
 
@@ -470,35 +470,33 @@ export default function App() {
           />
         );
 
-      case 'pickReward': {
-        const points = board.points.find((p) => p.personId === editor.person.id)?.points ?? 0;
+      case 'catalog':
         return (
-          <RewardPicker
-            person={editor.person}
+          <PrizeCatalog
+            people={people}
+            initialPersonId={editor.person.id}
             rewards={board.rewards}
-            points={points}
+            redemptions={board.redemptions}
+            pointsFor={(id) => board.points.find((p) => p.personId === id)?.points ?? 0}
             night={night}
             onClose={close}
-            onRedeem={(reward) =>
+            onRedeem={(person, reward) =>
               void guard(async () => {
-                await api.redeem(editor.person.id, reward.id);
+                await api.redeem(person.id, reward.id);
                 await data.reloadBoard();
-                say(`${editor.person.name} redeemed ${reward.label}!`, editor.person.hue);
-                celebrate([editor.person.hue]);
-                close();
+                say(`${person.name} redeemed ${reward.label}!`, person.hue);
+                celebrate([person.hue, 305, 62]);
               })
             }
-            onSetGoal={(reward) =>
+            onSetGoal={(person, reward) =>
               void guard(async () => {
-                await api.updatePerson(editor.person.id, { goalRewardId: reward.id });
+                await api.updatePerson(person.id, { goalRewardId: reward.id });
                 await data.reloadPeople();
-                say(`Saving toward ${reward.label}`, editor.person.hue);
-                close();
+                say(`${person.name} is saving for ${reward.label}`, person.hue);
               })
             }
           />
         );
-      }
     }
   }
 }

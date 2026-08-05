@@ -78,6 +78,10 @@ export interface Reward {
   label: string;
   cost: number;
   active: boolean;
+  /** Photo for the catalog card. Takes precedence over `icon`. */
+  imageUrl: string | null;
+  /** Emoji shown when there is no photo. Falls back to the gift glyph. */
+  icon: string | null;
 }
 
 export type RewardInput = Partial<Omit<Reward, 'id'>> & { label: string };

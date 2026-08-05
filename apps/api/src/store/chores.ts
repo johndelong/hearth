@@ -255,20 +255,31 @@ export function deleteClaim(claimId: string): void {
 
 export function listRewards(): Reward[] {
   return db
-    .prepare<[], { id: string; label: string; cost: number; active: number }>(
+    .prepare<[], { id: string; label: string; cost: number; active: number; image_url: string | null; icon: string | null }>(
       'SELECT * FROM rewards WHERE active = 1 ORDER BY cost',
     )
     .all()
-    .map((r) => ({ id: r.id, label: r.label, cost: r.cost, active: toBool(r.active) }));
+    .map((r) => ({
+      id: r.id,
+      label: r.label,
+      cost: r.cost,
+      active: toBool(r.active),
+      imageUrl: r.image_url,
+      icon: r.icon,
+    }));
 }
 
 export function createReward(input: RewardInput): Reward {
   const rewardId = id('rw');
-  db.prepare('INSERT INTO rewards (id, label, cost, active) VALUES (?, ?, ?, ?)').run(
+  db.prepare(
+    'INSERT INTO rewards (id, label, cost, active, image_url, icon) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(
     rewardId,
     input.label,
     input.cost ?? 50,
     fromBool(input.active ?? true),
+    input.imageUrl ?? null,
+    input.icon ?? null,
   );
   return listRewards().find((r) => r.id === rewardId)!;
 }
@@ -279,6 +290,8 @@ export function updateReward(rewardId: string, patch: Partial<RewardInput>): Rew
   if (patch.label !== undefined) (sets.push('label = ?'), values.push(patch.label));
   if (patch.cost !== undefined) (sets.push('cost = ?'), values.push(patch.cost));
   if (patch.active !== undefined) (sets.push('active = ?'), values.push(fromBool(patch.active)));
+  if (patch.imageUrl !== undefined) (sets.push('image_url = ?'), values.push(patch.imageUrl));
+  if (patch.icon !== undefined) (sets.push('icon = ?'), values.push(patch.icon));
   if (sets.length) db.prepare(`UPDATE rewards SET ${sets.join(', ')} WHERE id = ?`).run(...values, rewardId);
   return listRewards().find((r) => r.id === rewardId) ?? null;
 }

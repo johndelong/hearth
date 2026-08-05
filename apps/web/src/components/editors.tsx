@@ -280,6 +280,9 @@ export function ExtraEditor({
   );
 }
 
+/** A quick palette so a prize can be given a face without hunting for a URL. */
+const PRIZE_ICONS = ['🍦', '🎬', '🛼', '🧪', '📓', '🎮', '🍕', '🎨', '🧸', '⚽', '🎧', '🚲', '🍪', '🎪'];
+
 export function RewardEditor({
   reward,
   onSave,
@@ -293,6 +296,8 @@ export function RewardEditor({
 }) {
   const [label, setLabel] = useState(reward?.label ?? '');
   const [cost, setCost] = useState(reward?.cost ?? 100);
+  const [icon, setIcon] = useState((reward as Reward | null)?.icon ?? '');
+  const [imageUrl, setImageUrl] = useState((reward as Reward | null)?.imageUrl ?? '');
 
   return (
     <Modal
@@ -302,7 +307,17 @@ export function RewardEditor({
         <>
           {reward?.id && onDelete && <GhostButton onClick={onDelete} danger>Delete</GhostButton>}
           <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton onClick={() => onSave({ label: label.trim(), cost })} disabled={!label.trim()}>
+          <PrimaryButton
+            onClick={() =>
+              onSave({
+                label: label.trim(),
+                cost,
+                icon: icon || null,
+                imageUrl: imageUrl.trim() || null,
+              })
+            }
+            disabled={!label.trim()}
+          >
             Save
           </PrimaryButton>
         </>
@@ -317,6 +332,36 @@ export function RewardEditor({
           min={0}
           value={cost}
           onChange={(e) => setCost(Number(e.target.value))}
+          style={fieldStyle}
+        />
+      </Field>
+
+      <Field label="Icon">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {PRIZE_ICONS.map((choice) => (
+            <TapButton
+              key={choice}
+              onClick={() => setIcon(icon === choice ? '' : choice)}
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 16,
+                fontSize: 26,
+                lineHeight: 1,
+                border: icon === choice ? '2px solid var(--ink)' : '1px solid var(--line)',
+              }}
+            >
+              {choice}
+            </TapButton>
+          ))}
+        </div>
+      </Field>
+
+      <Field label="Photo URL (optional — used instead of the icon)">
+        <input
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+          placeholder="https://…"
           style={fieldStyle}
         />
       </Field>

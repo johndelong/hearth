@@ -1,8 +1,9 @@
-import type { Chore, Claim, Person, Reward, Settings } from '@dashboard/shared';
-import { useMemo, useState } from 'react';
+import type { Chore, Person, Settings } from '@dashboard/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Board, api } from '../../api';
-import { Avatar, Button, Card, Icon, Tag, TapButton } from '../../components/ui';
+import { Avatar, Card, Icon, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
+import { CardConfetti, GoalRing } from './GoalRing';
 
 interface Props {
   board: Board;
@@ -11,10 +12,19 @@ interface Props {
   night: boolean;
   say: (text: string, hue?: number) => void;
   onBoardChange: (board: Board) => void;
-  onCelebrate: (hues: number[]) => void;
   onEditChore: (chore: Chore) => void;
   onPickExtra: (person: Person) => void;
-  onPickReward: (person: Person) => void;
+  onOpenCatalog: (person: Person) => void;
+}
+
+interface Row {
+  kind: 'chore' | 'claim';
+  id: string;
+  title: string;
+  /** Repeat rule for a chore; extra jobs show that they were claimed. */
+  sub: string;
+  points: number;
+  done: boolean;
 }
 
 export function ChoresScreen({
@@ -24,33 +34,62 @@ export function ChoresScreen({
   night,
   say,
   onBoardChange,
-  onCelebrate,
   onEditChore,
   onPickExtra,
-  onPickReward,
+  onOpenCatalog,
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
+  /** Which card is throwing confetti, which row is shimmering, who just scored. */
+  const [bursting, setBursting] = useState<string | null>(null);
+  const [shimmer, setShimmer] = useState<string | null>(null);
+  const [cheering, setCheering] = useState<string | null>(null);
 
-  const boards = useMemo(
-    () => people.filter((p) => p.onChores && p.role !== 'shared'),
-    [people],
-  );
+  /**
+   * One timer per effect. Restarting an effect has to cancel the previous
+   * timer, or an earlier burst's expiry cuts the current one short — and two
+   * kids clearing their boards seconds apart is the normal case, not the edge.
+   */
+  const timers = useRef<Record<string, number>>({});
+  const restart = useCallback((key: string, ms: number, fn: () => void) => {
+    window.clearTimeout(timers.current[key]);
+    timers.current[key] = window.setTimeout(fn, ms);
+  }, []);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const id of Object.values(pending)) window.clearTimeout(id);
+    };
+  }, []);
+
+  const boards = useMemo(() => people.filter((p) => p.onChores && p.role !== 'shared'), [people]);
 
   const pointsFor = (personId: string) => board.points.find((p) => p.personId === personId)?.points ?? 0;
 
-  const rowsFor = (personId: string): Array<{ kind: 'chore' | 'claim'; id: string; title: string; points: number; done: boolean }> => [
+  const rowsFor = (personId: string): Row[] => [
     ...board.chores
       .filter((c) => c.personId === personId)
-      .map((c) => ({ kind: 'chore' as const, id: c.id, title: c.title, points: c.points, done: c.done })),
+      .map((c) => ({
+        kind: 'chore' as const,
+        id: c.id,
+        title: c.title,
+        sub: c.repeat,
+        points: c.points,
+        done: c.done,
+      })),
     ...board.claims
       .filter((c) => c.personId === personId)
-      .map((c) => ({ kind: 'claim' as const, id: c.id, title: c.title, points: c.points, done: c.done })),
+      .map((c) => ({
+        kind: 'claim' as const,
+        id: c.id,
+        title: c.title,
+        sub: 'Extra job',
+        points: c.points,
+        done: c.done,
+      })),
   ];
 
-  const toggle = async (
-    person: Person,
-    row: { kind: 'chore' | 'claim'; id: string; title: string; points: number; done: boolean },
-  ) => {
+  const toggle = async (person: Person, row: Row) => {
     if (busy) return;
     setBusy(row.id);
     const next = !row.done;
@@ -63,20 +102,31 @@ export function ChoresScreen({
     };
     onBoardChange(optimistic);
 
+    if (next) {
+      // An extra job earns a sweep of light; every completion pops the points.
+      if (row.kind === 'claim') {
+        setShimmer(row.id);
+        restart('shimmer', 1400, () => setShimmer(null));
+      }
+      setCheering(person.id);
+      restart('cheer', 900, () => setCheering(null));
+    }
+
     try {
       const res =
-        row.kind === 'chore'
-          ? await api.setChoreDone(row.id, next)
-          : await api.setClaimDone(row.id, next);
+        row.kind === 'chore' ? await api.setChoreDone(row.id, next) : await api.setClaimDone(row.id, next);
       onBoardChange({ ...optimistic, points: res.points });
 
       if (next) {
         const remaining = rowsFor(person.id).filter((r) => r.id !== row.id && !r.done).length;
         if (remaining === 0) {
           say(`${person.name} cleared the board!`, person.hue);
-          if (settings.choreConfetti) onCelebrate([person.hue]);
+          if (settings.choreConfetti) {
+            setBursting(person.id);
+            restart('burst', 2700, () => setBursting(null));
+          }
         } else {
-          say(`+${row.points ?? 0} for ${person.name}`, person.hue);
+          say(`+${row.points} for ${person.name}`, person.hue);
         }
       }
     } catch (err) {
@@ -99,10 +149,8 @@ export function ChoresScreen({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(auto-fit, minmax(${boards.length > 3 ? 260 : 300}px, 1fr))`,
-        gap: 16,
-        // Cards size to their own content instead of stretching to the tallest
-        // board in the row.
+        gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
+        gap: 14,
         alignContent: 'start',
         alignItems: 'start',
         height: '100%',
@@ -120,41 +168,88 @@ export function ChoresScreen({
         return (
           <Card
             key={person.id}
-            padding="20px 20px 18px"
-            delay={bi * 60}
-            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+            padding="19px 19px 17px"
+            delay={bi * 55}
+            style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14 }}
           >
+            {bursting === person.id && <CardConfetti hue={person.hue} night={night} />}
+
             <header style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-              <Avatar name={person.name} hue={person.hue} night={night} size={46} avatarUrl={person.avatarUrl} />
+              <Avatar name={person.name} hue={person.hue} night={night} size={56} avatarUrl={person.avatarUrl} ring />
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontFamily: 'Outfit', fontSize: 22, fontWeight: 600 }}>{person.name}</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--ink2)' }}>
-                  {left ? `${left} to go` : 'All done'}
-                  {isKid && ` · ${points} pts`}
+                <div
+                  style={{
+                    fontFamily: 'Outfit',
+                    fontSize: 21,
+                    fontWeight: 600,
+                    letterSpacing: '-.01em',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {person.name}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4, flexWrap: 'wrap' }}>
+                  {isKid ? (
+                    <span
+                      style={{
+                        padding: '3px 11px',
+                        borderRadius: 999,
+                        fontSize: 13.5,
+                        fontWeight: 800,
+                        background: soft(person.hue, night),
+                        color: deep(person.hue, night),
+                        animation: cheering === person.id ? `ptsPop .6s ${EASE} both` : undefined,
+                      }}
+                    >
+                      {points} points
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        padding: '3px 11px',
+                        borderRadius: 999,
+                        fontSize: 13.5,
+                        fontWeight: 800,
+                        background: 'var(--chip)',
+                        color: 'var(--ink2)',
+                      }}
+                    >
+                      {rows.length - left} of {rows.length} done
+                    </span>
+                  )}
                 </div>
               </div>
-              {left === 0 && rows.length > 0 && (
-                <Tag
-                  background={soft(148, night)}
-                  color={deep(148, night)}
-                  style={{ padding: '5px 12px', fontFamily: 'Nunito', fontSize: 13.5, fontWeight: 800 }}
-                >
-                  Done
-                </Tag>
+
+              {isKid && (
+                <GoalRing
+                  person={person}
+                  goal={goal}
+                  points={points}
+                  night={night}
+                  onOpen={() => onOpenCatalog(person)}
+                />
               )}
             </header>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               {rows.map((row) => (
                 <TapButton
                   key={row.id}
                   onClick={() => void toggle(person, row)}
-                  onHold={row.kind === 'chore' ? () => {
-                    const chore = board.chores.find((c) => c.id === row.id);
-                    if (chore) onEditChore(chore);
-                  } : undefined}
+                  onHold={
+                    row.kind === 'chore'
+                      ? () => {
+                          const chore = board.chores.find((c) => c.id === row.id);
+                          if (chore) onEditChore(chore);
+                        }
+                      : undefined
+                  }
                   disabled={busy === row.id}
                   style={{
+                    position: 'relative',
+                    overflow: 'hidden',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 13,
@@ -167,6 +262,23 @@ export function ChoresScreen({
                     textAlign: 'left',
                   }}
                 >
+                  {shimmer === row.id && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        left: 0,
+                        width: '42%',
+                        background: `linear-gradient(100deg, transparent, ${
+                          night ? 'rgba(255,255,255,.16)' : 'rgba(255,255,255,.92)'
+                        }, transparent)`,
+                        animation: 'sheenSweep 1.25s ease-out both',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  )}
+
                   <span
                     style={{
                       flex: 'none',
@@ -182,19 +294,25 @@ export function ChoresScreen({
                   >
                     <Icon name="check" size={19} />
                   </span>
-                  <span
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontSize: 17,
-                      fontWeight: 800,
-                      color: row.done ? deep(person.hue, night) : 'var(--ink)',
-                      textDecoration: row.done ? 'line-through' : 'none',
-                      opacity: row.done ? 0.72 : 1,
-                    }}
-                  >
-                    {row.title}
+
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: 17,
+                        fontWeight: 800,
+                        color: row.done ? deep(person.hue, night) : 'var(--ink)',
+                        textDecoration: row.done ? 'line-through' : 'none',
+                        opacity: row.done ? 0.72 : 1,
+                      }}
+                    >
+                      {row.title}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 13, color: 'var(--ink2)', marginTop: 1 }}>
+                      {row.sub}
+                    </span>
                   </span>
+
                   {isKid && (
                     <span style={{ flex: 'none', fontSize: 14, fontWeight: 800, color: 'var(--ink2)' }}>
                       +{row.points}
@@ -210,20 +328,25 @@ export function ChoresScreen({
               )}
             </div>
 
-            {isKid && (
-              <>
-                {goal && <GoalBar goal={goal} points={points} hue={person.hue} night={night} />}
-                <div style={{ display: 'flex', gap: 9, marginTop: 2 }}>
-                  {settings.claimExtras && (
-                    <Button onClick={() => onPickExtra(person)} style={{ flex: 1, fontSize: 15.5 }}>
-                      <Icon name="plus" size={17} /> Extra job
-                    </Button>
-                  )}
-                  <Button onClick={() => onPickReward(person)} style={{ flex: 1, fontSize: 15.5 }}>
-                    <Icon name="gift" size={17} /> Rewards
-                  </Button>
-                </div>
-              </>
+            {isKid && settings.claimExtras && (
+              <TapButton
+                onClick={() => onPickExtra(person)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: 11,
+                  borderRadius: 16,
+                  border: `1px dashed ${col(62, night)}`,
+                  color: deep(62, night),
+                  fontSize: 14.5,
+                  fontWeight: 800,
+                  opacity: 0.85,
+                }}
+              >
+                <Icon name="star" size={17} /> Pick an extra job
+              </TapButton>
             )}
           </Card>
         );
@@ -231,32 +354,3 @@ export function ChoresScreen({
     </div>
   );
 }
-
-function GoalBar({ goal, points, hue, night }: { goal: Reward; points: number; hue: number; night: boolean }) {
-  const pct = Math.min(100, Math.round((points / Math.max(1, goal.cost)) * 100));
-  const reached = points >= goal.cost;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 800, color: 'var(--ink2)' }}>
-        <Icon name="star" size={16} />
-        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {goal.label}
-        </span>
-        <span>{reached ? 'Ready!' : `${points} / ${goal.cost}`}</span>
-      </div>
-      <div style={{ height: 10, borderRadius: 999, background: 'var(--chip)', overflow: 'hidden' }}>
-        <div
-          style={{
-            height: '100%',
-            width: `${pct}%`,
-            borderRadius: 999,
-            background: col(hue, night),
-            animation: `growW .8s ${EASE} both`,
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-export type { Claim };

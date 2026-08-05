@@ -42,12 +42,14 @@ const EXTRAS: Array<[string, number]> = [
   ['Wipe the baseboards', 20],
 ];
 
-const REWARDS: Array<[string, number]> = [
-  ['Ice cream trip', 40],
-  ['Sticker book', 60],
-  ['Movie night pick', 80],
-  ['Slime kit', 120],
-  ['Roller skates', 200],
+// Icons ship with the seed because migrations run before seeding — a backfill
+// in a migration only reaches databases that already had rewards.
+const REWARDS: Array<[string, number, string]> = [
+  ['Ice cream trip', 40, '🍦'],
+  ['Sticker book', 60, '📓'],
+  ['Movie night pick', 80, '🎬'],
+  ['Slime kit', 120, '🧪'],
+  ['Roller skates', 200, '🛼'],
 ];
 
 export function seedIfEmpty(): void {
@@ -71,7 +73,7 @@ export function seedIfEmpty(): void {
     const extra = db.prepare('INSERT INTO extras (id, title, points) VALUES (?, ?, ?)');
     EXTRAS.forEach(([title, points], i) => extra.run(`xj${i}`, title, points));
 
-    const reward = db.prepare('INSERT INTO rewards (id, label, cost) VALUES (?, ?, ?)');
-    REWARDS.forEach(([label, cost], i) => reward.run(`rw${i}`, label, cost));
+    const reward = db.prepare('INSERT INTO rewards (id, label, cost, icon) VALUES (?, ?, ?, ?)');
+    REWARDS.forEach(([label, cost, icon], i) => reward.run(`rw${i}`, label, cost, icon));
   })();
 }
