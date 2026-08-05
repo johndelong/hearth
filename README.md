@@ -51,15 +51,30 @@ node apps/api/dist/index.js     # http://localhost:8080
    "Testing"; publishing the app stops that. It stays private either way — nobody can
    use it without being added.)
 3. Create an **OAuth client ID** of type *Web application* and add this authorized
-   redirect URI, matching `PUBLIC_URL` exactly:
+   redirect URI:
 
    ```
-   http://mac-mini.local:8080/api/google/callback
+   http://localhost:8080/api/google/callback
    ```
+
+   It must be `localhost`, not the mini's hostname. Google requires HTTPS for
+   redirect URIs and exempts only localhost, and `.local` is not a public-suffix
+   domain — a hostname URI gets rejected outright. This is also why `PUBLIC_URL`
+   defaults to localhost and generally shouldn't be changed; the redirect is the
+   only thing it feeds.
 
 4. Put the client ID and secret in `.env` (see `.env.example`) and restart the server.
-5. Open **Settings › Calendar › Add a Google account** and sign in. Repeat for each
-   account you want on the dashboard.
+5. **Sign in from the mini itself**, since the redirect has to land on localhost.
+   Either use the mini's own browser, or tunnel from your laptop:
+
+   ```bash
+   ssh -L 8080:localhost:8080 you@your-mini.local
+   # then browse http://localhost:8080 on the laptop
+   ```
+
+   Open **Settings › Calendar › Add a Google account** and sign in. Repeat for each
+   account you want. This is one-time: the refresh token is stored, and afterwards
+   the tablets reach the dashboard by hostname as usual.
 6. Assign each calendar to a family member. That mapping is what gives events their
    color everywhere in the app; unassigned calendars show in neutral slate.
 
