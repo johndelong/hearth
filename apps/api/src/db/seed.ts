@@ -37,12 +37,19 @@ export function seedIfEmpty(): void {
   if (getRaw('_seeded')) return;
 
   db.transaction(() => {
-    const extra = db.prepare('INSERT INTO extras (id, title, points) VALUES (?, ?, ?)');
+    // OR IGNORE, because a database seeded before the marker existed still
+    // holds these rows: without it, every boot after the upgrade dies on a
+    // UNIQUE violation before the server ever listens.
+    const extra = db.prepare('INSERT OR IGNORE INTO extras (id, title, points) VALUES (?, ?, ?)');
     EXTRAS.forEach(([title, points], i) => extra.run(`xj${i}`, title, points));
 
-    const reward = db.prepare('INSERT INTO rewards (id, label, cost, icon) VALUES (?, ?, ?, ?)');
+    const reward = db.prepare(
+      'INSERT OR IGNORE INTO rewards (id, label, cost, icon) VALUES (?, ?, ?, ?)',
+    );
     REWARDS.forEach(([label, cost, icon], i) => reward.run(`rw${i}`, label, cost, icon));
-  })();
 
-  setRaw('_seeded', new Date().toISOString());
+    // Inside the transaction: a marker written separately can be lost to a
+    // crash in between, which is exactly how the seed came to run twice.
+    setRaw('_seeded', new Date().toISOString());
+  })();
 }
