@@ -1,0 +1,45 @@
+name: Release
+
+# Pushing a tag is the whole workflow: `git tag v0.2.0 && git push --tags`.
+# GitHub then publishes the Release, which is what the dashboard's update
+# notice reads — a bare tag is invisible to the releases API.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # Never publish a release that doesn't build. A bad tag would otherwise cost
+  # a deploy to the Mac mini and an automatic rollback to discover.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=@dashboard/shared
+      - run: npm run typecheck
+      - run: npm run build
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the generated notes can diff against the last tag.
+          fetch-depth: 0
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag

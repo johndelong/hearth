@@ -142,13 +142,15 @@ The database lives in the `hearth-data` volume, so it survives every redeploy.
 From your laptop:
 
 ```bash
-gh release create v0.2.0 --generate-notes
+git tag v0.2.0 && git push --tags
 ```
 
-Use `gh release create` rather than a bare `git tag`. Both give `deploy.sh` the
-tag it needs, but the dashboard's update notice reads GitHub's *published
-releases* — a tag with no release attached is invisible to it, so the panel would
-never mention the new version.
+That's all — `.github/workflows/release.yml` takes it from there. It typechecks
+and builds the tag first, and only then publishes a GitHub Release with generated
+notes. The build gate matters: a tag that doesn't compile would otherwise cost you
+a deploy and an automatic rollback to find out. The Release itself matters because
+the dashboard's update notice reads GitHub's *published releases* — a bare tag is
+invisible to that API.
 
 Then on the mini:
 
