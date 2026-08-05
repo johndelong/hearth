@@ -9,8 +9,8 @@ import {
 } from '@dashboard/shared';
 import { useState } from 'react';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
-import { Button, TapButton } from './ui';
-import { col } from '../theme';
+import { Avatar, Button, TapButton } from './ui';
+import { col, deep, soft } from '../theme';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -159,19 +159,25 @@ export function PersonEditor({
 export function ChoreEditor({
   chore,
   people,
+  night,
   onSave,
   onDelete,
   onClose,
 }: {
   chore: Chore | null;
   people: Person[];
+  night: boolean;
   onSave: (patch: Record<string, unknown>) => void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
+  const assignable = people.filter((p) => p.role !== 'shared');
   const [title, setTitle] = useState(chore?.title ?? '');
-  const [personId, setPersonId] = useState(chore?.personId ?? people[0]?.id ?? '');
+  // A new chore starts on nobody; picking at least one is what enables Save.
+  const [personIds, setPersonIds] = useState<string[]>(chore?.personIds ?? []);
   const [repeat, setRepeat] = useState(chore?.repeat ?? 'Daily');
+  const [description, setDescription] = useState(chore?.description ?? '');
+  const [instructions, setInstructions] = useState(chore?.instructions ?? '');
 
   return (
     <Modal
@@ -182,8 +188,16 @@ export function ChoreEditor({
           {chore && onDelete && <GhostButton onClick={onDelete} danger>Delete</GhostButton>}
           <GhostButton onClick={onClose}>Cancel</GhostButton>
           <PrimaryButton
-            onClick={() => onSave({ title: title.trim(), personId, repeat })}
-            disabled={!title.trim() || !personId}
+            onClick={() =>
+              onSave({
+                title: title.trim(),
+                personIds,
+                repeat,
+                description: description.trim() || null,
+                instructions: instructions.trim() || null,
+              })
+            }
+            disabled={!title.trim() || personIds.length === 0}
           >
             Save
           </PrimaryButton>
@@ -194,16 +208,36 @@ export function ChoreEditor({
         <input value={title} onChange={(e) => setTitle(e.target.value)} style={fieldStyle} autoFocus />
       </Field>
 
-      <Field label="Who">
-        <select value={personId} onChange={(e) => setPersonId(e.target.value)} style={fieldStyle}>
-          {people
-            .filter((p) => p.role !== 'shared')
-            .map((p) => (
-              <option key={p.id} value={p.id}>
+      <Field label="Who" sub="Pick everyone this chore belongs to — each gets their own checkbox">
+        <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+          {assignable.map((p) => {
+            const on = personIds.includes(p.id);
+            return (
+              <TapButton
+                key={p.id}
+                onClick={() =>
+                  setPersonIds((ids) => (on ? ids.filter((x) => x !== p.id) : [...ids, p.id]))
+                }
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 9,
+                  minHeight: 52,
+                  padding: '8px 16px 8px 8px',
+                  borderRadius: 999,
+                  fontSize: 16.5,
+                  fontWeight: 800,
+                  border: `2px solid ${on ? col(p.hue, night) : 'var(--line)'}`,
+                  background: on ? soft(p.hue, night) : 'transparent',
+                  color: on ? deep(p.hue, night) : 'var(--ink2)',
+                }}
+              >
+                <Avatar name={p.name} hue={p.hue} night={night} size={34} avatarUrl={p.avatarUrl} />
                 {p.name}
-              </option>
-            ))}
-        </select>
+              </TapButton>
+            );
+          })}
+        </div>
       </Field>
 
       <Field label="Repeats">
@@ -222,6 +256,26 @@ export function ChoreEditor({
         </div>
       </Field>
 
+      <Field label="Description" sub="What this chore is, in a line">
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          placeholder="Biscuit's breakfast, before school."
+          style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.45 }}
+        />
+      </Field>
+
+      <Field label="Special instructions" sub="How to do it — shown when they open the chore">
+        <textarea
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+          rows={3}
+          placeholder={'Kibble is under the sink — one scoop.\nFresh water in the blue bowl.'}
+          style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.45 }}
+        />
+      </Field>
+
       <p style={{ margin: 0, fontSize: 14.5, fontWeight: 600, color: 'var(--ink2)' }}>
         Chores are the everyday expectation and earn no points. Points come from
         extra jobs, which unlock once the day's chores are done.
@@ -236,13 +290,18 @@ export function ExtraEditor({
   onDelete,
   onClose,
 }: {
-  extra: Extra | { id?: string; title: string; points: number } | null;
+  extra:
+    | Extra
+    | { id?: string; title: string; description?: string | null; instructions?: string | null; points: number }
+    | null;
   onSave: (patch: Record<string, unknown>) => void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState(extra?.title ?? '');
   const [points, setPoints] = useState(extra?.points ?? 15);
+  const [description, setDescription] = useState(extra?.description ?? '');
+  const [instructions, setInstructions] = useState(extra?.instructions ?? '');
 
   return (
     <Modal
@@ -252,7 +311,17 @@ export function ExtraEditor({
         <>
           {extra?.id && onDelete && <GhostButton onClick={onDelete} danger>Delete</GhostButton>}
           <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton onClick={() => onSave({ title: title.trim(), points })} disabled={!title.trim()}>
+          <PrimaryButton
+            onClick={() =>
+              onSave({
+                title: title.trim(),
+                points,
+                description: description.trim() || null,
+                instructions: instructions.trim() || null,
+              })
+            }
+            disabled={!title.trim()}
+          >
             Save
           </PrimaryButton>
         </>
@@ -268,6 +337,25 @@ export function ExtraEditor({
           value={points}
           onChange={(e) => setPoints(Number(e.target.value))}
           style={fieldStyle}
+        />
+      </Field>
+      <Field label="Description" sub="What this job is, in a line">
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          placeholder="Take the recycling out to the curb."
+          style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.45 }}
+        />
+      </Field>
+
+      <Field label="Special instructions" sub="Travels with the job when a kid claims it">
+        <textarea
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+          rows={3}
+          placeholder="Bag goes in the bin by the garage, not the curb."
+          style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.45 }}
         />
       </Field>
     </Modal>

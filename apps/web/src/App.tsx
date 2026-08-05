@@ -228,7 +228,17 @@ export default function App() {
               night={night}
               say={say}
               onBoardChange={data.setBoard}
-              onEditChore={(chore) => setEditor({ kind: 'chore', chore })}
+              onRemoveClaim={(claimId, person) => {
+                void (async () => {
+                  try {
+                    await api.deleteClaim(claimId);
+                    await data.reloadBoard();
+                    say(`Back on the list for ${person.name}`, person.hue);
+                  } catch (err) {
+                    say(err instanceof Error ? err.message : 'That did not save', 25);
+                  }
+                })();
+              }}
               onPickExtra={(person) => setEditor({ kind: 'pickExtra', person })}
               onOpenCatalog={(person) => setEditor({ kind: 'catalog', person })}
             />
@@ -247,6 +257,7 @@ export default function App() {
               onPeopleChange={data.reloadPeople}
               onBoardChange={data.reloadBoard}
               onEditPerson={(person) => setEditor({ kind: 'person', person })}
+              onEditChore={(chore) => setEditor({ kind: 'chore', chore })}
               onEditExtra={(extra) => setEditor({ kind: 'extra', extra })}
               onEditReward={(reward) => setEditor({ kind: 'reward', reward })}
               onLock={async () => {
@@ -368,6 +379,7 @@ export default function App() {
           <ChoreEditor
             chore={editor.chore}
             people={people}
+            night={night}
             onClose={close}
             onSave={(patch) =>
               void guard(async () => {
@@ -638,7 +650,7 @@ function headerCopy({
     return {
       title: 'Chores & points',
       sub: openChores
-        ? `${openChores} left today · tap to check off, hold to edit`
+        ? `${openChores} left today · check the box, or tap a chore for details`
         : 'Everything is done. Nice work.',
     };
   }

@@ -1,4 +1,5 @@
 import type {
+  BoardChore,
   CalendarEvent,
   Chore,
   Claim,
@@ -75,7 +76,8 @@ const patch = <T,>(path: string, body: unknown) =>
 const del = <T,>(path: string) => call<T>(path, { method: 'DELETE' });
 
 export interface Board {
-  chores: Chore[];
+  /** One row per person per chore — see BoardChore. */
+  chores: BoardChore[];
   extras: Extra[];
   claims: Claim[];
   rewards: Reward[];
@@ -103,8 +105,10 @@ export const api = {
   deletePerson: (id: string) => del<{ ok: true }>(`/api/people/${id}`),
 
   board: () => call<Board>('/api/chores/board'),
-  setChoreDone: (id: string, done: boolean) =>
-    post<{ chore: Chore; points: PointsBalance[] }>(`/api/chores/${id}/done`, { done }),
+  setChoreDone: (id: string, personId: string, done: boolean) =>
+    post<{ chore: BoardChore; points: PointsBalance[] }>(`/api/chores/${id}/done`, { personId, done }),
+  /** Every chore, including ones not due today. Settings manages against this. */
+  allChores: () => call<Chore[]>('/api/chores'),
   createChore: (body: Record<string, unknown>) => post<Chore>('/api/chores', body),
   updateChore: (id: string, body: Record<string, unknown>) => patch<Chore>(`/api/chores/${id}`, body),
   deleteChore: (id: string) => del<{ ok: true }>(`/api/chores/${id}`),

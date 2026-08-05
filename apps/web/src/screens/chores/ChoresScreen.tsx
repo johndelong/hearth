@@ -1,8 +1,10 @@
-import type { Chore, Person, Settings } from '@dashboard/shared';
+import type { Person, Settings } from '@dashboard/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Board, api } from '../../api';
 import { Avatar, Card, Icon, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
+import { ChoreDetails } from './ChoreDetails';
+import { ChoreRow } from './ChoreRow';
 import { CardConfetti, GoalRing } from './GoalRing';
 
 interface Props {
@@ -12,17 +14,27 @@ interface Props {
   night: boolean;
   say: (text: string, hue?: number) => void;
   onBoardChange: (board: Board) => void;
-  onEditChore: (chore: Chore) => void;
+  onRemoveClaim: (claimId: string, person: Person) => void;
   onPickExtra: (person: Person) => void;
   onOpenCatalog: (person: Person) => void;
 }
 
 interface Row {
   kind: 'chore' | 'claim';
+  /** The id the API wants: a chore id, or a claim id. */
   id: string;
+  /**
+   * Unique per board. A chore assigned to several people shares one id across
+   * all of them, so anything tracking a single row — busy, shimmer, which modal
+   * is open — has to key on the person too.
+   */
+  key: string;
   title: string;
-  /** Repeat rule for a chore; extra jobs show that they were claimed. */
+  /** Repeat rule for a chore; extra jobs say so. Doubles as the modal's frequency. */
   sub: string;
+  /** Shown when the row is tapped open. */
+  description: string | null;
+  instructions: string | null;
   /** Only extra jobs are worth points — chores are the baseline. */
   points: number | null;
   done: boolean;
@@ -35,11 +47,16 @@ export function ChoresScreen({
   night,
   say,
   onBoardChange,
-  onEditChore,
+  onRemoveClaim,
   onPickExtra,
   onOpenCatalog,
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
+  /**
+   * The row whose details modal is open, held by id rather than by value so
+   * checking it off from inside the modal updates what the modal is showing.
+   */
+  const [opened, setOpened] = useState<{ personId: string; rowKey: string } | null>(null);
   /** Which card is throwing confetti, which row is shimmering, who just scored. */
   const [bursting, setBursting] = useState<string | null>(null);
   const [shimmer, setShimmer] = useState<string | null>(null);
@@ -101,9 +118,12 @@ export function ChoresScreen({
       .filter((c) => c.personId === personId)
       .map((c) => ({
         kind: 'chore' as const,
-        id: c.id,
+        id: c.choreId,
+        key: `chore:${c.choreId}:${personId}`,
         title: c.title,
         sub: c.repeat,
+        description: c.description,
+        instructions: c.instructions,
         points: null,
         done: c.done,
       })),
@@ -112,8 +132,11 @@ export function ChoresScreen({
       .map((c) => ({
         kind: 'claim' as const,
         id: c.id,
+        key: `claim:${c.id}`,
         title: c.title,
         sub: 'Extra job',
+        description: c.description,
+        instructions: c.instructions,
         points: c.points,
         done: c.done,
       })),
@@ -121,20 +144,22 @@ export function ChoresScreen({
 
   const toggle = async (person: Person, row: Row) => {
     if (busy) return;
-    setBusy(row.id);
+    setBusy(row.key);
     const next = !row.done;
 
     // Optimistic: a kid tapping a chore should see it check off instantly.
     const optimistic: Board = {
       ...board,
-      chores: board.chores.map((c) => (row.kind === 'chore' && c.id === row.id ? { ...c, done: next } : c)),
+      chores: board.chores.map((c) =>
+        row.kind === 'chore' && c.choreId === row.id && c.personId === person.id ? { ...c, done: next } : c,
+      ),
       claims: board.claims.map((c) => (row.kind === 'claim' && c.id === row.id ? { ...c, done: next } : c)),
     };
     onBoardChange(optimistic);
 
     if (next) {
       // Every completed row gets the sweep of light.
-      setShimmer(row.id);
+      setShimmer(row.key);
       restart('shimmer', 1400, () => setShimmer(null));
       // Only extra jobs move points, so only they pop the pill.
       if (row.kind === 'claim') {
@@ -145,11 +170,13 @@ export function ChoresScreen({
 
     try {
       const res =
-        row.kind === 'chore' ? await api.setChoreDone(row.id, next) : await api.setClaimDone(row.id, next);
+        row.kind === 'chore'
+          ? await api.setChoreDone(row.id, person.id, next)
+          : await api.setClaimDone(row.id, next);
       onBoardChange({ ...optimistic, points: res.points });
 
       if (next) {
-        const remaining = rowsFor(person.id).filter((r) => r.id !== row.id && !r.done).length;
+        const remaining = rowsFor(person.id).filter((r) => r.key !== row.key && !r.done).length;
         if (remaining === 0) {
           say(`${person.name} cleared the board!`, person.hue);
           if (settings.choreConfetti) {
@@ -178,7 +205,14 @@ export function ChoresScreen({
     );
   }
 
+  // Resolved fresh each render so the modal follows the board, not a snapshot.
+  const openedPerson = opened ? (boards.find((p) => p.id === opened.personId) ?? null) : null;
+  const openedRow = openedPerson
+    ? (rowsFor(openedPerson.id).find((r) => r.key === opened?.rowKey) ?? null)
+    : null;
+
   return (
+    <>
     <div
       style={{
         display: 'grid',
@@ -268,90 +302,20 @@ export function ChoresScreen({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               {rows.map((row) => (
-                <TapButton
-                  key={row.id}
-                  onClick={() => void toggle(person, row)}
-                  onHold={
-                    row.kind === 'chore'
-                      ? () => {
-                          const chore = board.chores.find((c) => c.id === row.id);
-                          if (chore) onEditChore(chore);
-                        }
-                      : undefined
-                  }
-                  disabled={busy === row.id}
-                  style={{
-                    position: 'relative',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 13,
-                    width: '100%',
-                    minHeight: 62,
-                    padding: '12px 15px',
-                    borderRadius: 18,
-                    border: '1px solid var(--line)',
-                    background: row.done ? soft(person.hue, night) : 'transparent',
-                    textAlign: 'left',
-                  }}
-                >
-                  {shimmer === row.id && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        bottom: 0,
-                        left: 0,
-                        width: '42%',
-                        background: `linear-gradient(100deg, transparent, ${
-                          night ? 'rgba(255,255,255,.16)' : 'rgba(255,255,255,.92)'
-                        }, transparent)`,
-                        animation: 'sheenSweep 1.25s ease-out both',
-                        pointerEvents: 'none',
-                      }}
-                    />
-                  )}
-
-                  <span
-                    style={{
-                      flex: 'none',
-                      width: 30,
-                      height: 30,
-                      borderRadius: 10,
-                      display: 'grid',
-                      placeItems: 'center',
-                      background: row.done ? col(person.hue, night) : 'var(--chip)',
-                      color: row.done ? (night ? '#14161c' : '#fff') : 'transparent',
-                      transition: `background .25s ${EASE}`,
-                    }}
-                  >
-                    <Icon name="check" size={19} />
-                  </span>
-
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: 'block',
-                        fontSize: 17,
-                        fontWeight: 800,
-                        color: row.done ? deep(person.hue, night) : 'var(--ink)',
-                        textDecoration: row.done ? 'line-through' : 'none',
-                        opacity: row.done ? 0.72 : 1,
-                      }}
-                    >
-                      {row.title}
-                    </span>
-                    <span style={{ display: 'block', fontSize: 13, color: 'var(--ink2)', marginTop: 1 }}>
-                      {row.sub}
-                    </span>
-                  </span>
-
-                  {isKid && row.points !== null && (
-                    <span style={{ flex: 'none', fontSize: 14, fontWeight: 800, color: 'var(--ink2)' }}>
-                      +{row.points}
-                    </span>
-                  )}
-                </TapButton>
+                <ChoreRow
+                  key={row.key}
+                  title={row.title}
+                  sub={row.sub}
+                  points={isKid ? row.points : null}
+                  done={row.done}
+                  hue={person.hue}
+                  night={night}
+                  busy={busy === row.key}
+                  shimmer={shimmer === row.key}
+                  onToggle={() => void toggle(person, row)}
+                  onOpen={() => setOpened({ personId: person.id, rowKey: row.key })}
+                  onRemove={row.kind === 'claim' ? () => onRemoveClaim(row.id, person) : undefined}
+                />
               ))}
 
               {rows.length === 0 && (
@@ -395,5 +359,21 @@ export function ChoresScreen({
         );
       })}
     </div>
+
+    {openedPerson && openedRow && (
+      <ChoreDetails
+        title={openedRow.title}
+        frequency={openedRow.sub}
+        description={openedRow.description}
+        instructions={openedRow.instructions}
+        points={openedPerson.role === 'kid' ? openedRow.points : null}
+        done={openedRow.done}
+        person={openedPerson}
+        night={night}
+        onToggle={() => void toggle(openedPerson, openedRow)}
+        onClose={() => setOpened(null)}
+      />
+    )}
+    </>
   );
 }

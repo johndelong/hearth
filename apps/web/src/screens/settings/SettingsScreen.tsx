@@ -1,4 +1,5 @@
 import type {
+  Chore,
   GoogleAccount,
   Person,
   Settings,
@@ -33,6 +34,7 @@ interface Props {
   onPeopleChange: () => Promise<void>;
   onBoardChange: () => Promise<void>;
   onEditPerson: (person: Person | null) => void;
+  onEditChore: (chore: Chore | null) => void;
   onEditExtra: (extra: { id?: string; title: string; points: number } | null) => void;
   onEditReward: (reward: { id?: string; label: string; cost: number } | null) => void;
   onLock: () => void;
@@ -379,6 +381,7 @@ function ChoresSection({
   say,
   onSettingsChange,
   onPeopleChange,
+  onEditChore,
   onEditExtra,
   onEditReward,
 }: Props) {
@@ -416,6 +419,14 @@ function ChoresSection({
             </div>
           ))}
       </Panel>
+
+      <ChoreListPanel
+        people={people}
+        night={night}
+        say={say}
+        onEditChore={onEditChore}
+        version={board}
+      />
 
       <Panel title="Board behavior" delay={60}>
         <ChipRow
@@ -476,6 +487,109 @@ function ChoresSection({
         ))}
       </Panel>
     </>
+  );
+}
+
+/**
+ * The chore list, grouped by whose board it lands on.
+ *
+ * It reads the full list rather than the board, so a Weekly chore is still
+ * editable on the days it isn't due. `version` is whatever the caller changes
+ * when a chore is saved or deleted — it's the cue to re-read.
+ */
+function ChoreListPanel({
+  people,
+  night,
+  say,
+  onEditChore,
+  version,
+}: {
+  people: Person[];
+  night: boolean;
+  say: (text: string, hue?: number) => void;
+  onEditChore: (chore: Chore | null) => void;
+  version: unknown;
+}) {
+  const [chores, setChores] = useState<Chore[]>([]);
+
+  useEffect(() => {
+    void api
+      .allChores()
+      .then(setChores)
+      .catch((err) => say(err instanceof Error ? err.message : 'Could not load the chores', 25));
+  }, [version, say]);
+
+  const boardPeople = people.filter((p) => p.role !== 'shared');
+  // A chore assigned to nobody who still exists would otherwise never be listed.
+  const orphans = chores.filter((c) => !c.personIds.some((id) => boardPeople.some((p) => p.id === id)));
+  const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? 'Unknown';
+
+  return (
+    <Panel
+      title="Chores"
+      sub="Tap one to edit its instructions, who it belongs to, or to delete it"
+      addLabel="+ New chore"
+      onAdd={() => onEditChore(null)}
+      delay={60}
+    >
+      {boardPeople.map((person) => {
+        const mine = chores.filter((c) => c.personIds.includes(person.id));
+        if (mine.length === 0) return null;
+        return (
+          <div key={person.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                marginTop: 4,
+                fontSize: 15,
+                fontWeight: 800,
+                color: 'var(--ink2)',
+              }}
+            >
+              <Avatar name={person.name} hue={person.hue} night={night} size={26} avatarUrl={person.avatarUrl} />
+              {person.name}
+              {!person.onChores && ' · board is off'}
+            </div>
+            {mine.map((chore) => {
+              // The same chore is listed under each of its people, so say so —
+              // otherwise editing it here looks like it edits only this copy.
+              const others = chore.personIds.filter((id) => id !== person.id).map(nameOf);
+              const shared = others.length ? `Shared with ${others.join(', ')}` : null;
+              return (
+                <ItemRow
+                  key={chore.id}
+                  label={chore.title}
+                  sub={[shared, chore.description].filter(Boolean).join(' · ') || undefined}
+                  tag={chore.repeat}
+                  tagStyle={{ background: soft(person.hue, night), color: deep(person.hue, night) }}
+                  onClick={() => onEditChore(chore)}
+                />
+              );
+            })}
+          </div>
+        );
+      })}
+
+      {/* A chore whose person was deleted would otherwise be invisible forever. */}
+      {orphans.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ marginTop: 4, fontSize: 15, fontWeight: 800, color: col(25, night) }}>
+            Nobody assigned
+          </div>
+          {orphans.map((chore) => (
+            <ItemRow key={chore.id} label={chore.title} tag={chore.repeat} onClick={() => onEditChore(chore)} />
+          ))}
+        </div>
+      )}
+
+      {chores.length === 0 && (
+        <div style={{ padding: '6px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
+          No chores yet. Add the first one below.
+        </div>
+      )}
+    </Panel>
   );
 }
 

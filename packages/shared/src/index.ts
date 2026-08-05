@@ -37,23 +37,49 @@ export interface Person {
 
 export type PersonInput = Partial<Omit<Person, 'id'>> & { name: string };
 
+/**
+ * A chore as a rule: one title that can land on several people at once, the way
+ * "Make the bed" lands on every kid who has a bed. What each of them has
+ * actually done lives in `BoardChore`.
+ */
 export interface Chore {
   id: string;
-  personId: string;
+  /** Everyone this chore is assigned to. Never empty in practice. */
+  personIds: string[];
   title: string;
+  /** What the chore is. Shown in the details modal. Null when unset. */
+  description: string | null;
+  /** How to do it — the step-by-step half of the details modal. */
+  instructions: string | null;
   repeat: Repeat;
   active: boolean;
   sortOrder: number;
-  /** Whether it is checked off for the current board period. Derived, read-only. */
-  done: boolean;
 }
 
-export type ChoreInput = Partial<Omit<Chore, 'id' | 'done'>> & { title: string; personId: string };
+export type ChoreInput = Partial<Omit<Chore, 'id'>> & { title: string; personIds: string[] };
+
+/**
+ * One person's copy of a chore on today's board. A chore assigned to three kids
+ * produces three of these, each checked off independently.
+ */
+export interface BoardChore {
+  choreId: string;
+  personId: string;
+  title: string;
+  description: string | null;
+  instructions: string | null;
+  repeat: Repeat;
+  sortOrder: number;
+  /** Checked off by this person, for the current board period. */
+  done: boolean;
+}
 
 /** An optional job any kid can pick up for points. */
 export interface Extra {
   id: string;
   title: string;
+  description: string | null;
+  instructions: string | null;
   points: number;
   active: boolean;
 }
@@ -66,6 +92,8 @@ export interface Claim {
   extraId: string;
   personId: string;
   title: string;
+  description: string | null;
+  instructions: string | null;
   points: number;
   done: boolean;
   claimedAt: string;

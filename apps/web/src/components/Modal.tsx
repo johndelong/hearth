@@ -106,10 +106,19 @@ export const labelStyle: CSSProperties = {
   marginBottom: 6,
 };
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({
+  label,
+  sub,
+  children,
+}: { label: string; sub?: string; children: ReactNode }) {
   return (
     <label style={{ display: 'block' }}>
-      <div style={labelStyle}>{label}</div>
+      <div style={{ ...labelStyle, marginBottom: sub ? 2 : labelStyle.marginBottom }}>{label}</div>
+      {sub && (
+        <div style={{ marginBottom: 7, fontSize: 14, fontWeight: 600, color: 'var(--ink2)', opacity: 0.85 }}>
+          {sub}
+        </div>
+      )}
       {children}
     </label>
   );

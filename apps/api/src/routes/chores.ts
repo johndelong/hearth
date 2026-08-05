@@ -11,6 +11,7 @@ import {
   deleteClaim,
   deleteExtra,
   deleteReward,
+  listAllChores,
   listChores,
   listClaims,
   listExtras,
@@ -38,11 +39,14 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
 
   // --- checking off is deliberately unguarded: it is the kids' interaction ---
 
-  app.post<{ Params: { id: string }; Body: { done?: boolean } }>(
+  // A chore can be assigned to several people, so checking off names which one.
+  app.post<{ Params: { id: string }; Body: { personId?: string; done?: boolean } }>(
     '/api/chores/:id/done',
     async (request, reply) => {
-      const chore = setChoreDone(request.params.id, request.body?.done ?? true);
-      if (!chore) return reply.code(404).send({ error: 'Unknown chore' });
+      const personId = request.body?.personId;
+      if (!personId) return reply.code(400).send({ error: 'personId is required' });
+      const chore = setChoreDone(request.params.id, personId, request.body?.done ?? true);
+      if (!chore) return reply.code(404).send({ error: 'Unknown chore for that person' });
       return { chore, points: listPoints() };
     },
   );
@@ -86,6 +90,9 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
 
   app.register(async (guarded) => {
     guarded.addHook('preHandler', requireParent);
+
+    // The management list, behind the PIN with the rest of the rule-changing.
+    guarded.get('/api/chores', async () => listAllChores());
 
     guarded.post<{ Body: Parameters<typeof createChore>[0] }>('/api/chores', async (request) =>
       createChore(request.body),

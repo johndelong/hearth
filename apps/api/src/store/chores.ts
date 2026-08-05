@@ -1,4 +1,5 @@
 import type {
+  BoardChore,
   Chore,
   ChoreInput,
   Claim,
@@ -17,62 +18,129 @@ import { isDue, periodKey } from './period.js';
 
 interface ChoreRow {
   id: string;
-  person_id: string;
   title: string;
+  description: string | null;
+  instructions: string | null;
   repeat: Chore['repeat'];
   active: number;
   sort_order: number;
-  done: number;
 }
 
+/** Assignees for a set of chores, in one query rather than one per chore. */
+function peopleByChore(choreIds: string[]): Map<string, string[]> {
+  const byChore = new Map<string, string[]>();
+  if (choreIds.length === 0) return byChore;
+  const holes = choreIds.map(() => '?').join(', ');
+  const rows = db
+    .prepare<string[], { chore_id: string; person_id: string }>(
+      `SELECT cp.chore_id, cp.person_id
+         FROM chore_people cp
+         JOIN people p ON p.id = cp.person_id
+        WHERE cp.chore_id IN (${holes})
+        ORDER BY p.sort_order`,
+    )
+    .all(...choreIds);
+  for (const r of rows) {
+    const list = byChore.get(r.chore_id);
+    if (list) list.push(r.person_id);
+    else byChore.set(r.chore_id, [r.person_id]);
+  }
+  return byChore;
+}
+
+const toChore = (r: ChoreRow, personIds: string[]): Chore => ({
+  id: r.id,
+  personIds,
+  title: r.title,
+  description: r.description,
+  instructions: r.instructions,
+  repeat: r.repeat,
+  active: toBool(r.active),
+  sortOrder: r.sort_order,
+});
+
 /**
- * Today's boards. Only chores whose repeat rule lands on the current period are
- * returned, each joined against its completion row for that same period.
+ * Today's boards, one row per person per chore.
+ *
+ * A chore assigned to three kids becomes three rows here, each carrying its own
+ * completion for the current period — so one kid checking off "Make the bed"
+ * says nothing about the other two.
  */
-export function listChores(): Chore[] {
+export function listChores(): BoardChore[] {
   const { choreReset } = getSettings();
   const period = periodKey(choreReset);
-  const rows = db
-    .prepare<[string], ChoreRow>(
-      `SELECT c.*, (cc.chore_id IS NOT NULL) AS done
+  return db
+    .prepare<
+      [string],
+      ChoreRow & { person_id: string; done: number }
+    >(
+      `SELECT c.*, cp.person_id, (cc.chore_id IS NOT NULL) AS done
          FROM chores c
-         LEFT JOIN chore_completions cc ON cc.chore_id = c.id AND cc.period = ?
+         JOIN chore_people cp ON cp.chore_id = c.id
+         LEFT JOIN chore_completions cc
+                ON cc.chore_id = c.id AND cc.person_id = cp.person_id AND cc.period = ?
         WHERE c.active = 1
         ORDER BY c.sort_order, c.title`,
     )
-    .all(period);
-  return rows
+    .all(period)
     .filter((r) => isDue(r.repeat, choreReset))
     .map((r) => ({
-      id: r.id,
+      choreId: r.id,
       personId: r.person_id,
       title: r.title,
+      description: r.description,
+      instructions: r.instructions,
       repeat: r.repeat,
-      active: toBool(r.active),
       sortOrder: r.sort_order,
       done: toBool(r.done),
     }));
 }
 
-export function createChore(input: ChoreInput): Chore {
+/**
+ * Every chore on the books, due today or not.
+ *
+ * The board deliberately hides a Weekly chore on the six days it isn't due, but
+ * the parent managing the list has to see the whole thing — otherwise a chore
+ * becomes uneditable on every day it doesn't happen to fall.
+ */
+export function listAllChores(): Chore[] {
+  const rows = db
+    .prepare<[], ChoreRow>('SELECT * FROM chores WHERE active = 1 ORDER BY sort_order, title')
+    .all();
+  const assignees = peopleByChore(rows.map((r) => r.id));
+  return rows.map((r) => toChore(r, assignees.get(r.id) ?? []));
+}
+
+/** Replaces a chore's assignees wholesale. Callers always send the full set. */
+function setChorePeople(choreId: string, personIds: string[]): void {
+  db.prepare('DELETE FROM chore_people WHERE chore_id = ?').run(choreId);
+  const link = db.prepare('INSERT OR IGNORE INTO chore_people (chore_id, person_id) VALUES (?, ?)');
+  for (const personId of personIds) link.run(choreId, personId);
+}
+
+export const createChore = db.transaction((input: ChoreInput): Chore => {
   const choreId = id('ch');
   db.prepare(
-    'INSERT INTO chores (id, person_id, title, repeat, active, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+    `INSERT INTO chores (id, title, description, instructions, repeat, active, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     choreId,
-    input.personId,
     input.title,
+    input.description ?? null,
+    input.instructions ?? null,
     input.repeat ?? 'Daily',
     fromBool(input.active ?? true),
     input.sortOrder ?? 0,
   );
+  setChorePeople(choreId, input.personIds);
   return findChore(choreId)!;
-}
+});
 
-export function updateChore(choreId: string, patch: Partial<ChoreInput>): Chore | null {
+export const updateChore = db.transaction((choreId: string, patch: Partial<ChoreInput>): Chore | null => {
   const columns: Record<string, string> = {
-    personId: 'person_id',
     title: 'title',
+    description: 'description',
+    instructions: 'instructions',
     repeat: 'repeat',
     active: 'active',
     sortOrder: 'sort_order',
@@ -88,67 +156,104 @@ export function updateChore(choreId: string, patch: Partial<ChoreInput>): Chore 
   if (sets.length) {
     db.prepare(`UPDATE chores SET ${sets.join(', ')} WHERE id = ?`).run(...values, choreId);
   }
+  if (patch.personIds) {
+    setChorePeople(choreId, patch.personIds);
+    // Dropping someone from a chore drops what they had done with it, so the
+    // row cannot come back checked if they are added again next week.
+    const holes = patch.personIds.map(() => '?').join(', ');
+    db.prepare(
+      `DELETE FROM chore_completions
+        WHERE chore_id = ?${patch.personIds.length ? ` AND person_id NOT IN (${holes})` : ''}`,
+    ).run(choreId, ...patch.personIds);
+  }
   return findChore(choreId);
-}
+});
 
 export function deleteChore(choreId: string): void {
   db.prepare('DELETE FROM chores WHERE id = ?').run(choreId);
 }
 
 function findChore(choreId: string): Chore | null {
-  return listChores().find((c) => c.id === choreId) ?? rawChore(choreId);
-}
-
-/** Falls back to the stored row for chores not due in the current period. */
-function rawChore(choreId: string): Chore | null {
-  const r = db.prepare<[string], ChoreRow>('SELECT *, 0 AS done FROM chores WHERE id = ?').get(choreId);
+  const r = db.prepare<[string], ChoreRow>('SELECT * FROM chores WHERE id = ?').get(choreId);
   if (!r) return null;
-  return {
-    id: r.id,
-    personId: r.person_id,
-    title: r.title,
-    repeat: r.repeat,
-    active: toBool(r.active),
-    sortOrder: r.sort_order,
-    done: false,
-  };
+  return toChore(r, peopleByChore([choreId]).get(choreId) ?? []);
 }
 
 /**
- * Check a chore off, or undo it. Chores pay no points — they are the baseline
- * expectation, and only extra jobs earn.
+ * Check one person's copy of a chore off, or undo it. Chores pay no points —
+ * they are the baseline expectation, and only extra jobs earn.
  */
-export function setChoreDone(choreId: string, done: boolean): Chore | null {
-  const chore = rawChore(choreId);
-  if (!chore) return null;
-  const period = periodKey(getSettings().choreReset);
+export function setChoreDone(choreId: string, personId: string, done: boolean): BoardChore | null {
+  const assigned = db
+    .prepare<[string, string], { n: number }>(
+      'SELECT COUNT(*) AS n FROM chore_people WHERE chore_id = ? AND person_id = ?',
+    )
+    .get(choreId, personId);
+  if (!assigned?.n) return null;
 
+  const period = periodKey(getSettings().choreReset);
   if (done) {
     db.prepare(
-      'INSERT OR IGNORE INTO chore_completions (chore_id, period, completed_at) VALUES (?, ?, ?)',
-    ).run(choreId, period, nowIso());
+      `INSERT OR IGNORE INTO chore_completions (chore_id, person_id, period, completed_at)
+       VALUES (?, ?, ?, ?)`,
+    ).run(choreId, personId, period, nowIso());
   } else {
-    db.prepare('DELETE FROM chore_completions WHERE chore_id = ? AND period = ?').run(choreId, period);
+    db.prepare(
+      'DELETE FROM chore_completions WHERE chore_id = ? AND person_id = ? AND period = ?',
+    ).run(choreId, personId, period);
   }
-  return { ...chore, done };
+
+  const r = db.prepare<[string], ChoreRow>('SELECT * FROM chores WHERE id = ?').get(choreId);
+  if (!r) return null;
+  return {
+    choreId: r.id,
+    personId,
+    title: r.title,
+    description: r.description,
+    instructions: r.instructions,
+    repeat: r.repeat,
+    sortOrder: r.sort_order,
+    done,
+  };
 }
 
 // ---------- extras and claims ----------
 
 export function listExtras(): Extra[] {
   return db
-    .prepare<[], { id: string; title: string; points: number; active: number }>(
+    .prepare<
+      [],
+      {
+        id: string;
+        title: string;
+        description: string | null;
+        instructions: string | null;
+        points: number;
+        active: number;
+      }
+    >(
       'SELECT * FROM extras WHERE active = 1 ORDER BY points, title',
     )
     .all()
-    .map((r) => ({ id: r.id, title: r.title, points: r.points, active: toBool(r.active) }));
+    .map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      instructions: r.instructions,
+      points: r.points,
+      active: toBool(r.active),
+    }));
 }
 
 export function createExtra(input: ExtraInput): Extra {
   const extraId = id('xj');
-  db.prepare('INSERT INTO extras (id, title, points, active) VALUES (?, ?, ?, ?)').run(
+  db.prepare(
+    'INSERT INTO extras (id, title, description, instructions, points, active) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(
     extraId,
     input.title,
+    input.description ?? null,
+    input.instructions ?? null,
     input.points ?? 10,
     fromBool(input.active ?? true),
   );
@@ -159,6 +264,9 @@ export function updateExtra(extraId: string, patch: Partial<ExtraInput>): Extra 
   const sets: string[] = [];
   const values: unknown[] = [];
   if (patch.title !== undefined) (sets.push('title = ?'), values.push(patch.title));
+  if (patch.description !== undefined) (sets.push('description = ?'), values.push(patch.description));
+  if (patch.instructions !== undefined)
+    (sets.push('instructions = ?'), values.push(patch.instructions));
   if (patch.points !== undefined) (sets.push('points = ?'), values.push(patch.points));
   if (patch.active !== undefined) (sets.push('active = ?'), values.push(fromBool(patch.active)));
   if (sets.length) db.prepare(`UPDATE extras SET ${sets.join(', ')} WHERE id = ?`).run(...values, extraId);
@@ -174,6 +282,8 @@ interface ClaimRow {
   extra_id: string;
   person_id: string;
   title: string;
+  description: string | null;
+  instructions: string | null;
   points: number;
   done: number;
   claimed_at: string;
@@ -185,6 +295,8 @@ const toClaim = (r: ClaimRow): Claim => ({
   extraId: r.extra_id,
   personId: r.person_id,
   title: r.title,
+  description: r.description,
+  instructions: r.instructions,
   points: r.points,
   done: toBool(r.done),
   claimedAt: r.claimed_at,
@@ -205,13 +317,26 @@ export function listClaims(): Claim[] {
 
 export function createClaim(extraId: string, personId: string): Claim | null {
   const extra = db
-    .prepare<[string], { id: string; title: string; points: number }>('SELECT * FROM extras WHERE id = ?')
+    .prepare<
+      [string],
+      { id: string; title: string; description: string | null; instructions: string | null; points: number }
+    >('SELECT * FROM extras WHERE id = ?')
     .get(extraId);
   if (!extra) return null;
   const claimId = id('cl');
   db.prepare(
-    'INSERT INTO claims (id, extra_id, person_id, title, points, done, claimed_at) VALUES (?, ?, ?, ?, ?, 0, ?)',
-  ).run(claimId, extraId, personId, extra.title, extra.points, nowIso());
+    `INSERT INTO claims (id, extra_id, person_id, title, description, instructions, points, done, claimed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+  ).run(
+    claimId,
+    extraId,
+    personId,
+    extra.title,
+    extra.description,
+    extra.instructions,
+    extra.points,
+    nowIso(),
+  );
   return listClaims().find((c) => c.id === claimId)!;
 }
 
