@@ -175,6 +175,18 @@ tag if it doesn't**. Snapshots land in `~/hearth-backups` (last 20 kept).
 ./scripts/deploy.sh v0.1.0      # deploy a specific tag, i.e. roll back on purpose
 ```
 
+The health check goes to this machine by default, which is what you want when the
+script runs on the mini. Point it at a hostname when it doesn't — checking a
+deploy from your laptop, say, or when the app sits behind a proxy:
+
+```bash
+BASE_URL=http://mac-mini.local:8080 ./scripts/deploy.sh --check
+```
+
+Set `BASE_URL` in `.env` to make that the default. Every message names the URL it
+is checking, so a wrong host shows up immediately instead of as a mystery
+timeout.
+
 ### What the wall panels do after a deploy
 
 Every API response carries the running version in an `x-hearth-version` header,

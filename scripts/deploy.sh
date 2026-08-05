@@ -15,7 +15,19 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
 PORT="${PORT:-8080}"
-HEALTH_URL="http://localhost:${PORT}/api/health"
+# Where the app answers. Defaults to this machine, since the script normally
+# runs on the box it is deploying to. Point it elsewhere by hostname when it
+# does not — deploying from a laptop, or behind a proxy:
+#
+#   BASE_URL=http://mac-mini.local:8080 ./scripts/deploy.sh
+#
+# Or set it once in .env alongside PUBLIC_URL.
+if [ -z "${BASE_URL:-}" ] && [ -f "$REPO_DIR/.env" ]; then
+  BASE_URL="$(sed -n 's/^[[:space:]]*BASE_URL=//p' "$REPO_DIR/.env" | tail -n1 | tr -d '"'"'"'\r')"
+fi
+BASE_URL="${BASE_URL:-http://localhost:${PORT}}"
+BASE_URL="${BASE_URL%/}"
+HEALTH_URL="${BASE_URL}/api/health"
 BACKUP_DIR="${BACKUP_DIR:-$HOME/hearth-backups}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-120}"
 
@@ -38,6 +50,7 @@ if [[ "${1:-}" == "--check" ]]; then
   git fetch --tags --quiet
   running="$(current_version || true)"
   latest="$(newest_tag)"
+  printf 'checking:  %s\n' "$BASE_URL"
   printf 'running:   %s\n' "${running:-not running}"
   printf 'newest:    %s\n' "${latest:-none tagged}"
   if [[ -n "$latest" && "$running" != "$latest" ]]; then
@@ -115,12 +128,12 @@ wait_healthy() {
 
 deploy_tag "$TARGET"
 
-info "Waiting for it to come up"
+info "Waiting for it to come up at ${BASE_URL}"
 if wait_healthy; then
-  info "Deployed ${TARGET} — now reporting $(current_version)"
+  info "Deployed ${TARGET} — ${BASE_URL} now reporting $(current_version)"
   info "Wall panels will reload themselves once idle; open tablets will offer a Refresh button."
 else
-  warn "New version did not become healthy within ${HEALTH_TIMEOUT}s. Rolling back to ${PREVIOUS}."
+  warn "New version did not answer at ${HEALTH_URL} within ${HEALTH_TIMEOUT}s. Rolling back to ${PREVIOUS}."
   warn "Logs from the failed deploy:"
   docker compose logs --tail 40 hearth || true
   deploy_tag "$PREVIOUS" 2>/dev/null || {
