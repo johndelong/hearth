@@ -1,0 +1,151 @@
+import type { Extra, Person, Reward } from '@dashboard/shared';
+import { GhostButton, Modal } from './Modal';
+import { TapButton } from './ui';
+import { deep, soft } from '../theme';
+
+/** Kid-facing list of extra jobs they can pick up for points. */
+export function ExtraPicker({
+  person,
+  extras,
+  night,
+  onPick,
+  onClose,
+}: {
+  person: Person;
+  extras: Extra[];
+  night: boolean;
+  onPick: (extra: Extra) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      title={`Extra jobs for ${person.name}`}
+      sub="Pick one up and it lands on your board"
+      onClose={onClose}
+      footer={<GhostButton onClick={onClose}>Close</GhostButton>}
+    >
+      {extras.map((extra) => (
+        <TapButton
+          key={extra.id}
+          onClick={() => onPick(extra)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            width: '100%',
+            minHeight: 62,
+            padding: '13px 18px',
+            borderRadius: 18,
+            border: '1px solid var(--line)',
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ flex: 1, fontSize: 17.5, fontWeight: 800, color: 'var(--ink)' }}>{extra.title}</span>
+          <span
+            style={{
+              padding: '6px 14px',
+              borderRadius: 999,
+              background: soft(68, night),
+              color: deep(68, night),
+              fontSize: 16,
+              fontWeight: 800,
+            }}
+          >
+            +{extra.points}
+          </span>
+        </TapButton>
+      ))}
+      {extras.length === 0 && (
+        <div style={{ color: 'var(--ink2)', fontWeight: 700 }}>No extra jobs are set up yet.</div>
+      )}
+    </Modal>
+  );
+}
+
+export function RewardPicker({
+  person,
+  rewards,
+  points,
+  night,
+  onRedeem,
+  onSetGoal,
+  onClose,
+}: {
+  person: Person;
+  rewards: Reward[];
+  points: number;
+  night: boolean;
+  onRedeem: (reward: Reward) => void;
+  onSetGoal: (reward: Reward) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      title={`${person.name}'s rewards`}
+      sub={`${points} points saved up · tap to redeem, or set one as a goal`}
+      onClose={onClose}
+      footer={<GhostButton onClick={onClose}>Close</GhostButton>}
+    >
+      {rewards.map((reward) => {
+        const affordable = points >= reward.cost;
+        const isGoal = person.goalRewardId === reward.id;
+        return (
+          <div
+            key={reward.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '12px 16px',
+              borderRadius: 18,
+              border: isGoal ? '1px solid var(--ink)' : '1px solid var(--line)',
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 17.5, fontWeight: 800 }}>{reward.label}</span>
+              <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700, color: 'var(--ink2)' }}>
+                {reward.cost} pts{isGoal ? ' · current goal' : ''}
+              </span>
+            </span>
+
+            <TapButton
+              onClick={() => onSetGoal(reward)}
+              style={{
+                flex: 'none',
+                minHeight: 46,
+                padding: '10px 18px',
+                borderRadius: 999,
+                border: '1px solid var(--line)',
+                color: 'var(--ink2)',
+                fontSize: 15,
+                fontWeight: 800,
+              }}
+            >
+              {isGoal ? 'Goal' : 'Set goal'}
+            </TapButton>
+
+            <TapButton
+              onClick={() => onRedeem(reward)}
+              disabled={!affordable}
+              style={{
+                flex: 'none',
+                minHeight: 46,
+                padding: '10px 20px',
+                borderRadius: 999,
+                background: affordable ? 'var(--ink)' : 'var(--chip)',
+                color: affordable ? 'var(--card)' : 'var(--ink2)',
+                fontSize: 15,
+                fontWeight: 800,
+              }}
+            >
+              Redeem
+            </TapButton>
+          </div>
+        );
+      })}
+      {rewards.length === 0 && (
+        <div style={{ color: 'var(--ink2)', fontWeight: 700 }}>No rewards are set up yet.</div>
+      )}
+    </Modal>
+  );
+}

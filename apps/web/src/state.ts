@@ -1,0 +1,175 @@
+import { DEFAULT_SETTINGS, type Person, type Settings } from '@dashboard/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type Board, api } from './api';
+
+export type Tab = 'today' | 'chores' | 'settings';
+
+export interface Toast {
+  text: string;
+  hue: number;
+}
+
+/** Night mode follows the setting, or the clock when set to Auto. */
+export function useNight(theme: Settings['theme']): boolean {
+  const [night, setNight] = useState(() => computeNight(theme));
+  useEffect(() => {
+    setNight(computeNight(theme));
+    if (theme !== 'Auto') return;
+    const timer = window.setInterval(() => setNight(computeNight('Auto')), 60_000);
+    return () => window.clearInterval(timer);
+  }, [theme]);
+  return night;
+}
+
+function computeNight(theme: Settings['theme']): boolean {
+  if (theme === 'Night') return true;
+  if (theme === 'Day') return false;
+  const h = new Date().getHours();
+  return h >= 20 || h < 6;
+}
+
+/**
+ * Frame mode. After `idleMin` with no touch the dashboard steps back to a clock,
+ * which is what a wall panel should show most of the day.
+ */
+export function useIdle(idleMin: number): [boolean, () => void] {
+  const [idle, setIdle] = useState(false);
+  const last = useRef(Date.now());
+
+  const poke = useCallback(() => {
+    last.current = Date.now();
+    setIdle((was) => (was ? false : was));
+  }, []);
+
+  useEffect(() => {
+    if (!idleMin) return;
+    const timer = window.setInterval(() => {
+      if (Date.now() - last.current > idleMin * 60_000) setIdle(true);
+    }, 5_000);
+    return () => window.clearInterval(timer);
+  }, [idleMin]);
+
+  return [idle, poke];
+}
+
+/** Ticks once a minute so clocks and the "now" line stay honest. */
+export function useClock(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const align = 60_000 - (Date.now() % 60_000);
+    let interval: number | undefined;
+    const timeout = window.setTimeout(() => {
+      setNow(new Date());
+      interval = window.setInterval(() => setNow(new Date()), 60_000);
+    }, align);
+    return () => {
+      window.clearTimeout(timeout);
+      if (interval) window.clearInterval(interval);
+    };
+  }, []);
+  return now;
+}
+
+export function useToast(): [Toast | null, (text: string, hue?: number) => void] {
+  const [toast, setToast] = useState<Toast | null>(null);
+  const timer = useRef<number | null>(null);
+
+  const say = useCallback((text: string, hue = 258) => {
+    if (timer.current) window.clearTimeout(timer.current);
+    setToast({ text, hue });
+    timer.current = window.setTimeout(() => setToast(null), 2600);
+  }, []);
+
+  useEffect(() => () => {
+    if (timer.current) window.clearTimeout(timer.current);
+  }, []);
+
+  return [toast, say];
+}
+
+export interface AppData {
+  people: Person[];
+  settings: Settings;
+  board: Board | null;
+  loading: boolean;
+  error: string | null;
+  reloadPeople: () => Promise<void>;
+  reloadBoard: () => Promise<void>;
+  reloadSettings: () => Promise<void>;
+  setSettings: (s: Settings) => void;
+  setBoard: (b: Board) => void;
+}
+
+const EMPTY_BOARD: Board = {
+  chores: [],
+  extras: [],
+  claims: [],
+  rewards: [],
+  points: [],
+  redemptions: [],
+};
+
+export function useAppData(): AppData {
+  const [people, setPeople] = useState<Person[]>([]);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [board, setBoard] = useState<Board | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const reloadPeople = useCallback(async () => {
+    setPeople(await api.people());
+  }, []);
+  const reloadBoard = useCallback(async () => {
+    setBoard(await api.board());
+  }, []);
+  const reloadSettings = useCallback(async () => {
+    setSettings(await api.settings());
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [p, s, b] = await Promise.all([api.people(), api.settings(), api.board()]);
+        if (cancelled) return;
+        setPeople(p);
+        setSettings(s);
+        setBoard(b);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not reach the dashboard service');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The panel runs for weeks at a time; poll so a change made on one tablet
+  // shows up on the others without anyone reloading.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void api.board().then(setBoard).catch(() => undefined);
+      void api.people().then(setPeople).catch(() => undefined);
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return useMemo(
+    () => ({
+      people,
+      settings,
+      board: board ?? (loading ? null : EMPTY_BOARD),
+      loading,
+      error,
+      reloadPeople,
+      reloadBoard,
+      reloadSettings,
+      setSettings,
+      setBoard,
+    }),
+    [people, settings, board, loading, error, reloadPeople, reloadBoard, reloadSettings],
+  );
+}

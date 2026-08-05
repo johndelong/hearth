@@ -1,0 +1,1913 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+html,body{margin:0;padding:0;height:100%}
+body{background:#f4f5f8;font-family:Nunito,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+a{color:oklch(0.62 0.13 255);text-decoration:none}
+a:hover{color:oklch(0.52 0.14 255)}
+*{box-sizing:border-box}
+input,textarea{font-family:Nunito}
+*{scrollbar-width:none}
+::-webkit-scrollbar{width:0;height:0;display:none}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes riseIn{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes dropIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes popIn{0%{opacity:0;transform:scale(.8)}62%{transform:scale(1.09)}100%{opacity:1;transform:scale(1)}}
+@keyframes kenburns{0%{transform:scale(1.05) translate(0,0)}100%{transform:scale(1.17) translate(-1.8%,-2%)}}
+@keyframes breathe{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:1;transform:scale(1.25)}}
+@keyframes blink{0%,44%{opacity:1}50%,94%{opacity:.25}100%{opacity:1}}
+@keyframes growW{from{width:0}}
+@keyframes toastIn{0%{opacity:0;transform:translate(-50%,26px) scale(.94)}14%{opacity:1;transform:translate(-50%,0) scale(1)}86%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-8px)}}
+@keyframes confFall{0%{opacity:0;transform:translateY(-24px) rotate(0)}9%{opacity:1}100%{opacity:0;transform:translateY(78vh) rotate(620deg)}}
+@keyframes pulseRing{0%{box-shadow:0 0 0 0 rgba(240,120,80,.5)}70%{box-shadow:0 0 0 16px rgba(240,120,80,0)}100%{box-shadow:0 0 0 0 rgba(240,120,80,0)}}
+@keyframes cheerLift{0%{transform:none}26%{transform:translateY(-7px) scale(1.014)}100%{transform:none}}
+@keyframes sheenSweep{0%{transform:translateX(-130%) skewX(-16deg);opacity:0}18%{opacity:.9}100%{transform:translateX(240%) skewX(-16deg);opacity:0}}
+@keyframes sparkle{0%{opacity:0;transform:scale(.2) rotate(0)}35%{opacity:1;transform:scale(1) rotate(60deg)}100%{opacity:0;transform:scale(.35) translateY(-18px) rotate(160deg)}}
+@keyframes cardConf{0%{opacity:0;transform:translateY(-18px) rotate(0)}6%{opacity:1}100%{opacity:1;transform:translateY(660px) rotate(720deg)}}
+@keyframes ptsPop{0%{opacity:0;transform:translateY(8px) scale(.8)}45%{opacity:1;transform:translateY(-4px) scale(1.12)}100%{opacity:1;transform:none}}
+
+image-slot[data-mini]::part(empty){opacity:0}
+</style>
+</helmet>
+
+<div style="{{ rootStyle }}" onClick="{{ poke }}" onMouseMove="{{ poke }}">
+
+<sc-if value="{{ idle }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:80;background:#05060a;animation:fadeIn .9s ease both;cursor:pointer">
+    <div style="position:absolute;inset:0;overflow:hidden">
+      <div style="position:absolute;inset:0;animation:kenburns 44s ease-in-out infinite alternate">
+        <image-slot id="frame-hero" shape="rect" fit="cover" placeholder="Family photo — full bleed frame mode"></image-slot>
+      </div>
+    </div>
+    <div style="position:absolute;inset:auto 0 0 0;padding:62px 70px 56px;display:flex;justify-content:space-between;align-items:flex-end;background:linear-gradient(to top,rgba(4,6,12,.6),rgba(4,6,12,.14) 58%,transparent);color:#fff;pointer-events:none">
+      <div style="animation:riseIn 1.2s cubic-bezier(.2,.8,.25,1) both;animation-delay:.25s">
+        <div style="font-family:Outfit;font-weight:300;font-size:108px;line-height:.9;letter-spacing:-.035em;text-shadow:0 2px 34px rgba(0,0,0,.45)">{{ clockTime }}</div>
+        <div style="font-size:24px;opacity:.8;margin-top:14px">{{ clockLong }}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:17px;opacity:.5;animation:riseIn 1.2s cubic-bezier(.2,.8,.25,1) both;animation-delay:.45s">
+        <span style="width:9px;height:9px;border-radius:50%;background:#fff;animation:breathe 2.8s ease-in-out infinite"></span>Tap or walk by to wake
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasConfetti }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:95;pointer-events:none;overflow:hidden">
+    <sc-for list="{{ confetti }}" as="c" hint-placeholder-count="0">
+      <span style="{{ c.style }}"></span>
+    </sc-for>
+  </div>
+</sc-if>
+
+<div style="{{ shellStyle }}">
+
+  <sc-if value="{{ isSidebar }}" hint-placeholder-val="{{ true }}">
+    <nav style="width:112px;flex:none;display:flex;flex-direction:column;align-items:center;gap:5px;padding:16px 0 18px;background:var(--card,#fff);border-right:1px solid var(--line,rgba(30,34,48,.09))">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="5">
+        <button onClick="{{ n.go }}" style="{{ n.railStyle }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><path d="{{ n.d }}"></path></svg>
+          <span style="font-size:12.5px;font-weight:800;letter-spacing:.02em">{{ n.label }}</span>
+          <sc-if value="{{ n.badge }}" hint-placeholder-val="{{ false }}">
+            <span style="{{ n.railBadgeStyle }}">{{ n.badge }}</span>
+          </sc-if>
+        </button>
+      </sc-for>
+      <button onClick="{{ sleepNow }}" style="{{ sleepStyle }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="{{ moonD }}"></path></svg>
+        <span style="font-size:11.5px;font-weight:800">Frame</span>
+      </button>
+    </nav>
+  </sc-if>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden">
+
+    <header style="flex:none;display:flex;align-items:center;gap:18px;padding:16px 28px 12px;animation:dropIn .5s cubic-bezier(.2,.8,.25,1) both">
+      <div style="min-width:0;flex:0 0 auto">
+        <div style="font-family:Outfit;font-weight:600;font-size:29px;letter-spacing:-.022em;line-height:1.1;color:var(--ink,#1e2230);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ viewTitle }}</div>
+        <div style="font-size:14.5px;font-weight:600;color:var(--ink2,rgba(30,34,48,.58));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">{{ viewSub }}</div>
+      </div>
+
+      <sc-if value="{{ showCalControls }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:0 1 auto;min-width:0;overflow:hidden;display:flex;gap:5px;background:var(--chip,rgba(30,34,48,.05));padding:5px;border-radius:999px">
+          <sc-for list="{{ calRanges }}" as="r" hint-placeholder-count="3">
+            <button onClick="{{ r.go }}" style="{{ r.style }}">{{ r.label }}</button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="margin-left:auto;flex:none;display:flex;align-items:center;gap:12px">
+        <sc-if value="{{ addLabel }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ openAdd }}" style="{{ addBtnStyle }}" style-hover="transform:translateY(-2px)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" style="width:19px;height:19px"><path d="M12 5.5v13M5.5 12h13"></path></svg>{{ addBtnLabel }}
+          </button>
+        </sc-if>
+        <sc-if value="{{ showGear }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ openTabSettings }}" style="{{ gearBtnStyle }}" style-hover="transform:translateY(-2px);color:var(--ink)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="{{ gearD }}"></path></svg>
+          </button>
+        </sc-if>
+        <div style="text-align:right">
+          <div style="display:flex;align-items:baseline;justify-content:flex-end;font-family:Outfit;font-weight:400;font-size:34px;line-height:1;letter-spacing:-.02em;color:var(--ink,#1e2230);font-variant-numeric:tabular-nums">{{ clockH }}<span style="animation:blink 2s steps(1,end) infinite">:</span>{{ clockM }}</div>
+        </div>
+      </div>
+    </header>
+
+    <sc-if value="{{ isTabs }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:none;display:flex;align-items:center;gap:9px;padding:0 28px 12px">
+        <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="5">
+          <button onClick="{{ n.go }}" style="{{ n.tabStyle }}" style-hover="transform:translateY(-2px)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><path d="{{ n.d }}"></path></svg>{{ n.label }}
+            <sc-if value="{{ n.badge }}" hint-placeholder-val="{{ false }}">
+              <span style="{{ n.badgeStyle }}">{{ n.badge }}</span>
+            </sc-if>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <main style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column;padding:2px 0 0">
+
+      <sc-if value="{{ showToday }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;padding:0 28px 22px">
+
+          <sc-if value="{{ isDayView }}" hint-placeholder-val="{{ true }}">
+            <div style="{{ dayCardStyle }}">
+              <sc-if value="{{ hasAllDay }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:none;display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:14px 22px 13px;border-bottom:1px solid var(--line,rgba(30,34,48,.09))">
+                  <span style="font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2,rgba(30,34,48,.58));width:52px;flex:none">All day</span>
+                  <sc-for list="{{ allDay }}" as="a" hint-placeholder-count="2">
+                    <button onClick="{{ a.edit }}" style="{{ a.style }}" style-hover="transform:translateY(-2px)">
+                      <span style="{{ a.dotStyle }}">{{ a.initial }}</span>{{ a.title }}
+                    </button>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <div ref="{{ dayRef }}" style="flex:1;min-height:0;overflow-y:auto;padding:4px 22px 18px">
+                <sc-for list="{{ timeline }}" as="r" hint-placeholder-count="16">
+                  <div data-hour="{{ r.h }}" style="{{ r.style }}">
+                    <span style="{{ r.labelStyle }}">{{ r.label }}</span>
+                    <div style="flex:1;min-width:0;display:flex;gap:9px;flex-wrap:wrap;align-items:flex-start">
+                      <sc-for list="{{ r.events }}" as="e" hint-placeholder-count="1">
+                        <button onClick="{{ e.edit }}" style="{{ e.style }}" style-hover="transform:translateY(-2px)">
+                          <span style="{{ e.dotStyle }}">{{ e.initial }}</span>
+                          <span style="min-width:0;flex:1;text-align:left">
+                            <span style="display:block;font-size:12.5px;font-weight:800;letter-spacing:.04em;opacity:.72">{{ e.time }}</span>
+                            <span style="display:block;font-size:16.5px;font-weight:700;line-height:1.25;overflow-wrap:break-word">{{ e.title }}</span>
+                            <sc-if value="{{ e.place }}" hint-placeholder-val="{{ true }}">
+                              <span style="display:block;font-size:13.5px;opacity:.66;overflow-wrap:break-word">{{ e.place }}</span>
+                            </sc-if>
+                          </span>
+                        </button>
+                      </sc-for>
+                    </div>
+                    <sc-if value="{{ r.isNow }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ r.nowStyle }}"><span style="{{ r.nowDotStyle }}"></span></div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isWeekView }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ weekGridStyle }}">
+              <div></div>
+              <sc-for list="{{ weekDays }}" as="wd" hint-placeholder-count="5">
+                <div style="{{ wd.style }}">{{ wd.label }}</div>
+              </sc-for>
+              <sc-for list="{{ weekRows }}" as="p" hint-placeholder-count="6">
+                <div style="{{ p.rowHeadStyle }}">
+                  <span style="{{ p.dotStyle }}">{{ p.initial }}</span>
+                  <span style="font-size:14px;font-weight:800;color:var(--ink,#1e2230)">{{ p.name }}</span>
+                </div>
+                <sc-for list="{{ p.days }}" as="d" hint-placeholder-count="5">
+                  <div style="{{ d.cellStyle }}">
+                    <sc-for list="{{ d.events }}" as="e" hint-placeholder-count="1">
+                      <button onClick="{{ e.edit }}" style="{{ e.style }}" style-hover="transform:translateY(-2px)">{{ e.line }}</button>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isMonthView }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:11px">
+              <div style="{{ monthGridStyle }}">
+                <sc-for list="{{ monthDow }}" as="w" hint-placeholder-count="7">
+                  <div style="background:var(--card,#fff);padding:8px 0;text-align:center;font-size:11.5px;font-weight:800;letter-spacing:.08em;color:var(--ink2,rgba(30,34,48,.5))">{{ w }}</div>
+                </sc-for>
+                <sc-for list="{{ monthDays }}" as="d" hint-placeholder-count="35">
+                  <div style="{{ d.cellStyle }}">
+                    <span style="{{ d.numStyle }}">{{ d.num }}</span>
+                    <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;min-height:0;overflow:hidden">
+                      <sc-for list="{{ d.chips }}" as="ch" hint-placeholder-count="0">
+                        <span style="{{ ch.style }}">{{ ch.label }}</span>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="flex:none;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:0 4px">
+                <sc-for list="{{ legend }}" as="l" hint-placeholder-count="6">
+                  <div style="display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:700;color:var(--ink2,rgba(30,34,48,.58))">
+                    <span style="{{ l.dotStyle }}"></span>{{ l.name }}
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showChores }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:13px">
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:0 28px 24px">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:14px;align-items:start">
+              <sc-for list="{{ choreBoards }}" as="p" hint-placeholder-count="5">
+                <div style="{{ p.boardStyle }}">
+                  <sc-if value="{{ p.bursting }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;inset:0;border-radius:26px;overflow:hidden;pointer-events:none;z-index:2">
+                      <sc-for list="{{ p.confetti }}" as="s" hint-placeholder-count="0">
+                        <span style="{{ s.style }}"></span>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+
+                  <div style="display:flex;align-items:center;gap:13px">
+                    <div style="{{ p.avatarWrapStyle }}">
+                      <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Outfit;font-weight:600">{{ p.initial }}</span>
+                      <image-slot data-mini="1" id="{{ p.slotId }}" shape="circle" fit="cover" placeholder=""></image-slot>
+                      <div style="{{ p.ringStyle }}"></div>
+                    </div>
+                    <div style="min-width:0;flex:1">
+                      <div style="font-family:Outfit;font-weight:600;font-size:21px;letter-spacing:-.01em;color:var(--ink,#1e2230);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
+                      <div style="display:flex;align-items:center;gap:7px;margin-top:4px;flex-wrap:wrap">
+                        <sc-if value="{{ p.isKid }}" hint-placeholder-val="{{ true }}">
+                          <span style="{{ p.pointsPillStyle }}">{{ p.pointsLabel }}</span>
+                        </sc-if>
+                      </div>
+                    </div>
+                    <sc-if value="{{ p.isKid }}" hint-placeholder-val="{{ true }}">
+                      <button onClick="{{ p.openGoal }}" style="{{ p.goalRingStyle }}" style-hover="transform:scale(1.04)">
+                        <span style="{{ p.ringArcStyle }}"></span>
+                        <sc-if value="{{ p.reached }}" hint-placeholder-val="{{ false }}">
+                          <span style="position:absolute;inset:-12px;pointer-events:none">
+                            <sc-for list="{{ p.sparks }}" as="s" hint-placeholder-count="0">
+                              <span style="{{ s.style }}"></span>
+                            </sc-for>
+                          </span>
+                        </sc-if>
+                        <span style="{{ p.goalFaceStyle }}">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;width:23px;height:23px;pointer-events:none"><path d="{{ p.goalIconD }}"></path></svg>
+                          <sc-if value="{{ p.hasGoal }}" hint-placeholder-val="{{ true }}">
+                            <image-slot data-mini="1" id="{{ p.goalSlotId }}" shape="circle" fit="cover" placeholder=""></image-slot>
+                          </sc-if>
+                        </span>
+                      </button>
+                    </sc-if>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <sc-for list="{{ p.chores }}" as="c" hint-placeholder-count="4">
+                      <div style="{{ c.rowWrapStyle }}">
+                        <button onClick="{{ c.toggle }}" onPointerDown="{{ c.hold }}" onPointerUp="{{ c.release }}" onPointerLeave="{{ c.release }}" onContextMenu="{{ c.menu }}" style="{{ c.cardStyle }}" style-hover="transform:translateY(-2px)">
+                          <sc-if value="{{ c.shimmer }}" hint-placeholder-val="{{ false }}">
+                            <span style="{{ c.sheenStyle }}"></span>
+                          </sc-if>
+                          <span style="{{ c.boxStyle }}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="{{ c.markStyle }}"><path d="M5 13l4 4L19 7"></path></svg>
+                          </span>
+                          <span style="flex:1;min-width:0;text-align:left">
+                            <span style="{{ c.textStyle }}">{{ c.title }}</span>
+                            <span style="display:block;font-size:13px;color:var(--ink2,rgba(30,34,48,.58));margin-top:1px">{{ c.repeat }}</span>
+                          </span>
+                          <sc-if value="{{ c.pts }}" hint-placeholder-val="{{ false }}">
+                            <span style="{{ c.ptsStyle }}">{{ c.pts }}</span>
+                          </sc-if>
+                        </button>
+                      </div>
+                    </sc-for>
+                  </div>
+
+                  <sc-if value="{{ p.isKid }}" hint-placeholder-val="{{ true }}">
+                    <button onClick="{{ p.pickExtra }}" style="{{ p.pickExtraStyle }}" style-hover="opacity:1">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><path d="{{ starD }}"></path></svg>Pick an extra job
+                    </button>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showLists }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:13px;padding:0 28px">
+          <div style="{{ groceryHeadStyle }}">
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 17px;border-radius:999px;background:var(--chip,rgba(30,34,48,.05));font-size:15.5px;font-weight:800;color:var(--ink2,rgba(30,34,48,.58));white-space:nowrap">
+              <span style="width:9px;height:9px;border-radius:50%;background:oklch(0.72 0.14 148);animation:breathe 2.4s ease-in-out infinite"></span>Apple Reminders
+            </div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:16px">
+              <div style="font-family:Outfit;font-weight:600;font-size:21px;letter-spacing:-.01em;color:var(--ink,#1e2230);white-space:nowrap">{{ groceryCount }}</div>
+              <div style="flex:0 1 160px;min-width:70px;height:12px;border-radius:999px;background:var(--chip,rgba(30,34,48,.06));overflow:hidden">
+                <div style="{{ groceryBarStyle }}"></div>
+              </div>
+              <sc-if value="{{ hasBought }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ clearBought }}" style="{{ clearBoughtStyle }}" style-hover="opacity:1">Clear picked up</button>
+              </sc-if>
+            </div>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:0 0 24px">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:14px;align-items:start">
+              <sc-for list="{{ groceryGroups }}" as="g" hint-placeholder-count="3">
+                <div style="{{ g.cardStyle }}">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <span style="{{ g.iconStyle }}">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><path d="{{ listD }}"></path></svg>
+                    </span>
+                    <div style="font-family:Outfit;font-weight:600;font-size:22px;letter-spacing:-.01em;color:var(--ink,#1e2230)">{{ g.name }}</div>
+                    <span style="{{ g.countStyle }}">{{ g.countLabel }}</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <sc-for list="{{ g.items }}" as="i" hint-placeholder-count="4">
+                      <div style="{{ i.wrapStyle }}">
+                        <button onClick="{{ i.toggle }}" onPointerDown="{{ i.hold }}" onPointerUp="{{ i.release }}" onPointerLeave="{{ i.release }}" onContextMenu="{{ i.menu }}" style="{{ i.rowStyle }}" style-hover="transform:translateY(-2px)">
+                          <span style="{{ i.boxStyle }}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" style="{{ i.markStyle }}"><path d="M5 13l4 4L19 7"></path></svg>
+                          </span>
+                          <span style="{{ i.textStyle }}">{{ i.name }}</span>
+                          <sc-if value="{{ i.by }}" hint-placeholder-val="{{ true }}">
+                            <span style="{{ i.byStyle }}">{{ i.by }}</span>
+                          </sc-if>
+                        </button>
+                      </div>
+                    </sc-for>
+                    <button onClick="{{ g.add }}" style="{{ g.addStyle }}" style-hover="opacity:1">+ Add to {{ g.name }}</button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showHome }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:13px;overflow-y:auto;padding:0 28px 24px">
+
+          <div style="{{ statusCardStyle }}">
+            <span style="{{ statusIconStyle }}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px"><path d="{{ statusD }}"></path></svg>
+            </span>
+            <div style="min-width:0;flex:1">
+              <div style="font-family:Outfit;font-weight:600;font-size:26px;letter-spacing:-.01em;line-height:1.15">{{ statusTitle }}</div>
+              <div style="font-size:15.5px;font-weight:600;opacity:.72;margin-top:3px">{{ statusSub }}</div>
+            </div>
+            <div style="{{ alarmBadgeStyle }}">{{ alarmLabel }}</div>
+          </div>
+
+          <div style="flex:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+            <sc-for list="{{ quickActions }}" as="q" hint-placeholder-count="6">
+              <button onClick="{{ q.run }}" style="{{ q.style }}" style-hover="transform:translateY(-3px)">
+                <span style="{{ q.iconStyle }}">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><path d="{{ q.d }}"></path></svg>
+                </span>
+                <span style="text-align:left;min-width:0">
+                  <span style="display:block;font-size:17px;font-weight:800;color:var(--ink,#1e2230);line-height:1.2">{{ q.label }}</span>
+                  <span style="display:block;font-size:13px;font-weight:600;color:var(--ink2,rgba(30,34,48,.58));margin-top:2px">{{ q.sub }}</span>
+                </span>
+              </button>
+            </sc-for>
+          </div>
+
+          <div style="flex:1;min-height:220px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:13px;align-items:stretch">
+            <div style="{{ panelStyle }}">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:13px">
+                <div style="font-family:Outfit;font-weight:600;font-size:20px;color:var(--ink,#1e2230)">Doors &amp; locks</div>
+                <div style="{{ doorSummaryStyle }}">{{ doorSummary }}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <sc-for list="{{ doors }}" as="dr" hint-placeholder-count="4">
+                  <button onClick="{{ dr.act }}" style="{{ dr.rowStyle }}" style-hover="transform:translateY(-2px)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;flex:none;color:{{ dr.tint }}"><path d="{{ dr.d }}"></path></svg>
+                    <span style="flex:1;min-width:0;text-align:left;font-size:16.5px;font-weight:700;color:var(--ink,#1e2230);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ dr.name }}</span>
+                    <span style="{{ dr.stateStyle }}">{{ dr.state }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="{{ panelStyle }}">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:13px">
+                <div style="font-family:Outfit;font-weight:600;font-size:20px;color:var(--ink,#1e2230)">Lights</div>
+                <div style="{{ doorSummaryStyle }}">{{ lightsSummary }}</div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:8px">
+                <sc-for list="{{ rooms }}" as="r" hint-placeholder-count="6">
+                  <button onClick="{{ r.toggle }}" style="{{ r.cardStyle }}" style-hover="transform:translateY(-2px)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;flex:none"><path d="{{ r.d }}"></path></svg>
+                    <span style="min-width:0;text-align:left">
+                      <span style="display:block;font-size:14.5px;font-weight:800;line-height:1.15;overflow-wrap:break-word">{{ r.name }}</span>
+                      <span style="display:block;font-size:12.5px;font-weight:700;opacity:.62">{{ r.status }}</span>
+                    </span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="{{ panelStyle }}">
+              <div style="font-family:Outfit;font-weight:600;font-size:20px;color:var(--ink,#1e2230);margin-bottom:13px">Thermostats</div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <sc-for list="{{ zones }}" as="z" hint-placeholder-count="3">
+                  <div>
+                    <div style="display:flex;align-items:baseline;gap:8px">
+                      <span style="font-size:15px;font-weight:800;color:var(--ink,#1e2230)">{{ z.name }}</span>
+                      <span style="flex:1;min-width:0;font-size:12.5px;font-weight:700;color:var(--ink2,rgba(30,34,48,.58))">{{ z.note }}</span>
+                      <span style="font-family:Outfit;font-weight:400;font-size:23px;color:var(--ink,#1e2230)">{{ z.target }}°</span>
+                    </div>
+                    <div onClick="{{ z.setFromEvent }}" style="{{ z.trackStyle }}">
+                      <div style="{{ z.fillStyle }}"></div>
+                      <div style="{{ z.knobStyle }}"></div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showSettings }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;display:flex;gap:22px;overflow:hidden;padding:0 28px">
+
+          <nav style="flex:none;width:276px;display:flex;flex-direction:column;gap:7px;overflow-y:auto;padding:2px 8px 24px 0">
+            <sc-for list="{{ setNav }}" as="s" hint-placeholder-count="6">
+              <button onClick="{{ s.go }}" style="{{ s.style }}">
+                <span style="{{ s.iconStyle }}">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><path d="{{ s.d }}"></path></svg>
+                </span>
+                  <span style="min-width:0;flex:1">
+                  <span style="display:block;font-size:17.5px;font-weight:800;line-height:1.2">{{ s.label }}</span>
+                  <span style="display:block;font-size:13.5px;font-weight:700;opacity:.62;margin-top:2px;text-wrap:pretty;line-height:1.3">{{ s.sub }}</span>
+                </span>
+              </button>
+            </sc-for>
+          </nav>
+
+          <div style="flex:1;min-width:0;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:2px 2px 24px">
+            <sc-for list="{{ setPanels }}" as="p" hint-placeholder-count="2">
+              <div style="{{ p.style }}">
+                <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:4px">
+                  <div style="font-family:Outfit;font-weight:600;font-size:23px;color:var(--ink,#1e2230)">{{ p.title }}</div>
+                  <div style="font-size:15px;font-weight:600;color:var(--ink2,rgba(30,34,48,.58));text-wrap:pretty">{{ p.sub }}</div>
+                </div>
+
+                <sc-for list="{{ p.rows }}" as="r" hint-placeholder-count="4">
+                  <div>
+                    <sc-if value="{{ r.isPerson }}" hint-placeholder-val="{{ false }}">
+                      <div onClick="{{ r.edit }}" style="{{ r.rowStyle }}" style-hover="background:var(--chip)">
+                        <span style="{{ r.avatarStyle }}">
+                          <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Outfit;font-weight:600">{{ r.initial }}</span>
+                          <image-slot data-mini="1" id="{{ r.slotId }}" shape="circle" fit="cover" placeholder=""></image-slot>
+                        </span>
+                        <span style="flex:1;min-width:0">
+                          <span style="display:block;font-size:18px;font-weight:800;color:var(--ink,#1e2230)">{{ r.name }}</span>
+                          <span style="display:block;font-size:14px;font-weight:700;color:var(--ink2,rgba(30,34,48,.58));margin-top:2px;text-wrap:pretty">{{ r.sub }}</span>
+                        </span>
+                        <sc-for list="{{ r.toggles }}" as="t" hint-placeholder-count="2">
+                          <span style="flex:none;display:flex;align-items:center;gap:11px">
+                            <span style="font-size:15px;font-weight:800;color:var(--ink2,rgba(30,34,48,.58))">{{ t.label }}</span>
+                            <button onClick="{{ t.toggle }}" style="{{ t.trackStyle }}"><span style="{{ t.knobStyle }}"></span></button>
+                          </span>
+                        </sc-for>
+                        <span style="{{ r.pencilStyle }}">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="{{ r.pencilD }}"></path></svg>
+                        </span>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{ r.isToggle }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ r.rowStyle }}">
+                        <span style="flex:1;min-width:0">
+                          <span style="display:block;font-size:17px;font-weight:800;color:var(--ink,#1e2230);text-wrap:pretty">{{ r.label }}</span>
+                          <span style="display:block;font-size:13.5px;font-weight:700;color:var(--ink2,rgba(30,34,48,.58));margin-top:2px">{{ r.sub }}</span>
+                        </span>
+                        <button onClick="{{ r.toggle }}" style="{{ r.trackStyle }}"><span style="{{ r.knobStyle }}"></span></button>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{ r.isConnect }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ r.rowStyle }}">
+                        <span style="{{ r.dotStyle }}"></span>
+                        <span style="flex:1;min-width:0">
+                          <span style="display:block;font-size:17px;font-weight:800;color:var(--ink,#1e2230);overflow-wrap:anywhere">{{ r.label }}</span>
+                          <span style="display:block;font-size:13.5px;font-weight:700;color:var(--ink2,rgba(30,34,48,.58));margin-top:2px;overflow-wrap:anywhere">{{ r.sub }}</span>
+                        </span>
+                        <button onClick="{{ r.act }}" style="{{ r.btnStyle }}" style-hover="transform:translateY(-2px)">{{ r.btnLabel }}</button>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{ r.isChipRow }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ r.rowStyle }}">
+                        <span style="flex:1 1 auto;min-width:0;font-size:17px;font-weight:800;color:var(--ink,#1e2230);text-wrap:pretty">{{ r.label }}</span>
+                        <span style="flex:1 1 330px;display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end">
+                          <sc-for list="{{ r.options }}" as="o" hint-placeholder-count="3">
+                            <button onClick="{{ o.pick }}" style="{{ o.style }}" style-hover="transform:translateY(-2px)">{{ o.label }}</button>
+                          </sc-for>
+                        </span>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{ r.isItem }}" hint-placeholder-val="{{ false }}">
+                      <button onClick="{{ r.edit }}" style="{{ r.rowStyle }}" style-hover="transform:translateY(-2px)">
+                        <span style="flex:1;min-width:0;text-align:left;font-size:17px;font-weight:700;color:var(--ink,#1e2230)">{{ r.label }}</span>
+                        <span style="{{ r.tagStyle }}">{{ r.tag }}</span>
+                      </button>
+                    </sc-if>
+                  </div>
+                </sc-for>
+
+                <sc-if value="{{ p.addLabel }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ p.addAct }}" style="{{ dashedBtnStyle }}" style-hover="opacity:1">{{ p.addLabel }}</button>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+    </main>
+  </div>
+</div>
+
+<sc-if value="{{ catalogOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeCatalog }}" style="position:fixed;inset:0;z-index:91;background:rgba(10,12,20,.55);display:flex;align-items:center;justify-content:center;padding:22px;animation:fadeIn .22s ease both">
+    <div onClick="{{ stopProp }}" style="{{ catSheetStyle }}">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="{{ catAvatarStyle }}">
+          <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Outfit;font-weight:600">{{ catInitial }}</span>
+          <image-slot data-mini="1" id="{{ catSlotId }}" shape="circle" fit="cover" placeholder=""></image-slot>
+        </span>
+        <div style="min-width:0">
+          <div style="font-family:Outfit;font-weight:600;font-size:27px;letter-spacing:-.01em;color:var(--ink,#1e2230)">{{ catTitle }}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--ink2,rgba(30,34,48,.58));margin-top:2px">{{ catPtsLabel }}</div>
+        </div>
+        <button onClick="{{ closeCatalog }}" style="{{ modalCloseStyle }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="width:17px;height:17px"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+        </button>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:9px">
+        <sc-for list="{{ catChips }}" as="c" hint-placeholder-count="3">
+          <button onClick="{{ c.pick }}" style="{{ c.style }}" style-hover="transform:translateY(-2px)">
+            <span style="{{ c.dotStyle }}">{{ c.initial }}</span>
+            <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15">
+              <span style="font-size:15px;font-weight:800">{{ c.label }}</span>
+              <span style="font-size:12px;font-weight:800;opacity:.7">{{ c.count }}</span>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));grid-auto-rows:min-content;align-content:start;gap:16px;padding:2px">
+        <sc-for list="{{ catCards }}" as="c" hint-placeholder-count="5">
+          <div style="{{ c.cardStyle }}">
+            <div style="{{ c.imgStyle }}">
+              <span style="{{ c.costPillStyle }}">{{ c.cost }}</span>
+              <image-slot id="{{ c.slotId }}" fit="cover" placeholder="{{ c.placeholder }}"></image-slot>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:9px;padding:14px 15px 15px">
+              <div style="font-size:17px;font-weight:800;color:var(--ink,#1e2230);text-wrap:pretty">{{ c.label }}</div>
+              <div style="{{ c.stateStyle }}">{{ c.state }}</div>
+              <div style="height:7px;border-radius:999px;background:var(--chip,rgba(30,34,48,.06));overflow:hidden">
+                <div style="{{ c.barFillStyle }}"></div>
+              </div>
+              <button onClick="{{ c.redeem }}" style="{{ c.btnStyle }}" style-hover="transform:translateY(-2px)">{{ c.btnLabel }}</button>
+              <button onClick="{{ c.setGoal }}" style="{{ c.goalBtnStyle }}" style-hover="opacity:1">{{ c.goalBtnLabel }}</button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ hasCatRecent }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+          <span style="font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2,rgba(30,34,48,.58))">Redeemed</span>
+          <sc-for list="{{ catRecent }}" as="r" hint-placeholder-count="2">
+            <span style="{{ r.style }}">{{ r.label }}<span style="opacity:.7">{{ r.tag }}</span></span>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeModal }}" style="position:fixed;inset:0;z-index:92;background:rgba(10,12,20,.5);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .22s ease both">
+    <div onClick="{{ stopProp }}" style="{{ modalStyle }}">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+        <div style="min-width:0">
+          <div style="font-family:Outfit;font-weight:600;font-size:25px;letter-spacing:-.01em;color:var(--ink,#1e2230)">{{ modalTitle }}</div>
+          <sc-if value="{{ modalSub }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:13.5px;color:var(--ink2,rgba(30,34,48,.58));margin-top:2px">{{ modalSub }}</div>
+          </sc-if>
+        </div>
+        <button onClick="{{ closeModal }}" style="{{ modalCloseStyle }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="width:17px;height:17px"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+        </button>
+      </div>
+
+      <sc-if value="{{ hasModalList }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:58vh;overflow-y:auto;padding-right:2px">
+          <sc-for list="{{ modalList }}" as="o" hint-placeholder-count="4">
+            <button onClick="{{ o.pick }}" style="{{ o.style }}" style-hover="transform:translateY(-2px)">
+              <span style="flex:1;min-width:0;text-align:left">
+                <span style="display:block;font-size:17px;font-weight:800;color:var(--ink,#1e2230)">{{ o.label }}</span>
+                <span style="display:block;font-size:13px;font-weight:700;color:var(--ink2,rgba(30,34,48,.58));margin-top:1px">{{ o.sub }}</span>
+              </span>
+              <span style="{{ o.tagStyle }}">{{ o.tag }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hasModalFields }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:15px;max-height:56vh;overflow-y:auto;padding-right:2px">
+          <sc-for list="{{ modalFields }}" as="f" hint-placeholder-count="4">
+            <div>
+              <div style="font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2,rgba(30,34,48,.58));margin-bottom:7px">{{ f.label }}</div>
+              <sc-if value="{{ f.isText }}" hint-placeholder-val="{{ true }}">
+                <input value="{{ f.value }}" onChange="{{ f.set }}" placeholder="{{ f.placeholder }}" style="{{ inputStyle }}"></input>
+              </sc-if>
+              <sc-if value="{{ f.isChips }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-wrap:wrap;gap:7px">
+                  <sc-for list="{{ f.options }}" as="o" hint-placeholder-count="4">
+                    <button onClick="{{ o.pick }}" style="{{ o.style }}" style-hover="transform:translateY(-2px)">
+                      <sc-if value="{{ o.initial }}" hint-placeholder-val="{{ false }}">
+                        <span style="{{ o.dotStyle }}">{{ o.initial }}</span>
+                      </sc-if>{{ o.label }}
+                    </button>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ f.isStepper }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <button onClick="{{ f.dec }}" style="{{ stepBtnStyle }}" style-hover="transform:translateY(-2px)">–</button>
+                  <span style="font-family:Outfit;font-weight:600;font-size:26px;color:var(--ink,#1e2230);min-width:62px;text-align:center">{{ f.value }}</span>
+                  <button onClick="{{ f.inc }}" style="{{ stepBtnStyle }}" style-hover="transform:translateY(-2px)">+</button>
+                  <span style="font-size:14px;font-weight:700;color:var(--ink2,rgba(30,34,48,.58))">points</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ f.isAvatar }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:14px">
+                  <div style="{{ f.slotWrapStyle }}">
+                    <image-slot id="{{ f.slotId }}" shape="circle" fit="cover" placeholder="{{ f.placeholder }}"></image-slot>
+                  </div>
+                  <div style="font-size:13.5px;font-weight:600;color:var(--ink2,rgba(30,34,48,.58));max-width:220px">Drag a photo onto the circle. Shows on their chore card and in the calendar.</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-top:22px">
+        <sc-if value="{{ canDelete }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ deleteItem }}" style="{{ deleteBtnStyle }}" style-hover="transform:translateY(-2px)">Delete</button>
+        </sc-if>
+        <button onClick="{{ closeModal }}" style="{{ cancelBtnStyle }}" style-hover="transform:translateY(-2px)">{{ cancelLabel }}</button>
+        <sc-if value="{{ hasModalFields }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ saveModal }}" style="{{ saveBtnStyle }}" style-hover="transform:translateY(-2px)">{{ saveLabel }}</button>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showKeypad }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ toggleKeypad }}" style="position:fixed;inset:0;z-index:93;background:rgba(10,12,20,.5);display:flex;align-items:center;justify-content:center;animation:fadeIn .22s ease both">
+    <div onClick="{{ stopProp }}" style="background:var(--card,#fff);border-radius:28px;padding:26px 28px;width:328px;box-shadow:0 30px 60px -20px rgba(10,14,30,.4);animation:popIn .3s cubic-bezier(.2,.9,.3,1.25) both">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <div style="font-size:17px;font-weight:800;color:var(--ink,#1e2230)">{{ keypadPrompt }}</div>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <sc-for list="{{ codeDots }}" as="d" hint-placeholder-count="4">
+            <span style="{{ d.style }}"></span>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        <sc-for list="{{ keys }}" as="k" hint-placeholder-count="12">
+          <button onClick="{{ k.press }}" style="{{ k.style }}" style-hover="transform:translateY(-2px)">{{ k.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="{{ toastStyle }}">
+    <span style="{{ toastIconStyle }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><path d="{{ toastD }}"></path></svg>
+    </span>{{ toast }}
+  </div>
+</sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;navModel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;sidebar&quot;,&quot;tabs&quot;],&quot;default&quot;:&quot;sidebar&quot;,&quot;tsType&quot;:&quot;'sidebar'|'tabs'&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;themeMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;day&quot;,&quot;night&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;'auto'|'day'|'night'&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;idleMinutes&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:1,&quot;max&quot;:30,&quot;step&quot;:1,&quot;default&quot;:5,&quot;unit&quot;:&quot;min&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Frame mode&quot;},&quot;playfulCopy&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Copy&quot;}}">
+class Component extends DCLogic {
+  I = {
+    calendar: 'M4 6.5h16v13H4zM4 11h16M8.5 3.5v4M15.5 3.5v4',
+    check: 'M5 13l4 4L19 7',
+    list: 'M5 7h14M5 12h14M5 17h9',
+    home: 'M4 11l8-6.5 8 6.5v8.5H4z',
+    gear: 'M4 7.5h9M17.5 7.5h2.5M4 16.5h3.5M12 16.5h8M15.5 5v5M10 14v5',
+    lock: 'M7.5 10.5V8a4.5 4.5 0 019 0v2.5M5.5 10.5h13v9h-13z',
+    unlock: 'M7.5 10.5V8a4.5 4.5 0 018.6-1.8M5.5 10.5h13v9h-13z',
+    shield: 'M12 3.5l7 2.8v5.4c0 3.9-2.8 6.8-7 8.8-4.2-2-7-4.9-7-8.8V6.3z',
+    shieldOff: 'M12 3.5l7 2.8v5.4c0 3.9-2.8 6.8-7 8.8-4.2-2-7-4.9-7-8.8V6.3zM5 5l14 14',
+    alert: 'M12 4.5l8.5 15H3.5zM12 10v4.2M12 16.8h.02',
+    bulb: 'M12 3.5a5.5 5.5 0 00-3 10.1v2.4h6v-2.4A5.5 5.5 0 0012 3.5zM10 20h4',
+    moon: 'M20 14.2A8 8 0 1111.5 4a6.2 6.2 0 008.5 10.2z',
+    pencil: 'M4.5 19.5l4-1L18 9l-3-3-9.5 9.5zM14 7l3 3',
+    film: 'M4 6.5h16v11H4zM9 6.5v11M15 6.5v11',
+    star: 'M12 4l2.4 5.1 5.6.7-4.1 3.9 1.1 5.5L12 16.5 6.9 19.2 8 13.7 3.9 9.8l5.6-.7z',
+    gift: 'M4.5 10.5h15v9h-15zM4.5 10.5V8h15v2.5M12 8v11.5M12 8c-1.2-2.6-2.4-3.4-3.6-2.6C7.2 6.2 8 7.6 12 8M12 8c1.2-2.6 2.4-3.4 3.6-2.6 1.2.8.4 2.2-3.6 2.6',
+    car: 'M4.5 15.5h15v-3l-2-4h-11l-2 4zM7.5 18.5a1.4 1.4 0 100-2.8 1.4 1.4 0 100 2.8M16.5 18.5a1.4 1.4 0 100-2.8 1.4 1.4 0 100 2.8',
+    door: 'M6.5 4h11v16h-11zM14.5 12h.02',
+    garage: 'M4 20V9.5L12 5l8 4.5V20zM7.5 20v-6h9v6M7.5 17h9',
+    plant: 'M12 20v-6M12 14c-3 0-4.5-1.6-4.5-4.5C10.5 9.5 12 11 12 14M12 14c3 0 4.5-1.6 4.5-4.5C13.5 9.5 12 11 12 14',
+    bed: 'M4 18v-8M4 13h16v5M20 18v-5M8 13V9.5h8'
+  };
+
+  SWATCHES = [['Rose', 350], ['Coral', 25], ['Amber', 68], ['Green', 148], ['Teal', 196], ['Blue', 258], ['Violet', 305], ['Slate', -1]];
+  WEEK = [['Mon', 3], ['Tue', 4], ['Wed', 5], ['Thu', 6], ['Fri', 7]];
+  GROUPS = ['Produce', 'Fridge', 'Pantry'];
+  REPEATS = ['Daily', 'Weekdays', 'Weekly', 'Weekends'];
+  ROLES = ['kid', 'parent', 'shared'];
+  MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  seedPeople() {
+    return [
+      { id: 'parent1', name: 'Robin', h: 350, role: 'parent', bday: '3-14', byear: 1988, onChores: true, onCal: true },
+      { id: 'parent2', name: 'Alex', h: 258, role: 'parent', bday: '7-8', byear: 1986, onChores: false, onCal: true },
+      { id: 'kid1', name: 'Maya', h: 196, role: 'kid', bday: '8-31', byear: 2016, onChores: true, onCal: true },
+      { id: 'kid2', name: 'Nora', h: 148, role: 'kid', bday: '5-2', byear: 2019, onChores: true, onCal: true },
+      { id: 'kid3', name: 'Iris', h: 305, role: 'kid', bday: '11-19', byear: 2022, onChores: true, onCal: true },
+      { id: 'family', name: 'Family', h: -1, role: 'shared', onCal: true }
+    ];
+  }
+
+  seedEvents() {
+    return [
+      [7, 30, 'Peloton ride', 'parent1', '', 3], [8, 10, 'School', 'kid1', 'Ridgeview Middle', 3],
+      [8, 25, 'School', 'kid2', 'Maple Elementary', 3], [8, 45, 'Preschool', 'kid3', 'Little Sprouts', 3],
+      [9, 0, 'Standup', 'parent2', 'Zoom', 3], [12, 30, 'Lunch w/ Ross', 'parent2', 'Cafe Lou', 3],
+      [13, 0, 'Client review', 'parent1', 'Zoom', 3], [13, 0, 'Nap', 'kid3', '', 3],
+      [15, 45, 'Cross country', 'kid1', 'Track', 3], [16, 0, 'Piano lesson', 'kid2', 'Ms. Duval', 3],
+      [17, 15, 'Violet pickup', 'parent1', 'Little Sprouts', 3], [18, 30, 'Soccer carpool', 'parent2', 'Field 3', 3],
+      [19, 0, 'Algebra homework', 'kid1', '', 3], [19, 45, 'Movie night', 'family', 'Living room', 3],
+      [9, 30, 'Dentist', 'parent1', 'Dr. Pham', 4], [16, 0, 'Site visit', 'parent2', 'Elm St', 4],
+      [15, 45, 'Cross country', 'kid1', 'Track', 4], [8, 45, 'Preschool', 'kid3', 'Little Sprouts', 4],
+      [9, 0, 'Standup', 'parent2', 'Zoom', 5], [18, 0, 'Book club', 'parent1', 'Nora\u2019s', 5],
+      [17, 0, 'Youth group', 'kid1', 'Church', 5], [16, 30, 'Swim', 'kid2', 'Y pool', 5],
+      [18, 30, 'Grandma dinner', 'family', 'Home', 5], [19, 0, 'Poker', 'parent2', 'Dave\u2019s', 6],
+      [15, 45, 'Meet vs. Oak', 'kid1', 'Oak HS', 6], [16, 0, 'Piano lesson', 'kid2', 'Ms. Duval', 6],
+      [12, 0, 'PTA lunch', 'parent1', 'School', 7], [15, 0, 'Half day', 'parent2', '', 7],
+      [19, 0, 'Sleepover @ Nora', 'kid1', '', 7], [17, 30, 'Birthday party', 'kid2', 'Skate Zone', 7],
+      [19, 45, 'Movie night', 'family', 'Living room', 7], [10, 0, 'Gatlinburg trip', 'family', 'Cabin', 12],
+      [16, 0, 'Maya turns 10', 'kid1', 'Home', 30]
+    ].map((e, i) => ({ id: 'ev' + i, h: e[0], m: e[1], title: e[2], who: e[3], place: e[4], day: e[5] }));
+  }
+
+  seedChores() {
+    return [
+      ['parent1', 'Meal plan + order', 'Weekly'], ['parent1', 'Laundry — whites', 'Weekdays'],
+      ['parent2', 'Trash & recycling', 'Weekly'], ['parent2', 'Mow the yard', 'Weekends'], ['parent2', 'Dishwasher — night', 'Daily'],
+      ['kid1', 'Feed Biscuit', 'Daily'], ['kid1', 'Set the table', 'Daily'], ['kid1', 'Clean your room', 'Weekends'],
+      ['kid2', 'Water the plants', 'Weekdays'], ['kid2', 'Put away shoes', 'Daily'], ['kid2', 'Feed Biscuit — dinner', 'Daily'],
+      ['kid3', 'Toys in the bin', 'Daily'], ['kid3', 'Books on the shelf', 'Daily']
+    ].map((c, i) => ({ id: 'ch' + i, who: c[0], title: c[1], repeat: c[2], done: [5, 9, 1, 12, 4].indexOf(i) >= 0 }));
+  }
+
+  seedExtras() {
+    return [['Vacuum the stairs', 15], ['Fold + put away laundry', 20], ['Weed the flower bed', 25],
+      ['Clean out the car', 30], ['Read 30 minutes', 10], ['Help cook dinner', 15], ['Wipe the baseboards', 20]]
+      .map((b, i) => ({ id: 'xj' + i, title: b[0], points: b[1] }));
+  }
+
+  seedRewards() {
+    return [['Roller skates', 200], ['Slime kit', 120], ['Sticker book', 60], ['Movie night pick', 80], ['Ice cream trip', 40]]
+      .map((r, i) => ({ id: 'rw' + i, label: r[0], cost: r[1] }));
+  }
+
+  seedGroceries() {
+    return [['Strawberries', 'Produce', 'kid2'], ['Baby spinach', 'Produce', ''], ['Bananas', 'Produce', 'kid3'],
+      ['Lemons', 'Produce', ''], ['Avocados', 'Produce', ''], ['Whole milk', 'Fridge', ''], ['Greek yogurt', 'Fridge', 'kid1'],
+      ['Sharp cheddar', 'Fridge', ''], ['Eggs (2 dozen)', 'Fridge', 'parent1'], ['Rice', 'Pantry', ''], ['Olive oil', 'Pantry', 'parent2'],
+      ['Pretzel thins', 'Pantry', 'kid1'], ['Coffee beans', 'Pantry', 'parent1'], ['Dog food', 'Pantry', '']]
+      .map((g, i) => ({ id: 'gr' + i, name: g[0], group: g[1], who: g[2], bought: i === 1 || i === 5 }));
+  }
+
+  ROOMS = [['kitchen', 'Kitchen', 82, true, 'bulb', 'main'], ['living', 'Living room', 45, true, 'film', 'main'],
+    ['playroom', 'Playroom', 0, false, 'plant', 'main'], ['primary', 'Primary bed', 22, true, 'bed', 'up'],
+    ['porch', 'Front porch', 100, true, 'home', 'out'], ['garage', 'Garage', 0, false, 'garage', 'out']];
+  ZONES = [['upstairs', 'Upstairs', 70, 72, 'cool'], ['main', 'Main floor', 71, 73, 'cool'], ['basement', 'Basement', 66, 64, 'heat']];
+  DOORS = [['front', 'Front door', true, true], ['back', 'Back door', true, false], ['garaged', 'Garage door', false, false], ['patio', 'Patio slider', true, false]];
+
+  state = {
+    tab: 'today', calView: 'day', idle: false, setSection: 'family', prefs: {}, conns: {},
+    people: [], events: [], allDay: [], chores: [], extras: [], rewards: [], groceries: [], claims: [],
+    points: { everly: 120, gemma: 65, violet: 30 }, goalPick: { everly: 'rw0', gemma: 'rw1', violet: 'rw2' },
+    catalog: null, redeemed: [],
+    lights: {}, doors: {}, frontLocked: true, showKeypad: false, zoneTargets: {},
+    alarm: 'armed_home', code: '', modal: null, confetti: [], cheer: '', burst: '', shimmer: '', toast: '', toastD: '', toastTint: '', tick: 0
+  };
+
+  componentDidMount() {
+    const lights = {}; this.ROOMS.forEach(r => lights[r[0]] = { on: r[3], b: r[2] });
+    const doors = {}; this.DOORS.forEach(d => doors[d[0]] = { closed: d[2], locked: d[3] });
+    const zoneTargets = {}; this.ZONES.forEach(z => zoneTargets[z[0]] = z[2]);
+    this.last = Date.now();
+    this.dayRef = React.createRef();
+    this.setState({
+      lights, doors, zoneTargets, people: this.seedPeople(), events: this.seedEvents(),
+      allDay: [{ id: 'ad0', title: 'Recycling out tonight', who: 'family', day: new Date().getDate() }],
+      chores: this.seedChores(), extras: this.seedExtras(), rewards: this.seedRewards(), groceries: this.seedGroceries(),
+      claims: [{ id: 'cl0', who: 'kid1', extraId: 'xj4', done: false }],
+      conns: { gcal_amanda: true, gcal_john: true, gcal_family: true, ical_school: true, ical_sports: false, reminders: true, hue: true, lock_august: true, nest: true, ring: false }
+    });
+    this.timer = setInterval(() => {
+      const mins = (this.state.prefs || {}).idleMin ?? (this.props.idleMinutes ?? 5);
+      const idle = Date.now() - this.last > mins * 60000;
+      this.setState(s => ({ idle, tick: s.tick + 1 }));
+    }, 1000);
+    this.onResize = () => this.setState({ vw: window.innerWidth });
+    window.addEventListener('resize', this.onResize);
+    this.onResize();
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this.onResize); clearInterval(this.timer); clearTimeout(this.tt); clearTimeout(this.ct); clearTimeout(this.ht); }
+
+  componentDidUpdate() {
+    const showDay = this.state.tab === 'today' && this.state.calView === 'day' && !this.state.idle;
+    if (!showDay) { this.scrolled = false; return; }
+    const box = this.dayRef && this.dayRef.current;
+    if (!box || this.scrolled) return;
+    const h = new Date().getHours();
+    const row = box.querySelector('[data-hour="' + h + '"]') || box.querySelector('[data-hour]');
+    if (row) { box.scrollTop = Math.max(0, row.offsetTop - box.offsetTop - 18); this.scrolled = true; }
+  }
+
+  poke = () => { this.last = Date.now(); if (this.state.idle) this.setState({ idle: false }); };
+  sleepNow = (e) => { if (e) e.stopPropagation(); this.last = 0; this.setState({ idle: true }); };
+  stopProp = (e) => { if (e) e.stopPropagation(); };
+
+  say(msg, d, tint) {
+    clearTimeout(this.tt);
+    this.setState({ toast: msg, toastD: d || this.I.check, toastTint: tint || 'oklch(0.68 0.14 148)' });
+    this.tt = setTimeout(() => this.setState({ toast: '' }), 2600);
+  }
+
+  cheerFor(personId) {
+    clearTimeout(this.ht);
+    this.setState({ cheer: personId });
+    this.ht = setTimeout(() => this.setState({ cheer: '' }), 2000);
+  }
+
+  burstFor(personId) {
+    clearTimeout(this.bt);
+    this.setState({ burst: personId });
+    this.bt = setTimeout(() => this.setState({ burst: '' }), 2700);
+  }
+
+  shimmerFor(claimId) {
+    clearTimeout(this.st);
+    this.setState({ shimmer: claimId });
+    this.st = setTimeout(() => this.setState({ shimmer: '' }), 1400);
+  }
+
+  celebrate(hues, big) {
+    const pal = (hues || []).filter(h => h >= 0);
+    const use = pal.length ? pal : [350, 258, 196, 148, 305, 45];
+    const n = big ? 70 : 44, bits = [];
+    for (let i = 0; i < n; i++) {
+      const hue = use[i % use.length], sq = i % 3 === 0;
+      bits.push({
+        style: 'position:absolute;top:-30px;left:' + (2 + Math.random() * 96).toFixed(1) + '%;width:' + (7 + Math.random() * 7).toFixed(0) + 'px;height:' + (9 + Math.random() * 10).toFixed(0) + 'px;border-radius:' + (sq ? '2px' : '50%') + ';background:oklch(0.72 0.16 ' + hue + ');animation:confFall ' + (1.5 + Math.random() * 1.3).toFixed(2) + 's cubic-bezier(.3,.5,.6,1) both;animation-delay:' + (Math.random() * 0.55).toFixed(2) + 's'
+      });
+    }
+    clearTimeout(this.ct);
+    this.setState({ confetti: bits });
+    this.ct = setTimeout(() => this.setState({ confetti: [] }), 3200);
+  }
+
+  bdayParts(p) {
+    const m = String((p && p.bday) || '').match(/^(\d{1,2})-(\d{1,2})$/);
+    return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : null;
+  }
+  bdayLabel(p) {
+    const b = this.bdayParts(p);
+    return b ? this.MONTHS[b[0] - 1] + ' ' + b[1] : '';
+  }
+  parseBday(txt) {
+    const s = String(txt || '').trim();
+    if (!s) return [null, null];
+    let mo = null, day = null, yr = null;
+    let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{4}))?$/);
+    if (m) { mo = +m[1]; day = +m[2]; yr = m[3] ? +m[3] : null; }
+    else {
+      m = s.match(/^([a-z]+)\s+(\d{1,2})(?:,?\s*(\d{4}))?$/i);
+      if (m) {
+        const i = this.MONTHS.findIndex(x => m[1].toLowerCase().slice(0, 3) === x.toLowerCase());
+        if (i >= 0) { mo = i + 1; day = +m[2]; yr = m[3] ? +m[3] : null; }
+      }
+    }
+    if (!mo || !day || mo > 12 || day > 31) return [null, null];
+    return [mo + '-' + day, yr];
+  }
+
+  isNight() {
+    const pm = (this.state.prefs || {}).theme;
+    const m = pm ? pm.toLowerCase() : (this.props.themeMode ?? 'auto');
+    if (m === 'night') return true;
+    if (m === 'day') return false;
+    const h = new Date().getHours();
+    return h >= 20 || h < 6;
+  }
+  col(h, n) { if (h < 0) return n ? '#9aa0b2' : '#6d7484'; return n ? 'oklch(0.78 0.13 ' + h + ')' : 'oklch(0.68 0.14 ' + h + ')'; }
+  soft(h, n) { if (n) return 'rgba(255,255,255,.055)'; if (h < 0) return 'rgba(30,34,48,.05)'; return 'oklch(0.96 0.028 ' + h + ')'; }
+  deep(h, n) { if (n) return '#eef0f6'; if (h < 0) return '#2b3040'; return 'oklch(0.4 0.09 ' + h + ')'; }
+  initialOf(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
+
+  openModal(kind, item, extra) {
+    this.poke();
+    this.setState({ modal: { kind, editing: !!(item && item.id), draft: Object.assign({}, item || {}, extra || {}) } });
+  }
+  closeModal = (e) => { if (e) e.stopPropagation(); this.poke(); this.setState({ modal: null }); };
+  setDraft(field, value) {
+    this.setState(s => ({ modal: Object.assign({}, s.modal, { draft: Object.assign({}, s.modal.draft, { [field]: value }) }) }));
+  }
+
+  saveModal = (e) => {
+    if (e) e.stopPropagation(); this.poke();
+    const M = this.state.modal; if (!M) return;
+    const d = M.draft, K = M.kind, night = this.isNight();
+    const put = (key, rec) => this.setState(s => ({ [key]: M.editing ? s[key].map(x => x.id === rec.id ? rec : x) : s[key].concat([rec]), modal: null }));
+    if (K === 'event') {
+      const t = this.parseTime(d.timeText || '');
+      put('events', { id: d.id || 'ev' + Date.now(), title: (d.title || '').trim() || 'Untitled', who: d.who || 'family', place: (d.place || '').trim(), h: t[0], m: t[1], day: d.day || new Date().getDate() });
+      this.say(M.editing ? 'Event updated' : 'Event added', this.I.calendar, this.col(258, night));
+    } else if (K === 'allday') {
+      put('allDay', { id: d.id || 'ad' + Date.now(), title: (d.title || '').trim() || 'All-day event', who: d.who || 'family', day: d.day || new Date().getDate() });
+      this.say(M.editing ? 'All-day event updated' : 'All-day event added', this.I.calendar, this.col(258, night));
+    } else if (K === 'chore') {
+      if (d.recurring === false) {
+        put('extras', { id: d.id || 'xj' + Date.now(), title: (d.title || '').trim() || 'Extra job', points: d.points || 10 });
+        this.say(M.editing ? 'Extra job updated' : 'Extra job added', this.I.star, 'oklch(0.74 0.15 62)');
+      } else {
+        put('chores', { id: d.id || 'ch' + Date.now(), title: (d.title || '').trim() || 'New chore', who: d.who || 'kid1', repeat: d.repeat || 'Daily', done: !!d.done });
+        this.say(M.editing ? 'Chore updated' : 'Chore added', this.I.check, this.col(148, night));
+      }
+    } else if (K === 'extra') {
+      put('extras', { id: d.id || 'xj' + Date.now(), title: (d.title || '').trim() || 'Extra job', points: d.points || 10 });
+      this.say(M.editing ? 'Extra job updated' : 'Extra job added', this.I.star, 'oklch(0.74 0.15 62)');
+    } else if (K === 'reward') {
+      put('rewards', { id: d.id || 'rw' + Date.now(), label: (d.label || '').trim() || 'Reward', cost: d.cost || 50 });
+      this.say(M.editing ? 'Reward updated' : 'Reward added', this.I.gift, 'oklch(0.72 0.14 305)');
+    } else if (K === 'person') {
+      const name = (d.name || '').trim() || 'New person';
+      const bd = this.parseBday(d.bdayText);
+      put('people', { id: d.id, name, h: d.h === undefined ? 196 : d.h, role: d.role || 'kid', bday: bd[0], byear: bd[1] ?? d.byear ?? null, onChores: d.onChores !== false, onCal: d.onCal !== false });
+      this.say(M.editing ? name + ' updated' : name + ' added', this.I.check, this.col(d.h === undefined ? 196 : d.h, night));
+    } else if (K === 'hass') {
+      this.setState(s => ({ prefs: Object.assign({}, s.prefs, { hassUrl: (d.hassUrl || '').trim(), hassToken: (d.hassToken || '').trim() }), modal: null }));
+      this.say('Home Assistant settings saved', this.I.home, this.col(196, night));
+    } else if (K === 'grocery') {
+      put('groceries', { id: d.id || 'gr' + Date.now(), name: (d.name || '').trim() || 'Item', group: d.group || 'Produce', who: d.who || '', bought: !!d.bought });
+      this.say(M.editing ? 'Item updated' : 'Item added', this.I.list, this.col(148, night));
+    }
+  };
+
+  deleteItem = (e) => {
+    if (e) e.stopPropagation(); this.poke();
+    const M = this.state.modal; if (!M || !M.editing) return;
+    const map = { event: 'events', allday: 'allDay', chore: 'chores', extra: 'extras', reward: 'rewards', grocery: 'groceries', person: 'people' };
+    const key = map[M.kind], id = M.draft.id;
+    this.setState(s => ({ [key]: s[key].filter(x => x.id !== id), modal: null }));
+    this.say('Deleted', this.I.check, 'oklch(0.68 0.15 25)');
+  };
+
+  parseTime(txt) {
+    const s = String(txt).trim().toLowerCase();
+    const m = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(a|p)?/);
+    if (!m) return [12, 0];
+    let h = parseInt(m[1], 10) % 12; const mm = m[2] ? parseInt(m[2], 10) : 0;
+    if (m[3] === 'p' || (!m[3] && parseInt(m[1], 10) < 8)) h += 12;
+    return [Math.max(0, Math.min(23, h)), Math.max(0, Math.min(59, mm))];
+  }
+  fmt(h, m) { return ((h % 12) || 12) + ':' + String(m).padStart(2, '0') + (h < 12 ? 'a' : 'p'); }
+
+  renderVals() {
+    const night = this.isNight(), S = this.state, P = this.props, I = this.I;
+    const card = night ? '#1d2029' : '#ffffff';
+    const ink = night ? '#eef0f6' : '#1e2230';
+    const EASE = 'cubic-bezier(.2,.8,.25,1)';
+    const compact = (S.vw || (typeof window !== 'undefined' ? window.innerWidth : 1440)) < 1180;
+    const rootStyle = ['--bg:' + (night ? '#12141a' : '#f4f5f8'), '--card:' + card, '--ink:' + ink,
+      '--ink2:' + (night ? 'rgba(238,240,246,.6)' : 'rgba(30,34,48,.58)'),
+      '--line:' + (night ? 'rgba(255,255,255,.09)' : 'rgba(30,34,48,.09)'),
+      '--chip:' + (night ? 'rgba(255,255,255,.06)' : 'rgba(30,34,48,.05)'),
+      'background:var(--bg)', 'color:var(--ink)', 'height:100vh', 'width:100%',
+      'transition:background .9s ease,color .9s ease'].join(';');
+    const CARD = 'background:var(--card);border-radius:26px;box-shadow:0 1px 2px rgba(20,24,40,.05),0 16px 34px -22px rgba(20,24,40,.26)';
+    const nav = P.navModel ?? 'sidebar';
+    const isSidebar = nav === 'sidebar';
+    const shellStyle = 'display:flex;flex-direction:' + (isSidebar ? 'row' : 'column') + ';height:100vh;width:100%';
+
+    const now = new Date(), hh = now.getHours(), mm = now.getMinutes(), today = now.getDate();
+    const clockH = String((hh % 12) || 12), clockM = String(mm).padStart(2, '0');
+    const prefs = S.prefs || {}, conns = S.conns || {};
+    const pref = (k, dflt) => (prefs[k] === undefined ? dflt : prefs[k]);
+    const playful = pref('playful', P.playfulCopy ?? true);
+    const part = hh < 11 ? 'Good morning' : hh < 17 ? 'Good afternoon' : 'Good evening';
+    const people = S.people, byPerson = {}; people.forEach(p => byPerson[p.id] = p);
+    const fallback = { id: 'family', name: 'Family', h: -1, role: 'shared' };
+    const per = (id) => byPerson[id] || fallback;
+    const kids = people.filter(p => p.role === 'kid');
+    const choreOn = (id) => { const p = byPerson[id]; return !p || (p.onChores !== false && p.role !== 'shared'); };
+    const openChores = S.chores.filter(c => !c.done && choreOn(c.who)).length + S.claims.filter(c => !c.done && choreOn(c.who)).length;
+    const mkHold = (action) => ({
+      hold: () => {
+        this.holdFired = false;
+        clearTimeout(this._holdT);
+        this._holdT = setTimeout(() => { this.holdFired = true; if (navigator.vibrate) navigator.vibrate(12); action(); }, 480);
+      },
+      release: () => clearTimeout(this._holdT),
+      menu: (e) => { if (e) { e.preventDefault(); e.stopPropagation(); } action(); }
+    });
+    const guard = (fn) => (e) => { if (this.holdFired) { this.holdFired = false; return; } fn(e); };
+    const pencilStyle = 'flex:none;width:30px;height:30px;border-radius:10px;border:none;background:transparent;color:var(--ink2);cursor:pointer;opacity:.32;display:flex;align-items:center;justify-content:center;transition:opacity .2s ease';
+
+    const tabs = [['today', 'Calendar', I.calendar, 0], ['chores', 'Chores', I.check, openChores],
+      ['lists', 'Groceries', I.list, S.groceries.filter(g => !g.bought).length], ['home', 'Home', I.home, 0], ['settings', 'Settings', I.gear, 0]];
+    const navItems = tabs.map(t => {
+      const on = S.tab === t[0];
+      return {
+        label: t[1], d: t[2], badge: t[3] > 0 ? String(t[3]) : '',
+        go: (e) => { if (e) e.stopPropagation(); this.poke(); this.scrolled = false; this.setState({ tab: t[0] }); },
+        tabStyle: 'display:flex;align-items:center;gap:9px;padding:11px 19px;border-radius:999px;border:1px solid ' + (on ? 'transparent' : 'var(--line)') + ';background:' + (on ? 'var(--ink)' : 'transparent') + ';color:' + (on ? card : 'var(--ink2)') + ';font-family:Nunito;font-size:16.5px;font-weight:800;cursor:pointer;transition:all .3s ' + EASE,
+        railStyle: 'position:relative;width:88px;height:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:22px;border:none;background:' + (on ? 'var(--chip)' : 'transparent') + ';color:' + (on ? 'var(--ink)' : 'var(--ink2)') + ';font-family:Nunito;cursor:pointer;transition:all .3s ' + EASE,
+        railBadgeStyle: 'position:absolute;top:7px;right:11px;min-width:22px;padding:2px 6px;border-radius:999px;background:oklch(0.68 0.15 25);color:#fff;font-size:12px;font-weight:800;text-align:center;animation:popIn .4s ' + EASE + ' both',
+        badgeStyle: 'min-width:23px;padding:2px 7px;border-radius:999px;background:' + (on ? card : 'oklch(0.68 0.15 25)') + ';color:' + (on ? ink : '#fff') + ';font-size:13px;font-weight:800;text-align:center'
+      };
+    });
+
+    // ---------- calendar ----------
+    const view = S.calView;
+    const onCal = (id) => { const p = byPerson[id]; return !p || p.onCal !== false; };
+    const dayEvents = S.events.filter(e => e.day === today && onCal(e.who));
+    const viewTitle = S.tab === 'today'
+      ? (view === 'day' ? now.toLocaleDateString('en-US', { weekday: 'long' }) + ', ' + now.toLocaleDateString('en-US', { month: 'long' }) + ' ' + today
+        : view === 'week' ? 'Aug 3 – 7' : 'August 2026')
+      : S.tab === 'chores' ? 'Chores & points' : S.tab === 'lists' ? 'Groceries' : S.tab === 'home' ? 'Home' : 'Settings';
+    const viewSub = S.tab === 'today' ? (playful ? part + ', Family' : dayEvents.length + ' events today')
+      : S.tab === 'chores' ? openChores + ' left today · tap to check off, hold to edit'
+        : S.tab === 'lists' ? S.groceries.filter(g => !g.bought).length + ' to pick up · hold an item to edit'
+          : S.tab === 'home' ? 'On your way out' : 'Profiles, extra jobs, and rewards';
+
+    const calRanges = [['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(r => {
+      const on = view === r[0];
+      return {
+        label: r[1],
+        go: (e) => { if (e) e.stopPropagation(); this.poke(); this.scrolled = false; this.setState({ calView: r[0] }); },
+        style: 'flex:none;padding:9px ' + (compact ? '14px' : '20px') + ';border-radius:999px;border:none;background:' + (on ? card : 'transparent') + ';color:' + (on ? ink : 'var(--ink2)') + ';font-family:Nunito;font-size:15.5px;font-weight:800;cursor:pointer;box-shadow:' + (on ? '0 2px 6px rgba(20,24,40,.14)' : 'none') + ';transition:all .28s ' + EASE
+      };
+    });
+
+    const evStyle = (h, extra) => 'display:flex;align-items:center;gap:10px;padding:9px 13px;border:none;border-left:3px solid ' + this.col(h, night) + ';border-radius:14px;background:' + this.soft(h, night) + ';color:' + this.deep(h, night) + ';font-family:Nunito;cursor:pointer;transition:transform .25s ' + EASE + ';' + (extra || '');
+    const editEvent = (ev) => (e) => { if (e) e.stopPropagation(); this.openModal('event', Object.assign({}, ev, { timeText: this.fmt(ev.h, ev.m) })); };
+    const avatarDot = (p, size, font) => 'flex:none;width:' + size + 'px;height:' + size + 'px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:' + this.col(p.h, night) + ';color:' + (night ? '#14161c' : '#fff') + ';font-size:' + font + 'px;font-weight:800';
+
+    const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+    const timeline = HOURS.map((h, hi) => {
+      const evs = dayEvents.filter(d => d.h === h).sort((a, b) => a.m - b.m).map((d, ei) => {
+        const p = per(d.who);
+        return {
+          time: this.fmt(d.h, d.m), title: d.title, place: d.place, initial: this.initialOf(p.name), edit: editEvent(d),
+          style: evStyle(p.h, 'flex:1 1 208px;max-width:330px;min-width:0;align-items:flex-start;padding:10px 13px;animation:riseIn .45s ' + EASE + ' both;animation-delay:' + (hi * 18 + ei * 30) + 'ms'),
+          dotStyle: avatarDot(p, 27, 13.5)
+        };
+      });
+      const isNow = hh === h;
+      return {
+        h, label: ((h % 12) || 12) + (h < 12 ? ' AM' : ' PM'), isNow, events: evs,
+        style: 'position:relative;display:flex;gap:14px;align-items:flex-start;padding:9px 0;min-height:54px;border-top:1px solid ' + (isNow ? 'transparent' : 'var(--line)'),
+        labelStyle: 'flex:none;width:56px;padding-top:11px;font-size:12.5px;font-weight:800;letter-spacing:.05em;color:' + (isNow ? 'oklch(0.62 0.17 25)' : 'var(--ink2)') + ';opacity:' + (evs.length ? 1 : .5),
+        nowStyle: 'position:absolute;left:0;right:0;top:' + Math.round(mm / 60 * 100) + '%;height:2px;border-radius:2px;background:oklch(0.66 0.17 25);pointer-events:none',
+        nowDotStyle: 'position:absolute;left:-3px;top:-4px;width:10px;height:10px;border-radius:50%;background:oklch(0.66 0.17 25)'
+      };
+    });
+
+    const bdayOn = pref('birthdaysOnCal', true);
+    const bdayFor = (dayNum) => !bdayOn ? [] : people.filter(p => {
+      const b = this.bdayParts(p);
+      return b && b[0] === now.getMonth() + 1 && b[1] === dayNum && onCal(p.id);
+    }).map(p => ({
+      id: 'bd-' + p.id, who: p.id, day: dayNum, isBday: true,
+      title: p.byear ? p.name + ' turns ' + (now.getFullYear() - p.byear) : p.name + '\u2019s birthday'
+    }));
+
+    const allDay = S.allDay.filter(a => a.day === today && onCal(a.who)).concat(bdayFor(today)).map(a => {
+      const p = per(a.who);
+      return {
+        title: a.title, initial: this.initialOf(p.name),
+        edit: (e) => { if (e) e.stopPropagation(); a.isBday ? this.openModal('person', Object.assign({}, p, { bdayText: this.bdayLabel(p) })) : this.openModal('allday', a); },
+        style: 'display:flex;align-items:center;gap:9px;padding:7px 14px;border:none;border-radius:999px;font-family:Nunito;font-size:14.5px;font-weight:800;cursor:pointer;background:' + this.soft(p.h, night) + ';color:' + this.deep(p.h, night) + ';transition:transform .25s ' + EASE,
+        dotStyle: avatarDot(p, 20, 11)
+      };
+    });
+
+    const weekDays = this.WEEK.map(w => ({ label: w[0] + ' ' + w[1], style: 'padding:8px 6px;text-align:center;font-size:12.5px;font-weight:800;color:var(--ink);border-bottom:1px solid var(--line);white-space:nowrap' }));
+    const calPeople = people.filter(p => p.onCal !== false);
+    const weekRows = calPeople.map(p => ({
+      name: p.name, initial: this.initialOf(p.name), dotStyle: avatarDot(p, 25, 12.5),
+      rowHeadStyle: 'display:flex;align-items:center;gap:8px;padding:8px 10px 8px 4px;border-top:1px solid var(--line);min-width:0',
+      days: this.WEEK.map(w => ({
+        cellStyle: 'padding:6px 5px;border-top:1px solid var(--line);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:4px;min-width:0;min-height:0;overflow:hidden',
+        events: (() => {
+          const list = S.events.filter(e => e.day === w[1] && e.who === p.id).sort((a, b) => a.h - b.h);
+          const out = list.slice(0, 2).map(e => ({
+            line: this.fmt(e.h, e.m) + '  ' + e.title, edit: editEvent(e),
+            style: evStyle(p.h, 'display:block;flex:none;padding:4px 8px;border-radius:10px;font-size:12.5px;font-weight:700;line-height:1.25;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')
+          }));
+          if (list.length > 2) out.push({
+            line: '+' + (list.length - 2) + ' more', edit: editEvent(list[2]),
+            style: 'flex:none;padding:1px 6px;border:none;background:transparent;color:var(--ink2);font-family:Nunito;font-size:11px;font-weight:800;text-align:left;cursor:pointer'
+          });
+          return out;
+        })()
+      }))
+    }));
+    const weekGridStyle = CARD + ';flex:1;min-height:0;padding:12px 14px 14px;display:grid;grid-template-columns:120px repeat(5,1fr);grid-template-rows:auto repeat(' + Math.max(1, weekRows.length) + ',minmax(88px,1fr));overflow-y:auto;animation:riseIn .5s ' + EASE + ' both';
+
+    const monthDays = (() => {
+      const startPad = new Date(2026, 7, 1).getDay(), cells = [];
+      for (let i = 0; i < startPad; i++) cells.push({ num: '', chips: [], cellStyle: 'background:var(--card);min-height:0' });
+      for (let d = 1; d <= 31; d++) {
+        const isToday = d === today;
+        const evs = bdayFor(d).concat(S.events.filter(e => e.day === d && onCal(e.who)).sort((a, b) => a.h - b.h));
+        cells.push({
+          num: String(d),
+          numStyle: 'display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:12.5px;font-weight:800;background:' + (isToday ? 'var(--ink)' : 'transparent') + ';color:' + (isToday ? card : 'var(--ink)'),
+          chips: evs.slice(0, 2).map(e => {
+            const p = per(e.who);
+            return { label: e.title, style: 'display:block;flex:none;padding:2px 6px;border-radius:7px;font-size:11px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:' + this.soft(p.h, night) + ';color:' + this.deep(p.h, night) + ';border-left:2px solid ' + this.col(p.h, night) };
+          }).concat(evs.length > 2 ? [{ label: '+' + (evs.length - 2) + ' more', style: 'display:block;flex:none;padding:1px 6px;font-size:10.5px;font-weight:800;color:var(--ink2);white-space:nowrap' }] : []),
+          cellStyle: 'background:var(--card);min-height:0;padding:6px 6px 4px;display:flex;flex-direction:column;overflow:hidden'
+        });
+      }
+      return cells;
+    })();
+    const monthGridStyle = 'flex:1;min-height:0;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:auto repeat(6,minmax(94px,1fr));gap:1px;background:var(--line);border-radius:22px;overflow-y:auto;box-shadow:0 1px 2px rgba(20,24,40,.05),0 16px 34px -22px rgba(20,24,40,.26)';
+    const legend = calPeople.map(p => ({ name: p.name, dotStyle: 'width:11px;height:11px;border-radius:50%;background:' + this.col(p.h, night) }));
+
+    // ---------- chores, extras, points ----------
+    const rewardById = {}; S.rewards.forEach(r => rewardById[r.id] = r);
+    const extraById = {}; S.extras.forEach(x => extraById[x.id] = x);
+    const totalChores = S.chores.filter(c => choreOn(c.who)).length + S.claims.filter(c => choreOn(c.who)).length;
+    const doneChores = S.chores.filter(c => c.done && choreOn(c.who)).length + S.claims.filter(c => c.done && choreOn(c.who)).length;
+
+    const finishCheck = (p, listAfterChores, claimsAfter) => {
+      const mine = listAfterChores.filter(x => x.who === p.id).concat(claimsAfter.filter(x => x.who === p.id));
+      return mine.length > 0 && mine.every(x => x.done);
+    };
+
+    const toggleChore = (c) => (e) => {
+      if (e) e.stopPropagation(); this.poke();
+      const nd = !c.done, p = per(c.who);
+      const after = S.chores.map(x => x.id === c.id ? Object.assign({}, x, { done: nd }) : x);
+      this.setState({ chores: after });
+      if (!nd) return;
+      this.cheerFor(p.id);
+      const baseDone = after.filter(x => x.who === p.id).every(x => x.done);
+      if (baseDone) { this.burstFor(p.id); this.say(p.name + ' cleared the whole list!', I.star, this.col(p.h, night)); }
+      else this.say(playful ? 'Nice work, ' + p.name + '!' : c.title + ' done', I.check, this.col(p.h, night));
+    };
+
+    const toggleClaim = (cl, x) => (e) => {
+      if (e) e.stopPropagation(); this.poke();
+      const nd = !cl.done, p = per(cl.who), pts = x ? x.points : 0;
+      const claimsAfter = S.claims.map(c => c.id === cl.id ? Object.assign({}, c, { done: nd }) : c);
+      const np = Object.assign({}, S.points);
+      np[p.id] = Math.max(0, (np[p.id] || 0) + (nd ? pts : -pts));
+      this.setState({ claims: claimsAfter, points: np });
+      if (!nd) return this.say('Took back ' + pts + ' points', I.star, this.col(p.h, night));
+      const goal = rewardById[S.goalPick[p.id]];
+      const hit = goal && (S.points[p.id] || 0) < goal.cost && np[p.id] >= goal.cost;
+      this.cheerFor(p.id);
+      this.shimmerFor(cl.id);
+      this.say(hit ? p.name + ' unlocked ' + goal.label + '!' : '+' + pts + ' points for ' + p.name, I.star, this.col(p.h, night));
+    };
+
+    const removeClaim = (cl) => (e) => {
+      if (e) e.stopPropagation(); this.poke();
+      this.setState({ claims: S.claims.filter(c => c.id !== cl.id) });
+      this.say('Removed from the list', I.check, 'oklch(0.68 0.15 25)');
+    };
+
+    const openPickExtra = (p) => (e) => {
+      if (e) e.stopPropagation(); this.poke();
+      this.setState({
+        modal: {
+          kind: 'pickExtra', editing: false, draft: {}, title: 'Extra jobs for ' + p.name, sub: 'Pick one to add to today\u2019s list',
+          list: S.extras.map(x => ({
+            label: x.title, sub: 'Worth ' + x.points + ' points', tag: '+' + x.points, h: p.h,
+            pick: (ev) => {
+              if (ev) ev.stopPropagation();
+              this.setState(s => ({ claims: s.claims.concat([{ id: 'cl' + Date.now(), who: p.id, extraId: x.id, done: false }]), modal: null }));
+              this.say(x.title + ' added for ' + p.name, I.star, this.col(p.h, night));
+            }
+          }))
+        }
+      });
+    };
+
+    const openCatalog = (id) => (e) => { if (e) e.stopPropagation(); this.poke(); this.setState({ catalog: { who: id } }); };
+
+    const openPickGoalOld = (p) => (e) => {
+      if (e) e.stopPropagation(); this.poke();
+      const pts = S.points[p.id] || 0;
+      this.setState({
+        modal: {
+          kind: 'pickGoal', editing: false, draft: {}, title: p.name + '\u2019s goal', sub: 'You have ' + pts + ' points saved',
+          list: S.rewards.map(r => ({
+            label: r.label, sub: pts >= r.cost ? 'Ready to claim!' : (r.cost - pts) + ' points to go', tag: r.cost + ' pts', h: p.h,
+            pick: (ev) => {
+              if (ev) ev.stopPropagation();
+              const g = Object.assign({}, S.goalPick); g[p.id] = r.id;
+              this.setState({ goalPick: g, modal: null });
+              this.say(p.name + ' is saving for ' + r.label, I.gift, this.col(p.h, night));
+            }
+          }))
+        }
+      });
+    };
+
+    const choreBoards = people.filter(p => p.role !== 'shared' && p.onChores !== false).map((p, pi) => {
+      const isKid = p.role === 'kid';
+      const mine = S.chores.filter(c => c.who === p.id);
+      const myClaims = S.claims.filter(c => c.who === p.id);
+      const total = mine.length + myClaims.length;
+      const d = mine.filter(c => c.done).length + myClaims.filter(c => c.done).length;
+      const pct = total ? Math.round(d / total * 100) : 0;
+      const c = this.col(p.h, night);
+      const pts = S.points[p.id] || 0;
+      const goal = rewardById[S.goalPick[p.id]];
+      const canGet = S.rewards.filter(r => pts >= r.cost).length;
+      const nextGift = S.rewards.filter(r => r.cost > pts).sort((a, b) => a.cost - b.cost)[0];
+      const cheering = S.cheer === p.id;
+      const reached = !!(isKid && goal && pts >= goal.cost);
+      const ringPct = isKid ? (goal ? Math.min(100, Math.round(pts / Math.max(1, goal.cost) * 100)) : 0) : pct;
+
+      const mkRow = (obj, action) => Object.assign(obj, mkHold(action));
+      const rows = mine.map(x => mkRow({
+        title: x.title, repeat: x.repeat, pts: '', toggle: guard(toggleChore(x)), pencilD: I.pencil,
+        edit: (e) => { if (e) e.stopPropagation(); this.openModal('chore', x); },
+        pencilStyle, rowWrapStyle: 'display:flex;align-items:center;gap:2px',
+        cardStyle: 'flex:1;min-width:0;display:flex;align-items:flex-start;gap:11px;padding:11px 13px;border-radius:16px;border:1px solid ' + (x.done ? 'transparent' : 'var(--line)') + ';background:' + (x.done ? 'var(--chip)' : 'transparent') + ';font-family:Nunito;cursor:pointer;transition:all .3s ' + EASE,
+        boxStyle: 'flex:none;width:24px;height:24px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:2px solid ' + (x.done ? 'transparent' : 'var(--line)') + ';background:' + (x.done ? c : 'transparent') + ';color:' + (night ? '#14161c' : '#fff') + ';transition:all .3s ' + EASE + ';' + (x.done ? 'animation:popIn .36s cubic-bezier(.2,.9,.3,1.35) both' : ''),
+        markStyle: 'width:14px;height:14px;opacity:' + (x.done ? 1 : 0) + ';transform:scale(' + (x.done ? 1 : .4) + ');transition:all .28s ' + EASE,
+        textStyle: 'display:block;font-size:15.5px;font-weight:700;color:var(--ink);overflow-wrap:break-word;' + (x.done ? 'opacity:.42;text-decoration:line-through' : ''),
+        ptsStyle: ''
+      }, () => this.openModal('chore', x))).concat(myClaims.map(cl => {
+        const x = extraById[cl.extraId] || { title: 'Extra job', points: 0 };
+        return mkRow({
+          title: x.title, repeat: 'Extra job — today', pts: '+' + x.points, toggle: guard(toggleClaim(cl, x)), pencilD: 'M6 6l12 12M18 6L6 18',
+          edit: removeClaim(cl), pencilStyle, rowWrapStyle: 'display:flex;align-items:center;gap:2px',
+          shimmer: S.shimmer === cl.id,
+          sheenStyle: 'position:absolute;top:0;bottom:0;left:0;width:42%;background:linear-gradient(100deg,transparent,' + (night ? 'rgba(255,255,255,.16)' : 'rgba(255,255,255,.92)') + ',transparent);animation:sheenSweep 1.25s ease-out both;pointer-events:none',
+          cardStyle: 'position:relative;overflow:hidden;flex:1;min-width:0;display:flex;align-items:flex-start;gap:11px;padding:11px 13px;border-radius:16px;border:1px dashed ' + (cl.done ? 'transparent' : this.col(62, night)) + ';background:' + (cl.done ? 'var(--chip)' : this.soft(62, night)) + ';font-family:Nunito;cursor:pointer;transition:all .3s ' + EASE,
+          boxStyle: 'flex:none;width:24px;height:24px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:2px solid ' + (cl.done ? 'transparent' : 'var(--line)') + ';background:' + (cl.done ? c : 'transparent') + ';color:' + (night ? '#14161c' : '#fff') + ';transition:all .3s ' + EASE + ';' + (cl.done ? 'animation:popIn .36s cubic-bezier(.2,.9,.3,1.35) both' : ''),
+          markStyle: 'width:14px;height:14px;opacity:' + (cl.done ? 1 : 0) + ';transform:scale(' + (cl.done ? 1 : .4) + ');transition:all .28s ' + EASE,
+          textStyle: 'display:block;font-size:15.5px;font-weight:700;color:var(--ink);overflow-wrap:break-word;' + (cl.done ? 'opacity:.42;text-decoration:line-through' : ''),
+          ptsStyle: 'flex:none;align-self:center;padding:3px 10px;border-radius:999px;font-family:Outfit;font-weight:600;font-size:14px;background:' + (night ? 'rgba(255,255,255,.08)' : 'oklch(0.95 0.05 70)') + ';color:' + (night ? '#f3d9a8' : 'oklch(0.44 0.1 62)')
+        }, () => removeClaim(cl)());
+      }));
+
+      return {
+        name: p.name, initial: this.initialOf(p.name), isKid, slotId: 'avatar-' + p.id, cheering, chores: rows,
+        bursting: S.burst === p.id,
+        confetti: Array.from({ length: 54 }, (_, si) => {
+          const r = (n) => { const x = Math.sin((si + 1) * n) * 10000; return x - Math.floor(x); };
+          const w = 5 + Math.round(r(12.9898) * 5);
+          return {
+            style: 'position:absolute;left:' + (r(78.233) * 100).toFixed(1) + '%;top:-14px;width:' + w + 'px;height:' + (si % 3 ? w : Math.max(3, Math.round(w * .45))) + 'px;border-radius:' +
+              (si % 4 === 0 ? '50%' : '2px') + ';background:' + this.col([p.h, p.h + 34, p.h - 26, 62, 148][si % 5], night) +
+              ';animation:cardConf ' + (1.05 + r(43.77) * 0.75).toFixed(2) + 's linear both;animation-delay:' + (r(19.19) * 0.85).toFixed(2) + 's'
+          };
+        }),
+        boardStyle: CARD + ';position:relative;padding:19px 19px 17px;display:flex;flex-direction:column;gap:14px;animation:riseIn .55s ' + EASE + ' both;animation-delay:' + (pi * 55) + 'ms',
+        avatarWrapStyle: 'position:relative;flex:none;width:56px;height:56px;border-radius:50%;overflow:hidden;background-color:var(--card);background-image:linear-gradient(' + this.soft(p.h, night) + ',' + this.soft(p.h, night) + ');color:' + this.deep(p.h, night) + ';font-size:19px;font-weight:800',
+        ringStyle: 'position:absolute;inset:0;border-radius:50%;pointer-events:none;box-shadow:inset 0 0 0 3px ' + c,
+        hasGoal: !!goal, noGoal: !goal, goalIconD: goal ? I.gift : I.star, goalSlotId: goal ? 'gift-' + goal.id : 'gift-none',
+        ringArcStyle: 'position:absolute;inset:0;border-radius:50%;pointer-events:none;background:' + (goal ? 'conic-gradient(from -90deg,' + c + ' ' + ringPct + '%,var(--chip) 0)' : 'var(--chip)') + ';-webkit-mask:radial-gradient(circle at center,transparent 0 calc(50% - 6px),#000 calc(50% - 6px));mask:radial-gradient(circle at center,transparent 0 calc(50% - 6px),#000 calc(50% - 6px))',
+        goalFaceStyle: 'position:absolute;inset:9px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background-color:var(--card);background-image:linear-gradient(' + this.soft(305, night) + ',' + this.soft(305, night) + ');color:' + this.deep(305, night),
+        goalRingStyle: 'position:relative;flex:none;width:74px;height:74px;padding:0;border:none;border-radius:50%;background:transparent;cursor:pointer;transition:transform .24s ' + EASE + (reached ? ';animation:cheerLift 2.4s ease-in-out infinite' : ''),
+        openGoal: openCatalog(p.id),
+        reached,
+        sparks: Array.from({ length: 6 }, (_, si) => ({
+          style: 'position:absolute;left:' + [4, 74, 42, 88, 12, 60][si] + '%;top:' + [6, 10, -8, 60, 74, 90][si] + '%;width:9px;height:9px;border-radius:2px;background:' +
+            this.col([p.h, 62, 305, 148, p.h + 30, 62][si], night) + ';animation:sparkle 1.8s ease-in-out infinite;animation-delay:' + (si * 0.24).toFixed(2) + 's'
+        })),
+        goalText: '', goalTextStyle: '',
+        doneLabel: d + ' of ' + total + ' done',
+        donePillStyle: 'padding:3px 11px;border-radius:999px;font-size:13.5px;font-weight:800;background:var(--chip);color:var(--ink2)',
+        pointsLabel: pts + ' points',
+        pointsPillStyle: 'padding:3px 11px;border-radius:999px;font-size:13.5px;font-weight:800;background:' + this.soft(p.h, night) + ';color:' + this.deep(p.h, night) + ';' + (cheering ? 'animation:ptsPop .6s ' + EASE + ' both' : ''),
+        pickExtra: openPickExtra(p),
+        pickExtraStyle: 'display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:16px;border:1px dashed ' + this.col(62, night) + ';background:transparent;color:' + this.deep(62, night) + ';font-family:Nunito;font-size:14.5px;font-weight:800;cursor:pointer;opacity:.85;transition:opacity .2s ease',
+        pickGoal: openCatalog(p.id)
+      };
+    });
+
+    // ---------- gift catalog ----------
+    const catWho = S.catalog ? S.catalog.who : null;
+    const catP = catWho ? byPerson[catWho] : null;
+    const catPts = catP ? (S.points[catP.id] || 0) : 0;
+    const catHue = catP ? catP.h : 305;
+    const redeemedAll = S.redeemed || [];
+    const catChips = kids.map(k => {
+      const on = catP && k.id === catP.id;
+      return {
+        label: k.name, initial: this.initialOf(k.name), count: (S.points[k.id] || 0) + ' pts', pick: openCatalog(k.id),
+        style: 'display:flex;align-items:center;gap:9px;padding:9px 16px 9px 9px;border-radius:999px;cursor:pointer;font-family:Nunito;border:1px solid ' + (on ? 'transparent' : 'var(--line)') + ';background:' + (on ? this.soft(k.h, night) : 'transparent') + ';color:' + (on ? this.deep(k.h, night) : 'var(--ink2)') + ';transition:all .22s ' + EASE,
+        dotStyle: 'flex:none;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Outfit;font-weight:600;font-size:14px;background:' + this.soft(k.h, night) + ';color:' + this.deep(k.h, night) + ';box-shadow:inset 0 0 0 2px ' + this.col(k.h, night)
+      };
+    });
+    const catCards = S.rewards.slice().sort((a, b) => a.cost - b.cost).map((r, i) => {
+      const can = catPts >= r.cost;
+      const pct = Math.min(100, Math.round(catPts / Math.max(1, r.cost) * 100));
+      return {
+        label: r.label, cost: r.cost + ' pts', slotId: 'gift-' + r.id, placeholder: r.label,
+        state: can ? 'You can get this' : (r.cost - catPts) + ' points to go',
+        cardStyle: CARD + ';display:flex;flex-direction:column;gap:0;padding:0;overflow:hidden;animation:riseIn .45s ' + EASE + ' both;animation-delay:' + (i * 50) + 'ms;' + (can ? 'box-shadow:0 0 0 2px ' + this.col(catHue, night) + ' inset' : 'opacity:.82'),
+        imgStyle: 'position:relative;flex:none;height:132px;background:' + this.soft(catHue, night),
+        costPillStyle: 'position:absolute;top:10px;right:10px;z-index:2;padding:5px 12px;border-radius:999px;font-family:Outfit;font-weight:600;font-size:15px;background:var(--card);color:var(--ink);box-shadow:0 4px 14px -6px rgba(10,14,30,.5)',
+        stateStyle: 'font-size:13px;font-weight:800;color:' + (can ? this.deep(catHue, night) : 'var(--ink2)'),
+        barFillStyle: 'height:100%;width:' + pct + '%;border-radius:999px;background:' + this.col(catHue, night) + ';transition:width .6s ' + EASE,
+        btnLabel: can ? 'Redeem' : 'Keep saving',
+        goalBtnLabel: (catP && S.goalPick[catP.id] === r.id) ? '★ My goal' : 'Make this my goal',
+        goalBtnStyle: 'width:100%;min-height:40px;padding:9px;border-radius:12px;font-family:Nunito;font-size:13.5px;font-weight:800;cursor:pointer;transition:opacity .2s ease;' +
+          ((catP && S.goalPick[catP.id] === r.id)
+            ? 'border:none;background:' + this.soft(catHue, night) + ';color:' + this.deep(catHue, night)
+            : 'border:1px dashed var(--line);background:transparent;color:var(--ink2);opacity:.7'),
+        setGoal: (e) => {
+          if (e) e.stopPropagation(); this.poke();
+          if (!catP) return;
+          const g = Object.assign({}, S.goalPick); g[catP.id] = r.id;
+          this.setState({ goalPick: g });
+          this.say(catP.name + ' is saving for ' + r.label, I.star, this.col(catHue, night));
+        },
+        btnStyle: 'width:100%;min-height:46px;padding:12px;border-radius:14px;font-family:Nunito;font-size:15px;font-weight:800;transition:transform .22s ' + EASE + ';' + (can ? 'border:none;cursor:pointer;background:var(--ink);color:' + card : 'border:1px solid var(--line);background:transparent;color:var(--ink2);cursor:default'),
+        redeem: (e) => {
+          if (e) e.stopPropagation(); this.poke();
+          if (!catP) return;
+          const have = S.points[catP.id] || 0;
+          if (have < r.cost) return this.say(catP.name + ' needs ' + (r.cost - have) + ' more points', I.alert, this.col(32, night));
+          const np = Object.assign({}, S.points); np[catP.id] = have - r.cost;
+          this.setState({ points: np, redeemed: [{ id: 'rd' + Date.now(), who: catP.id, label: r.label, cost: r.cost }].concat(redeemedAll) });
+          this.celebrate([catHue, 305, 62, 148], true);
+          this.say(catP.name + ' redeemed ' + r.label + '!', I.gift, this.col(305, night));
+        }
+      };
+    });
+    const catRecent = redeemedAll.filter(x => catP && x.who === catP.id).slice(0, 4).map(x => ({
+      label: x.label, tag: '−' + x.cost + ' pts',
+      style: 'display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:999px;background:var(--chip);font-size:14px;font-weight:800;color:var(--ink2)'
+    }));
+
+    // ---------- settings ----------
+    const setPanelStyle = CARD + ';padding:22px 24px 20px;display:flex;flex-direction:column;gap:10px;animation:riseIn .5s ' + EASE + ' both';
+    const dashedBtnStyle = 'margin-top:4px;min-height:52px;padding:12px;border-radius:16px;border:1.5px dashed var(--line);background:transparent;color:var(--ink2);font-family:Nunito;font-size:15.5px;font-weight:800;cursor:pointer;opacity:.7;transition:opacity .2s ease';
+    const roleLabel = { kid: 'Kid', parent: 'Parent', shared: 'Shared calendar' };
+    const tagPill = 'flex:none;padding:6px 13px;border-radius:999px;font-family:Outfit;font-weight:600;font-size:16px;background:' + (night ? 'rgba(255,255,255,.07)' : 'oklch(0.95 0.05 70)') + ';color:' + (night ? '#f3d9a8' : 'oklch(0.44 0.1 62)');
+    const rowBtn = 'display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:12px 16px;border-radius:16px;border:1px solid var(--line);background:transparent;cursor:pointer;font-family:Nunito;transition:transform .22s ' + EASE + ',background .22s ease';
+    const extraRows = S.extras.map(x => ({ isItem: true, label: x.title, tag: '+' + x.points, tagStyle: tagPill, rowStyle: rowBtn, edit: (e) => { if (e) e.stopPropagation(); this.openModal('extra', x); } }));
+    const rewardRows = S.rewards.map(r => ({ isItem: true, label: r.label, tag: r.cost + ' pts', tagStyle: tagPill.replace('oklch(0.95 0.05 70)', this.soft(305, night)).replace('oklch(0.44 0.1 62)', this.deep(305, night)), rowStyle: rowBtn, edit: (e) => { if (e) e.stopPropagation(); this.openModal('reward', r); } }));
+
+    const setPref = (k, v, msg) => (e) => {
+      if (e) e.stopPropagation(); this.poke();
+      this.setState(s => ({ prefs: Object.assign({}, s.prefs, { [k]: v }) }));
+      if (msg) this.say(msg, I.gear, this.col(258, night));
+    };
+    const swTrack = (on) => 'flex:none;position:relative;width:66px;height:38px;border-radius:999px;border:1px solid ' + (on ? 'transparent' : 'var(--line)') + ';padding:0;cursor:pointer;background:' + (on ? this.col(148, night) : 'var(--chip)') + ';transition:background .28s ' + EASE;
+    const swKnob = (on) => 'position:absolute;top:4px;left:' + (on ? 32 : 4) + 'px;width:28px;height:28px;border-radius:50%;background:' + (night ? '#0f1116' : '#fff') + ';box-shadow:0 2px 5px rgba(20,24,40,.3);transition:left .28s ' + EASE;
+    const settingRow = 'display:flex;align-items:center;gap:16px;min-height:72px;padding:15px 18px;border-radius:20px;border:1px solid var(--line);background:transparent';
+    const pillStyle = (on) => 'min-height:50px;padding:12px 22px;border-radius:999px;border:1px solid ' + (on ? 'transparent' : 'var(--line)') + ';background:' + (on ? 'var(--ink)' : 'transparent') + ';color:' + (on ? card : 'var(--ink2)') + ';font-family:Nunito;font-size:17px;font-weight:800;cursor:pointer;transition:all .22s ' + EASE;
+
+    const toggleRow = (key, label, sub, dflt) => {
+      const on = pref(key, dflt);
+      return { isToggle: true, label, sub, rowStyle: settingRow, trackStyle: swTrack(on), knobStyle: swKnob(on), toggle: setPref(key, !on, label + (on ? ' — off' : ' — on')) };
+    };
+    const chipsRow = (key, label, options, dflt) => {
+      const cur = pref(key, dflt);
+      return {
+        isChipRow: true, label, rowStyle: 'display:flex;align-items:center;gap:12px 16px;flex-wrap:wrap;min-height:72px;padding:14px 18px;border-radius:20px;border:1px solid var(--line)',
+        options: options.map(o => ({ label: String(o), style: pillStyle(cur === o), pick: setPref(key, o, label + ': ' + o) }))
+      };
+    };
+    const connRow = (id, label, sub) => {
+      const on = !!conns[id];
+      return {
+        isConnect: true, label, sub: on ? sub : 'Not connected', rowStyle: settingRow,
+        dotStyle: 'flex:none;width:12px;height:12px;border-radius:50%;background:' + (on ? this.col(148, night) : 'var(--line)'),
+        btnLabel: on ? 'Disconnect' : 'Connect',
+        btnStyle: 'flex:none;min-height:50px;padding:13px 24px;border-radius:999px;font-family:Nunito;font-size:16.5px;font-weight:800;cursor:pointer;transition:transform .22s ' + EASE + ';border:1px solid ' + (on ? 'var(--line)' : 'transparent') + ';background:' + (on ? 'transparent' : 'var(--ink)') + ';color:' + (on ? 'var(--ink2)' : card),
+        act: (e) => {
+          if (e) e.stopPropagation(); this.poke();
+          this.setState(s => ({ conns: Object.assign({}, s.conns, { [id]: !on }) }));
+          this.say(label + (on ? ' disconnected' : ' connected'), on ? I.alert : I.check, this.col(on ? 32 : 148, night));
+        }
+      };
+    };
+    const personToggle = (p, key, label) => {
+      const on = p[key] !== false;
+      return {
+        label, trackStyle: swTrack(on), knobStyle: swKnob(on),
+
+        toggle: (e) => {
+          if (e) e.stopPropagation(); this.poke();
+          this.setState(s => ({ people: s.people.map(x => x.id === p.id ? Object.assign({}, x, { [key]: !on }) : x) }));
+          this.say(p.name + (on ? ' hidden from ' : ' shown on ') + label, I.gear, this.col(p.h, night));
+        }
+      };
+    };
+    const personRow = (p, keys) => ({
+      isPerson: true, name: p.name, initial: this.initialOf(p.name), slotId: 'avatar-' + p.id, pencilD: I.pencil, pencilStyle,
+      sub: roleLabel[p.role] + (p.role === 'kid' ? ' · ' + (S.points[p.id] || 0) + ' pts' : '') + (this.bdayLabel(p) ? ' · ' + this.bdayLabel(p) : ''),
+      rowStyle: 'display:flex;align-items:center;gap:14px;min-height:64px;padding:11px 16px;border-radius:16px;border:1px solid var(--line);cursor:pointer;transition:background .22s ' + EASE,
+      avatarStyle: 'position:relative;flex:none;width:54px;height:54px;border-radius:50%;overflow:hidden;display:block;background:' + this.soft(p.h, night) + ';color:' + this.deep(p.h, night) + ';font-size:19px;font-weight:800;box-shadow:inset 0 0 0 2px ' + this.col(p.h, night),
+      toggles: (keys || []).map(k => personToggle(p, k[0], k[1])),
+      edit: (e) => { if (e) e.stopPropagation(); this.openModal('person', Object.assign({}, p, { bdayText: this.bdayLabel(p) + (p.byear ? ' ' + p.byear : '') })); }
+    });
+
+    const upcoming = people.filter(p => this.bdayParts(p)).sort((a, b) => {
+      const A = this.bdayParts(a), B = this.bdayParts(b);
+      const key = (x) => (x[0] * 100 + x[1] < (now.getMonth() + 1) * 100 + today ? 1200 : 0) + x[0] * 100 + x[1];
+      return key(A) - key(B);
+    }).map(p => ({ isItem: true, label: p.name, tag: this.bdayLabel(p), tagStyle: tagPill, rowStyle: rowBtn, edit: personRow(p, []).edit }));
+
+    const hassUrl = pref('hassUrl', 'homeassistant.local:8123');
+    const hassTok = pref('hassToken', 'eyJhbGciOiJIUzI1NiJ9.f4c2');
+    const hassOn = !!conns.hass;
+    const hassField = (label, value) => ({
+      isItem: true, label, tag: value, tagStyle: tagPill.replace('font-size:15px', 'font-size:14px;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'), rowStyle: rowBtn,
+      edit: (e) => { if (e) e.stopPropagation(); this.openModal('hass', { id: 'hass' }, { hassUrl, hassToken: hassTok }); }
+    });
+
+    const addBtn = (label, act) => ({ label, act });
+    const SECTIONS = {
+      family: {
+        label: 'Family', sub: 'Everyone in the house', d: I.star,
+        panels: [
+          { title: 'Family members', sub: 'Tap anyone to edit their name, photo, color, and birthday', rows: people.filter(p => p.role !== 'shared').map(p => personRow(p, [])), add: addBtn('+ Add someone', (e) => { if (e) e.stopPropagation(); this.openModal('person', null, { id: 'p' + Date.now().toString().slice(-6), h: 196, role: 'kid' }); }) }
+        ]
+      },
+      calendar: {
+        label: 'Calendar', sub: 'Google accounts and subscriptions', d: I.calendar,
+        panels: [
+          { title: 'Google accounts', sub: 'Sign in to pull in every calendar on the account', rows: [connRow('goog_amanda', 'robin@example.com', 'Signed in · synced 2m ago'), connRow('goog_john', 'alex@example.com', 'Signed in · synced 2m ago')], add: addBtn('+ Add a Google account', (e) => { if (e) e.stopPropagation(); this.poke(); this.say('Opening Google sign-in…', I.calendar, this.col(258, night)); }) },
+          { title: 'Subscribed calendars', sub: 'Turn one off to hide its events everywhere', rows: [toggleRow('cal_amanda', 'Robin', 'robin@example.com', true), toggleRow('cal_john', 'Alex', 'alex@example.com', true), toggleRow('cal_family', 'The Family', 'Shared · 5 members', true), toggleRow('cal_school', 'Ridgeview Middle School', 'Subscribed · read only', true), toggleRow('cal_sports', 'Cross country team', 'Subscribed · read only', true), toggleRow('cal_holidays', 'Holidays in United States', 'Google · read only', false)] },
+          { title: 'Display', rows: [chipsRow('weekStart', 'Week starts on', ['Sunday', 'Monday'], 'Sunday'), chipsRow('dayHours', 'Day view hours', ['6a – 10p', '7a – 9p', 'All 24'], '6a – 10p'), toggleRow('showAllDay', 'Show the all-day row', '', true), toggleRow('birthdaysOnCal', 'Show family birthdays', 'An all-day event on everyone’s big day', true)] }
+        ]
+      },
+      chores: {
+        label: 'Chores', sub: 'Boards, points, rewards', d: I.check,
+        panels: [
+          { title: 'Who gets a chore board', sub: 'Parents can be left off entirely', rows: people.filter(p => p.role !== 'shared').map(p => personRow(p, [['onChores', 'Board']])) },
+          { title: 'Board behavior', rows: [chipsRow('choreReset', 'Board resets', ['Every night', 'Sunday', 'Monday'], 'Every night'), toggleRow('claimExtras', 'Kids can claim extra jobs', 'Extra jobs show in the kid’s own list', true), toggleRow('choreConfetti', 'Celebrate a cleared board', 'Confetti and a cheer when someone finishes', true)] },
+          { title: 'Extra jobs', sub: 'Kids pick these up for points', rows: extraRows, add: addBtn('+ New extra job', (e) => { if (e) e.stopPropagation(); this.openModal('extra', null, { points: 15 }); }) },
+          { title: 'Rewards', sub: 'Goals kids can save toward', rows: rewardRows, add: addBtn('+ New reward', (e) => { if (e) e.stopPropagation(); this.openModal('reward', null, { cost: 100 }); }) }
+        ]
+      },
+      groceries: {
+        label: 'Groceries', sub: 'Syncing and list behavior', d: I.list,
+        panels: [
+          { title: 'Apple Reminders', sub: 'The grocery list stays in sync with a shared Reminders list', rows: [connRow('reminders', 'Apple Reminders', 'Shared list · "Groceries"')] },
+          { title: 'List behavior', rows: [toggleRow('autoAisle', 'Sort items into aisles automatically', '', true), toggleRow('clearNightly', 'Clear picked-up items each night', '', false)] }
+        ]
+      },
+      home: {
+        label: 'Home', sub: 'Home Assistant connection', d: I.home,
+        panels: [
+          {
+            title: 'Home Assistant', sub: hassOn ? 'Connected · ' + hassUrl : 'Enter your server address and a long-lived access token',
+            rows: [connRow('hass', 'Home Assistant', hassUrl + ' · 34 entities'), hassField('Server address', hassUrl), hassField('Access token', hassTok ? '••••••••' + hassTok.slice(-4) : 'Not set')]
+          },
+          { title: 'What the dashboard shows', sub: 'Pick which Home Assistant areas appear on the Home tab', rows: [toggleRow('haLights', 'Lights', '3 rooms · 6 entities', true), toggleRow('haDoors', 'Doors and locks', '4 entities', true), toggleRow('haClimate', 'Thermostat', 'climate.downstairs, climate.upstairs', true), toggleRow('haCameras', 'Cameras', 'Doorbell, driveway', false)] },
+          { title: 'Routines', rows: [toggleRow('confirmAway', 'Ask before arming away', 'A quick confirm on the Heading out button', true), toggleRow('autoLock', 'Auto-lock the front door at 10pm', '', true), toggleRow('openDoorAlert', 'Warn when a door is left open', '', true)] }
+        ]
+      },
+      display: {
+        label: 'Display', sub: 'Theme, frame mode, copy', d: I.bulb,
+        panels: [
+          { title: 'Screen', rows: [chipsRow('theme', 'Theme', ['Auto', 'Day', 'Night'], 'Auto'), chipsRow('idleMin', 'Frame mode after', [1, 5, 15, 30], 5), toggleRow('playful', 'Playful copy', 'Warmer greetings and cheers', P.playfulCopy ?? true)] }
+        ]
+      }
+    };
+    const SECTION_ORDER = ['family', 'calendar', 'chores', 'groceries', 'home', 'display'];
+    const curSection = SECTIONS[S.setSection] ? S.setSection : 'family';
+    const setNav = SECTION_ORDER.map(id => {
+      const on = id === curSection, s = SECTIONS[id];
+      return {
+        label: s.label, sub: s.sub, d: s.d,
+        go: (e) => { if (e) e.stopPropagation(); this.poke(); this.setState({ setSection: id }); },
+        style: 'display:flex;align-items:center;gap:15px;width:100%;min-height:82px;padding:16px 18px;border-radius:22px;border:none;text-align:left;cursor:pointer;font-family:Nunito;background:' + (on ? 'var(--card)' : 'transparent') + ';color:' + (on ? 'var(--ink)' : 'var(--ink2)') + ';box-shadow:' + (on ? '0 1px 2px rgba(20,24,40,.05),0 14px 28px -20px rgba(20,24,40,.3)' : 'none') + ';transition:background .25s ' + EASE + ',box-shadow .25s ease',
+        iconStyle: 'flex:none;width:46px;height:46px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:' + (on ? this.soft(258, night) : 'var(--chip)') + ';color:' + (on ? this.deep(258, night) : 'var(--ink2)')
+      };
+    });
+    const setPanels = SECTIONS[curSection].panels.map((p, i) => Object.assign({}, p, {
+      style: setPanelStyle + ';animation-delay:' + (i * 60) + 'ms',
+      addLabel: p.add ? p.add.label : '', addAct: p.add ? p.add.act : null
+    }));
+    const setTitle = SECTIONS[curSection].label;
+
+    // ---------- groceries ----------
+    const gDone = S.groceries.filter(g => g.bought).length, gTotal = S.groceries.length;
+    const AISLE_H = { Produce: 148, Fridge: 214, Pantry: 62, Freezer: 244, Bakery: 32, Household: 288, Other: 258 };
+    const groceryGroups = this.GROUPS.map((name, gi) => {
+      const h = AISLE_H[name] ?? 258;
+      const mine = S.groceries.filter(g => g.group === name);
+      const left = mine.filter(g => !g.bought).length;
+      return {
+      name,
+      cardStyle: CARD + ';padding:20px 20px 18px;display:flex;flex-direction:column;gap:15px;animation:riseIn .5s ' + EASE + ' both;animation-delay:' + (60 + gi * 60) + 'ms',
+      iconStyle: 'flex:none;width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:' + this.soft(h, night) + ';color:' + this.deep(h, night),
+      countLabel: left ? left + ' left' : 'all set',
+      countStyle: 'margin-left:auto;padding:4px 13px;border-radius:999px;font-size:14px;font-weight:800;background:' + (left ? 'var(--chip)' : this.soft(148, night)) + ';color:' + (left ? 'var(--ink2)' : this.deep(148, night)),
+      add: (e) => { if (e) e.stopPropagation(); this.openModal('grocery', null, { group: name }); },
+      addStyle: 'margin-top:3px;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;border-radius:16px;border:1px dashed var(--line);background:transparent;color:var(--ink2);font-family:Nunito;font-size:15.5px;font-weight:800;cursor:pointer;opacity:.6;transition:opacity .2s ease',
+      items: mine.map(i => {
+        const p = byPerson[i.who];
+        return Object.assign(mkHold(() => this.openModal('grocery', i)), {
+          name: i.name, by: p ? p.name : '', byColor: p ? this.col(p.h, night) : 'var(--ink2)', pencilStyle,
+          edit: (e) => { if (e) e.stopPropagation(); this.openModal('grocery', i); },
+          toggle: guard((e) => {
+            if (e) e.stopPropagation(); this.poke();
+            const after = S.groceries.map(x => x.id === i.id ? Object.assign({}, x, { bought: !i.bought }) : x);
+            this.setState({ groceries: after });
+            if (!i.bought && after.every(x => x.bought)) { this.celebrate([148, 196, 62], true); this.say('Grocery list complete!', I.star, this.col(148, night)); }
+          }),
+          wrapStyle: 'display:flex;align-items:center;gap:2px',
+          byStyle: 'flex:none;padding:3px 11px;border-radius:999px;font-size:13.5px;font-weight:800;background:' + (p ? this.soft(p.h, night) : 'var(--chip)') + ';color:' + (p ? this.deep(p.h, night) : 'var(--ink2)') + ';' + (i.bought ? 'opacity:.4' : ''),
+          rowStyle: 'flex:1;min-width:0;min-height:60px;display:flex;align-items:center;gap:13px;padding:11px 14px;border-radius:16px;border:1px solid ' + (i.bought ? 'transparent' : 'var(--line)') + ';background:' + (i.bought ? 'var(--chip)' : 'transparent') + ';font-family:Nunito;cursor:pointer;text-align:left;transition:transform .22s ' + EASE + ',background .25s ease,border-color .25s ease',
+          boxStyle: 'flex:none;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid ' + (i.bought ? 'transparent' : 'var(--line)') + ';background:' + (i.bought ? this.col(148, night) : 'transparent') + ';color:' + (night ? '#14161c' : '#fff') + ';transition:all .3s ' + EASE + ';' + (i.bought ? 'animation:popIn .32s cubic-bezier(.2,.9,.3,1.35) both' : ''),
+          markStyle: 'width:17px;height:17px;opacity:' + (i.bought ? 1 : 0) + ';transform:scale(' + (i.bought ? 1 : .4) + ');transition:all .26s ' + EASE,
+          textStyle: 'flex:1;min-width:0;overflow-wrap:break-word;font-size:19px;font-weight:700;color:var(--ink);' + (i.bought ? 'opacity:.36;text-decoration:line-through' : '')
+        });
+      })
+    };
+    });
+
+    // ---------- home ----------
+    const lightsList = this.ROOMS.map(r => ({ r, st: S.lights[r[0]] || { on: r[3], b: r[2] } }));
+    const lightsOn = lightsList.filter(x => x.st.on).length;
+    const doorState = (id, def) => S.doors[id] || { closed: def[2], locked: def[3] };
+    const openDoors = this.DOORS.filter(d => !doorState(d[0], d).closed);
+    const armed = S.alarm !== 'disarmed';
+    const alarmLabels = { armed_away: 'Armed · away', armed_home: 'Armed · home', disarmed: 'Disarmed' };
+    const setLights = (ids, on) => {
+      const nl = Object.assign({}, S.lights);
+      ids.forEach(id => { const cur = nl[id] || { on: false, b: 70 }; nl[id] = { on, b: cur.b || 70 }; });
+      this.setState({ lights: nl });
+    };
+    const mainIds = this.ROOMS.filter(r => r[5] === 'main').map(r => r[0]);
+    const allIds = this.ROOMS.map(r => r[0]);
+    const alarmTint = openDoors.length ? 32 : armed ? 258 : 148;
+
+    const quickActions = [
+      ['All lights off', lightsOn + ' on now', I.moon, () => { setLights(allIds, false); this.say('All lights off', I.moon, this.col(258, night)); }],
+      ['Main level on', 'Kitchen · Living · Playroom', I.bulb, () => { setLights(mainIds, true); this.say('Main level lights on', I.bulb, 'oklch(0.74 0.13 82)'); }],
+      [armed ? 'Disarm house' : 'Arm away', armed ? alarmLabels[S.alarm] : 'Everyone out', armed ? I.shieldOff : I.shield, () => { this.setState({ showKeypad: true, code: '' }); }],
+      [S.frontLocked ? 'Unlock front door' : 'Lock front door', S.frontLocked ? 'Locked now' : 'Unlocked now', S.frontLocked ? I.unlock : I.lock, () => { this.setState({ frontLocked: !S.frontLocked }); this.say('Front door ' + (S.frontLocked ? 'unlocked' : 'locked'), S.frontLocked ? I.unlock : I.lock, this.col(S.frontLocked ? 32 : 148, night)); }],
+      ['Heading out', 'Lights off · lock · arm away', I.car, () => {
+        setLights(allIds, false);
+        const nd = {}; this.DOORS.forEach(d => nd[d[0]] = { closed: true, locked: true });
+        this.setState({ frontLocked: true, doors: nd, alarm: 'armed_away' });
+        this.say(playful ? 'Have a good day! House is set' : 'Lights off, locked, armed away', I.car, this.col(258, night));
+      }],
+      ['Goodnight', 'Lights off · lock · arm home', I.bed, () => {
+        setLights(allIds, false);
+        this.setState({ frontLocked: true, alarm: 'armed_home' });
+        this.say(playful ? 'Goodnight! House is buttoned up' : 'Lights off, locked, armed home', I.bed, this.col(258, night));
+      }]
+    ].map((q, qi) => ({
+      label: q[0], sub: q[1], d: q[2],
+      run: (e) => { if (e) e.stopPropagation(); this.poke(); q[3](); },
+      style: CARD + ';display:flex;align-items:center;gap:13px;padding:16px 17px;border:1px solid var(--line);min-height:76px;cursor:pointer;font-family:Nunito;text-align:left;transition:transform .25s ' + EASE + ',box-shadow .25s ease;animation:riseIn .45s ' + EASE + ' both;animation-delay:' + (qi * 45) + 'ms',
+      iconStyle: 'flex:none;width:44px;height:44px;border-radius:15px;display:flex;align-items:center;justify-content:center;background:' + this.soft(qi < 2 ? 82 : qi === 4 ? 258 : 196, night) + ';color:' + this.deep(qi < 2 ? 82 : qi === 4 ? 258 : 196, night)
+    }));
+
+    const doors = this.DOORS.map(d => {
+      const st = doorState(d[0], d), isFront = d[0] === 'front';
+      const closed = st.closed, locked = isFront ? S.frontLocked : st.locked;
+      const tint = !closed ? 32 : 148;
+      return {
+        name: d[1], d: isFront ? (locked ? I.lock : I.unlock) : I.door, tint: this.col(tint, night),
+        state: !closed ? 'Open' : isFront ? (locked ? 'Locked' : 'Unlocked') : 'Closed',
+        act: (e) => {
+          if (e) e.stopPropagation(); this.poke();
+          if (isFront) { this.setState({ frontLocked: !S.frontLocked }); return this.say('Front door ' + (S.frontLocked ? 'unlocked' : 'locked'), S.frontLocked ? I.unlock : I.lock, this.col(S.frontLocked ? 32 : 148, night)); }
+          const nd = Object.assign({}, S.doors); nd[d[0]] = { closed: !closed, locked: st.locked };
+          this.setState({ doors: nd });
+        },
+        rowStyle: 'display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:15px;border:1px solid ' + (!closed ? this.col(32, night) : 'var(--line)') + ';background:' + (!closed ? this.soft(32, night) : 'transparent') + ';cursor:pointer;font-family:Nunito;transition:all .25s ' + EASE,
+        stateStyle: 'flex:none;padding:5px 12px;border-radius:999px;font-size:14px;font-weight:800;background:' + this.soft(tint, night) + ';color:' + this.deep(tint, night)
+      };
+    });
+
+    const rooms = lightsList.map(x => ({
+      name: x.r[1], status: x.st.on ? x.st.b + '%' : 'Off', d: x.st.on ? I[x.r[4]] : I.moon,
+      toggle: (e) => { if (e) e.stopPropagation(); this.poke(); const nl = Object.assign({}, S.lights); nl[x.r[0]] = { on: !x.st.on, b: x.st.b || 70 }; this.setState({ lights: nl }); },
+      cardStyle: 'display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:16px;cursor:pointer;font-family:Nunito;border:1px solid ' + (x.st.on ? (night ? 'rgba(240,205,130,.35)' : 'oklch(0.88 0.06 82)') : 'var(--line)') + ';background:' + (x.st.on ? (night ? 'rgba(240,205,130,.1)' : 'oklch(0.975 0.03 82)') : 'transparent') + ';color:' + (x.st.on ? (night ? '#f2dcae' : 'oklch(0.42 0.09 70)') : 'var(--ink2)') + ';transition:all .3s ' + EASE
+    }));
+
+    const zones = this.ZONES.map(z => {
+      const target = S.zoneTargets[z[0]] ?? z[2];
+      const pct = Math.max(0, Math.min(100, Math.round((target - 60) / 25 * 100)));
+      const c = z[4] === 'heat' ? 45 : 230;
+      return {
+        name: z[1], target, note: (z[4] === 'heat' ? 'Heating · now ' : 'Cooling · now ') + z[3] + '°',
+        trackStyle: 'position:relative;height:12px;border-radius:999px;background:var(--chip);cursor:pointer;margin-top:8px',
+        fillStyle: 'height:100%;width:' + pct + '%;border-radius:999px;background:' + this.col(c, night) + ';transition:width .3s ' + EASE,
+        knobStyle: 'position:absolute;left:' + pct + '%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:var(--card);box-shadow:0 1px 4px rgba(20,24,40,.35);transition:left .3s ' + EASE,
+        setFromEvent: (e) => {
+          if (e) e.stopPropagation(); this.poke();
+          const box = e.currentTarget.getBoundingClientRect();
+          const p = Math.max(0, Math.min(100, (e.clientX - box.left) / box.width * 100));
+          const nz = Object.assign({}, S.zoneTargets); nz[z[0]] = Math.round(60 + p / 100 * 25); this.setState({ zoneTargets: nz });
+        }
+      };
+    });
+
+    const codeDots = [0, 1, 2, 3].map(i => ({
+      style: 'width:14px;height:14px;border-radius:50%;background:' + (S.code.length > i ? 'var(--ink)' : 'var(--chip)') + ';transition:all .22s ease;' + (S.code.length === i + 1 ? 'animation:popIn .28s cubic-bezier(.2,.9,.3,1.4) both' : '')
+    }));
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', armed ? 'OFF' : 'ARM'].map(k => {
+      const isAct = k === 'OFF' || k === 'ARM';
+      return {
+        label: k,
+        press: (e) => {
+          if (e) e.stopPropagation(); this.poke();
+          if (k === '⌫') return this.setState({ code: S.code.slice(0, -1) });
+          if (isAct) {
+            if (S.code.length < 4) return this.say('Enter your 4-digit code', I.shield, this.col(258, night));
+            this.setState({ alarm: armed ? 'disarmed' : 'armed_away', code: '', showKeypad: false });
+            return this.say(armed ? (playful ? 'Welcome home! Alarm off' : 'Alarm disarmed') : 'Armed — away mode', armed ? I.home : I.shield, this.col(armed ? 148 : 258, night));
+          }
+          if (S.code.length < 4) this.setState({ code: S.code + k });
+        },
+        style: 'height:58px;border-radius:19px;border:1px solid ' + (isAct ? 'transparent' : 'var(--line)') + ';background:' + (k === 'OFF' ? 'oklch(0.68 0.15 25)' : k === 'ARM' ? 'oklch(0.62 0.13 258)' : 'transparent') + ';color:' + (isAct ? '#fff' : 'var(--ink)') + ';font-family:Outfit;font-size:' + (isAct ? '17px;font-weight:600' : '22px;font-weight:400') + ';cursor:pointer;transition:all .22s ' + EASE
+      };
+    });
+
+    // ---------- modal ----------
+    const M = S.modal;
+    const chipStyle = (on, h) => 'display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;border:1px solid ' + (on ? 'transparent' : 'var(--line)') + ';background:' + (on ? (h === undefined ? 'var(--ink)' : this.soft(h, night)) : 'transparent') + ';color:' + (on ? (h === undefined ? card : this.deep(h, night)) : 'var(--ink2)') + ';font-family:Nunito;font-size:15px;font-weight:800;cursor:pointer;transition:all .25s ' + EASE + ';' + (on && h !== undefined ? 'box-shadow:inset 0 0 0 2px ' + this.col(h, night) : '');
+    const personOptions = (cur, field, list, allowNone) => {
+      const src = list || people;
+      const opts = src.map(p => ({
+        label: p.name, initial: this.initialOf(p.name), style: chipStyle(cur === p.id, p.h), dotStyle: avatarDot(p, 21, 11.5),
+        pick: (e) => { if (e) e.stopPropagation(); this.setDraft(field, p.id); }
+      }));
+      if (allowNone) opts.unshift({ label: 'Anyone', initial: '', style: chipStyle(!cur), dotStyle: '', pick: (e) => { if (e) e.stopPropagation(); this.setDraft(field, ''); } });
+      return opts;
+    };
+    const textField = (label, field, ph) => ({ label, isText: true, placeholder: ph || '', value: (M.draft[field] ?? ''), set: (e) => this.setDraft(field, e.target.value) });
+    const enumField = (label, field, options, cur) => ({
+      label, isChips: true, options: options.map(o => ({
+        label: o, initial: '', style: chipStyle(cur === o), dotStyle: '',
+        pick: (e) => { if (e) e.stopPropagation(); this.setDraft(field, o); }
+      }))
+    });
+    const stepField = (label, field, cur, step, min, max) => ({
+      label, isStepper: true, value: cur,
+      dec: (e) => { if (e) e.stopPropagation(); this.setDraft(field, Math.max(min, cur - step)); },
+      inc: (e) => { if (e) e.stopPropagation(); this.setDraft(field, Math.min(max, cur + step)); }
+    });
+
+    let modalTitle = '', modalSub = '', modalFields = [], modalList = [], saveLabel = 'Save', cancelLabel = 'Cancel';
+    if (M) {
+      const d = M.draft;
+      if (M.kind === 'event') {
+        modalTitle = M.editing ? 'Edit event' : 'New event';
+        modalFields = [textField('What', 'title', 'Soccer practice'), { label: 'Who', isChips: true, options: personOptions(d.who, 'who') },
+          textField('Time', 'timeText', '3:45p'), textField('Where', 'place', 'Field 3')];
+      } else if (M.kind === 'allday') {
+        modalTitle = M.editing ? 'Edit all-day event' : 'New all-day event';
+        modalFields = [textField('Event', 'title', 'Recycling out tonight'), { label: 'Who', isChips: true, options: personOptions(d.who, 'who') }];
+      } else if (M.kind === 'chore') {
+        const isExtra = d.recurring === false;
+        modalTitle = M.editing ? (isExtra ? 'Edit extra job' : 'Edit chore') : 'New chore';
+        modalFields = [];
+        if (!M.editing) {
+          modalFields.push({
+            label: 'Type', isChips: true, options: [
+              { label: 'Chore', initial: '', style: chipStyle(!isExtra), dotStyle: '', pick: (e) => { if (e) e.stopPropagation(); this.setDraft('recurring', true); } },
+              { label: 'Extra job', initial: '', style: chipStyle(isExtra), dotStyle: '', pick: (e) => { if (e) e.stopPropagation(); this.setDraft('recurring', false); } }
+            ]
+          });
+        }
+        if (isExtra) {
+          modalSub = 'Kids can add this to their own list for points';
+          modalFields.push(textField('Job', 'title', 'Sweep the porch'), stepField('Worth', 'points', d.points ?? 10, 5, 5, 100));
+        } else {
+          modalFields.push(textField('Chore', 'title', 'Feed Biscuit'), { label: 'Who', isChips: true, options: personOptions(d.who, 'who', people.filter(p => p.role !== 'shared')) },
+            enumField('Repeats', 'repeat', this.REPEATS, d.repeat));
+        }
+      } else if (M.kind === 'extra') {
+        modalTitle = M.editing ? 'Edit extra job' : 'New extra job';
+        modalSub = 'Kids can add this to their own list for points';
+        modalFields = [textField('Job', 'title', 'Sweep the porch'), stepField('Worth', 'points', d.points ?? 10, 5, 5, 100)];
+      } else if (M.kind === 'reward') {
+        modalTitle = M.editing ? 'Edit reward' : 'New reward';
+        modalSub = 'Shows up in the goal picker';
+        modalFields = [textField('Reward', 'label', 'Roller skates'), stepField('Costs', 'cost', d.cost ?? 50, 10, 10, 1000)];
+      } else if (M.kind === 'person') {
+        modalTitle = M.editing ? d.name || 'Profile' : 'Add someone';
+        modalFields = [
+          textField('Name', 'name', 'Maya'),
+          { label: 'Photo', isAvatar: true, slotId: 'avatar-' + (d.id || 'new'), placeholder: this.initialOf(d.name || '?'), slotWrapStyle: 'flex:none;width:86px;height:86px;border-radius:50%;overflow:hidden;background:' + this.soft(d.h === undefined ? 196 : d.h, night) + ';color:' + this.deep(d.h === undefined ? 196 : d.h, night) + ';font-size:26px;font-weight:800;box-shadow:inset 0 0 0 3px ' + this.col(d.h === undefined ? 196 : d.h, night) },
+          {
+            label: 'Color', isChips: true, options: this.SWATCHES.map(sw => ({
+              label: sw[0], initial: ' ', style: chipStyle((d.h === undefined ? 196 : d.h) === sw[1], sw[1]),
+              dotStyle: 'flex:none;width:16px;height:16px;border-radius:50%;background:' + this.col(sw[1], night),
+              pick: (e) => { if (e) e.stopPropagation(); this.setDraft('h', sw[1]); }
+            }))
+          },
+          textField('Birthday', 'bdayText', 'Aug 31 2016')
+        ];
+      } else if (M.kind === 'hass') {
+        modalTitle = 'Home Assistant';
+        modalSub = 'Point the dashboard at your server, then paste a long-lived access token from your profile page';
+        modalFields = [textField('Server address', 'hassUrl', 'homeassistant.local:8123'), textField('Access token', 'hassToken', 'eyJhbGciOiJIUzI1NiJ9…')];
+      } else if (M.kind === 'grocery') {
+        modalTitle = M.editing ? 'Edit item' : 'Add to groceries';
+        modalFields = [textField('Item', 'name', 'Strawberries'), enumField('Aisle', 'group', this.GROUPS, d.group),
+          { label: 'Requested by', isChips: true, options: personOptions(d.who, 'who', null, true) }];
+      } else if (M.kind === 'pickExtra' || M.kind === 'pickGoal') {
+        modalTitle = M.title; modalSub = M.sub; cancelLabel = 'Close';
+        modalList = (M.list || []).map(o => ({
+          label: o.label, sub: o.sub, tag: o.tag, pick: o.pick,
+          style: 'display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:18px;border:1px solid var(--line);background:transparent;cursor:pointer;font-family:Nunito;transition:transform .22s ' + EASE,
+          tagStyle: 'flex:none;padding:4px 12px;border-radius:999px;font-family:Outfit;font-weight:600;font-size:15px;background:' + this.soft(o.h, night) + ';color:' + this.deep(o.h, night)
+        }));
+      }
+      saveLabel = M.editing ? 'Save changes' : 'Add';
+    }
+
+    const addKind = S.tab === 'today' ? 'event' : S.tab === 'chores' ? 'chore' : S.tab === 'lists' ? 'grocery' : '';
+    const addLabel = addKind === 'event' ? 'Event' : addKind === 'chore' ? 'Chore' : addKind === 'grocery' ? 'Item' : '';
+
+    return {
+      rootStyle, shellStyle, isSidebar, isTabs: nav === 'tabs', navItems, poke: this.poke, sleepNow: this.sleepNow,
+      moonD: I.moon, pencilD: I.pencil, starD: I.star,
+      sleepStyle: 'margin-top:auto;width:88px;height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border-radius:20px;border:none;background:transparent;color:var(--ink2);opacity:.55;font-family:Nunito;cursor:pointer;transition:opacity .25s ease',
+      idle: S.idle, clockTime: clockH + ':' + clockM, clockH, clockM,
+      clockLong: now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+      viewTitle: S.tab === 'settings' ? setTitle + ' settings' : viewTitle,
+      viewSub: S.tab === 'settings' ? SECTIONS[curSection].sub : viewSub,
+      syncAgo: '2m', showCalControls: S.tab === 'today', calRanges,
+      addLabel, addBtnLabel: compact ? '' : addLabel,
+      addBtnStyle: 'display:flex;align-items:center;justify-content:center;gap:8px;padding:' + (compact ? '12px' : '12px 21px') + ';border-radius:999px;border:none;background:var(--ink);color:' + card + ';font-family:Nunito;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 10px 24px -14px rgba(10,14,30,.6);transition:transform .22s ' + EASE + ',box-shadow .22s ease',
+      openAdd: (e) => {
+        if (e) e.stopPropagation();
+        if (!addKind) return;
+        this.openModal(addKind, null, addKind === 'event' ? { who: 'family', timeText: '', day: today }
+          : addKind === 'chore' ? { who: (kids[0] || { id: 'kid1' }).id, repeat: 'Daily', recurring: true }
+            : addKind === 'extra' ? { points: 15 } : { group: 'Produce' });
+      },
+      showGear: S.tab !== 'settings', gearD: I.gear,
+      gearBtnStyle: 'flex:none;width:44px;height:44px;border-radius:16px;border:1px solid var(--line);background:transparent;color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .22s ' + EASE,
+      openTabSettings: (e) => {
+        if (e) e.stopPropagation(); this.poke();
+        const map = { today: 'calendar', chores: 'chores', lists: 'groceries', home: 'home' };
+        this.setState({ tab: 'settings', setSection: map[S.tab] || 'family' });
+      },
+      addBtnStyle: 'display:flex;align-items:center;gap:8px;padding:11px 19px;border-radius:999px;border:none;background:var(--ink);color:' + card + ';font-family:Nunito;font-size:16px;font-weight:800;cursor:pointer;transition:transform .22s ' + EASE + ';box-shadow:0 8px 20px -12px rgba(20,24,40,.6)',
+
+      showToday: S.tab === 'today', isDayView: view === 'day', isWeekView: view === 'week', isMonthView: view === 'month',
+      dayCardStyle: CARD + ';flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;animation:riseIn .5s ' + EASE + ' both',
+      dayRef: this.dayRef, timeline, allDay, hasAllDay: allDay.length > 0 && pref('showAllDay', true),
+      weekDays, weekRows, weekGridStyle, monthDow: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], monthDays, monthGridStyle, legend,
+
+      showChores: S.tab === 'chores', choreBoards,
+      familyBarStyle: CARD + ';flex:none;display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:15px 20px;animation:riseIn .45s ' + EASE + ' both',
+      familyScoreLine: doneChores + ' of ' + totalChores + ' done today',
+      familySubLine: playful ? (doneChores === totalChores && totalChores > 0 ? 'Whole family cleared the board!' : 'Keep it rolling — ' + (totalChores - doneChores) + ' to go') : (totalChores - doneChores) + ' remaining',
+      familyBarFillStyle: 'height:100%;width:' + Math.round(doneChores / Math.max(1, totalChores) * 100) + '%;border-radius:999px;background:linear-gradient(90deg,' + this.col(196, night) + ',' + this.col(148, night) + ');animation:growW 1s ' + EASE + ' both;transition:width .5s ' + EASE,
+
+      showSettings: S.tab === 'settings', setPanelStyle, dashedBtnStyle, setNav, setPanels, setTitle,
+      addPerson: (e) => { if (e) e.stopPropagation(); this.openModal('person', null, { id: 'p' + Date.now().toString().slice(-6), h: 196, role: 'kid' }); },
+
+      showLists: S.tab === 'lists',
+      groceryHeadStyle: CARD + ';flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:12px 16px;padding:16px 24px;animation:riseIn .5s ' + EASE + ' both',
+      listD: I.list,
+      groceryGroups, groceryCount: gDone + ' of ' + gTotal + ' picked up',
+      groceryBarStyle: 'height:100%;width:' + Math.round(gDone / Math.max(1, gTotal) * 100) + '%;border-radius:999px;background:' + this.col(148, night) + ';transition:width .5s ' + EASE,
+      hasBought: gDone > 0,
+      clearBought: (e) => { if (e) e.stopPropagation(); this.poke(); this.setState(s => ({ groceries: s.groceries.filter(g => !g.bought) })); this.say('Cleared ' + gDone + ' picked up', I.check, this.col(148, night)); },
+      clearBoughtStyle: 'padding:12px 20px;font-size:15.5px;min-height:48px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink2);font-family:Nunito;font-weight:800;cursor:pointer;opacity:.7;white-space:nowrap;transition:opacity .2s ease',
+
+      showHome: S.tab === 'home', quickActions, doors, rooms, zones,
+      panelStyle: CARD + ';padding:18px 19px;display:flex;flex-direction:column;min-height:0;overflow-y:auto;animation:riseIn .5s ' + EASE + ' both;animation-delay:.06s',
+      statusCardStyle: 'flex:none;display:flex;align-items:center;gap:16px;padding:20px 24px;border-radius:26px;background:' + this.soft(alarmTint, night) + ';color:' + this.deep(alarmTint, night) + ';border:1px solid ' + (openDoors.length ? this.col(32, night) : 'var(--line)') + ';' + (openDoors.length ? 'animation:pulseRing 2.6s ease-out infinite' : 'animation:riseIn .45s ' + EASE + ' both'),
+      statusD: openDoors.length ? I.alert : armed ? I.shield : I.home,
+      statusIconStyle: 'flex:none;width:52px;height:52px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:' + (night ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.7)'),
+      statusTitle: openDoors.length ? (openDoors.length === 1 ? openDoors[0][1] + ' is open' : openDoors.length + ' doors are open') : armed ? 'House is armed' : 'All clear',
+      statusSub: openDoors.length ? 'Close it before you arm the house' : (armed ? 'Every door closed · front door ' + (S.frontLocked ? 'locked' : 'unlocked') : 'Every door closed · alarm off') + ' · ' + lightsOn + ' lights on',
+      alarmLabel: alarmLabels[S.alarm],
+      alarmBadgeStyle: 'flex:none;padding:8px 16px;border-radius:999px;font-size:14.5px;font-weight:800;white-space:nowrap;background:' + (night ? 'rgba(255,255,255,.08)' : 'rgba(255,255,255,.75)') + ';color:inherit',
+      doorSummary: openDoors.length ? openDoors.length + ' open' : 'All closed', lightsSummary: lightsOn + ' of 6 on',
+      doorSummaryStyle: 'padding:4px 11px;border-radius:999px;font-size:13px;font-weight:800;background:' + this.soft(openDoors.length ? 32 : 148, night) + ';color:' + this.deep(openDoors.length ? 32 : 148, night),
+      showKeypad: S.showKeypad, toggleKeypad: (e) => { if (e) e.stopPropagation(); this.poke(); this.setState({ showKeypad: !S.showKeypad, code: '' }); },
+      keypadPrompt: armed ? 'Enter code to disarm' : 'Enter code to arm', codeDots, keys, stopProp: this.stopProp,
+
+      modal: !!M, modalTitle, modalSub, modalFields, modalList, saveLabel, cancelLabel,
+      hasModalFields: modalFields.length > 0, hasModalList: modalList.length > 0,
+      catalogOpen: !!S.catalog, catChips, catCards, catRecent, hasCatRecent: catRecent.length > 0,
+      catTitle: catP ? catP.name + '\u2019s gift catalog' : 'Gift catalog',
+      catPtsLabel: catPts + ' points to spend',
+      catInitial: catP ? this.initialOf(catP.name) : '?',
+      catSlotId: catP ? 'avatar-' + catP.id : 'avatar-none',
+      catAvatarStyle: 'position:relative;flex:none;width:56px;height:56px;border-radius:50%;overflow:hidden;display:block;background:' + this.soft(catHue, night) + ';color:' + this.deep(catHue, night) + ';font-size:19px;font-weight:800;box-shadow:inset 0 0 0 2px ' + this.col(catHue, night),
+      catSheetStyle: 'position:relative;width:min(1020px,100%);max-height:92vh;display:flex;flex-direction:column;gap:18px;background:var(--bg);border-radius:32px;padding:24px 26px 26px;box-shadow:0 40px 80px -24px rgba(10,14,30,.5);animation:popIn .3s cubic-bezier(.2,.9,.3,1.2) both',
+      closeCatalog: (e) => { if (e) e.stopPropagation(); this.poke(); this.setState({ catalog: null }); },
+      giftD: I.gift,
+      giftDockStyle: CARD + ';flex:none;width:100%;display:flex;align-items:center;gap:15px;padding:12px 15px;font-family:Nunito;cursor:pointer;text-align:left;transition:transform .22s ' + EASE + ';animation:riseIn .5s ' + EASE + ' both',
+      giftDockIconStyle: 'flex:none;width:44px;height:44px;border-radius:15px;display:flex;align-items:center;justify-content:center;background:' + this.soft(305, night) + ';color:' + this.deep(305, night),
+      giftDockCtaStyle: 'flex:none;display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:' + this.soft(305, night) + ';color:' + this.deep(305, night) + ';font-size:14.5px;font-weight:800',
+      showGiftBtn: S.tab !== 'settings',
+      openGiftCatalog: (e) => {
+        if (e) e.stopPropagation(); this.poke();
+        const first = kids.sort((a, b) => (S.points[b.id] || 0) - (S.points[a.id] || 0))[0];
+        if (first) this.setState({ catalog: { who: first.id } });
+      },
+      giftBtnStyle: 'position:relative;flex:none;width:44px;height:44px;border-radius:16px;border:none;padding:0;background:transparent;color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .22s ' + EASE,
+      giftRingStyle: (() => {
+        const hs = (kids.length ? kids : [{ h: 305 }]).map(k => k.h);
+        const stops = hs.concat(hs[0]).map((h, i) => this.col(h, night) + ' ' + Math.round(i / hs.length * 100) + '%').join(',');
+        return 'position:absolute;inset:0;border-radius:16px;background:conic-gradient(from 210deg,' + stops + ');opacity:' + (night ? .85 : .95);
+      })(),
+      giftFaceStyle: 'position:absolute;inset:2px;border-radius:14px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink)',
+      giftSparks: (() => {
+        const ready = kids.filter(k => S.rewards.some(r => (S.points[k.id] || 0) >= r.cost));
+        const hs = (ready.length ? ready : [{ h: 305 }]).map(k => k.h);
+        return [[6, 16, 5, 0], [88, 8, 4, 900], [52, -2, 4.5, 1800], [96, 62, 4, 2700], [-2, 76, 5, 3600], [40, 96, 4, 4500]].map((s, si) => ({
+          style: 'position:absolute;left:' + s[0] + '%;top:' + s[1] + '%;width:' + s[2] + 'px;height:' + s[2] + 'px;border-radius:50%;background:' +
+            this.col(hs[si % hs.length], night) + ';box-shadow:0 0 6px ' + this.col(hs[si % hs.length], night) +
+            ';animation:sparkle 2.6s ' + EASE + ' ' + s[3] + 'ms infinite;opacity:0'
+        }));
+      })(),
+      giftBtnDot: kids.some(k => S.rewards.some(r => (S.points[k.id] || 0) >= r.cost)),
+      giftDotStyle: 'position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:' + this.col(305, night) + ';box-shadow:0 0 0 2px var(--card)',
+      fabStyle: 'position:absolute;right:28px;bottom:24px;z-index:40;display:flex;align-items:center;gap:9px;padding:15px 24px;border-radius:999px;border:none;background:var(--ink);color:' + card + ';font-family:Nunito;font-size:16.5px;font-weight:800;cursor:pointer;box-shadow:0 16px 34px -12px rgba(10,14,30,.55);transition:transform .22s ' + EASE,
+      giftDockSub: (() => {
+        const ready = kids.filter(k => S.rewards.some(r => (S.points[k.id] || 0) >= r.cost)).length;
+        if (!S.rewards.length) return 'No gifts set up yet';
+        if (!ready) return 'Tap a name to see what to save for';
+        return ready === 1 ? 'Someone has enough points for a gift' : ready + ' kids have enough points for a gift';
+      })(),
+
+      canDelete: !!(M && M.editing && M.kind !== 'hass'), closeModal: this.closeModal, saveModal: this.saveModal, deleteItem: this.deleteItem,
+      modalStyle: 'background:var(--card);border-radius:30px;padding:30px 32px;width:min(600px,100%);box-shadow:0 30px 60px -20px rgba(10,14,30,.45);animation:popIn .28s cubic-bezier(.2,.9,.3,1.22) both',
+      modalCloseStyle: 'margin-left:auto;flex:none;width:48px;height:48px;border-radius:16px;border:none;background:var(--chip);color:var(--ink2);cursor:pointer;display:flex;align-items:center;justify-content:center',
+      inputStyle: 'width:100%;min-height:62px;padding:17px 19px;border-radius:18px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font-size:20px;font-weight:600;outline:none',
+      stepBtnStyle: 'width:58px;height:58px;border-radius:18px;border:1px solid var(--line);background:transparent;color:var(--ink);font-family:Outfit;font-size:28px;cursor:pointer;transition:transform .2s ' + EASE,
+      saveBtnStyle: 'flex:1;min-height:62px;padding:18px;border-radius:18px;border:none;background:var(--ink);color:' + card + ';font-family:Nunito;font-size:18px;font-weight:800;cursor:pointer;transition:transform .2s ' + EASE,
+      cancelBtnStyle: 'min-height:62px;padding:18px 24px;border-radius:18px;border:1px solid var(--line);background:transparent;color:var(--ink2);font-family:Nunito;font-size:18px;font-weight:800;cursor:pointer;transition:transform .2s ' + EASE,
+      deleteBtnStyle: 'min-height:62px;padding:18px 24px;border-radius:18px;border:1px solid ' + this.col(25, night) + ';background:transparent;color:' + this.col(25, night) + ';font-family:Nunito;font-size:18px;font-weight:800;cursor:pointer;transition:transform .2s ' + EASE,
+
+      confetti: S.confetti, hasConfetti: S.confetti.length > 0,
+      toast: S.toast, toastD: S.toastD,
+      toastStyle: 'position:fixed;left:50%;bottom:34px;z-index:96;display:flex;align-items:center;gap:13px;padding:14px 24px;border-radius:999px;background:var(--ink);color:var(--card);font-size:18px;font-weight:800;box-shadow:0 20px 44px -16px rgba(10,14,30,.55);animation:toastIn 2.7s ease both',
+      toastIconStyle: 'flex:none;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:' + (S.toastTint || this.col(148, night)) + ';color:' + (night ? '#14161c' : '#fff')
+    };
+  }
+}
+
+</script>
+</body>
+</html>

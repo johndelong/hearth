@@ -1,0 +1,678 @@
+import type {
+  GoogleAccount,
+  Person,
+  Settings,
+  SubscribedCalendar,
+} from '@dashboard/shared';
+import { useCallback, useEffect, useState } from 'react';
+import { type Board, api } from '../../api';
+import { Avatar, Icon, TapButton } from '../../components/ui';
+import { EASE, type IconName, col, deep, soft } from '../../theme';
+import { ChipRow, ItemRow, Panel, ToggleRow, rowStyle } from './controls';
+
+export type SettingsSection = 'family' | 'calendar' | 'chores' | 'display' | 'security';
+
+const SECTIONS: Array<{ id: SettingsSection; label: string; sub: string; icon: IconName }> = [
+  { id: 'family', label: 'Family', sub: 'Everyone in the house', icon: 'star' },
+  { id: 'calendar', label: 'Calendar', sub: 'Google accounts and subscriptions', icon: 'calendar' },
+  { id: 'chores', label: 'Chores', sub: 'Boards, points, rewards', icon: 'check' },
+  { id: 'display', label: 'Display', sub: 'Theme, frame mode, copy', icon: 'bulb' },
+  { id: 'security', label: 'Parent PIN', sub: 'Who can change these settings', icon: 'lock' },
+];
+
+interface Props {
+  section: SettingsSection;
+  onSection: (section: SettingsSection) => void;
+  people: Person[];
+  settings: Settings;
+  board: Board;
+  night: boolean;
+  say: (text: string, hue?: number) => void;
+  onSettingsChange: (settings: Settings) => void;
+  onPeopleChange: () => Promise<void>;
+  onBoardChange: () => Promise<void>;
+  onEditPerson: (person: Person | null) => void;
+  onEditExtra: (extra: { id?: string; title: string; points: number } | null) => void;
+  onEditReward: (reward: { id?: string; label: string; cost: number } | null) => void;
+  onLock: () => void;
+}
+
+export function SettingsScreen(props: Props) {
+  const { section, onSection, night } = props;
+
+  return (
+    <div style={{ display: 'flex', gap: 20, height: '100%', minHeight: 0 }}>
+      <nav
+        style={{
+          flex: 'none',
+          width: 268,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          overflowY: 'auto',
+        }}
+      >
+        {SECTIONS.map((s) => {
+          const on = s.id === section;
+          return (
+            <TapButton
+              key={s.id}
+              onClick={() => onSection(s.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 15,
+                width: '100%',
+                minHeight: 82,
+                padding: '16px 18px',
+                borderRadius: 22,
+                textAlign: 'left',
+                background: on ? 'var(--card)' : 'transparent',
+                color: on ? 'var(--ink)' : 'var(--ink2)',
+                boxShadow: on ? '0 1px 2px rgba(20,24,40,.05),0 14px 28px -20px rgba(20,24,40,.3)' : 'none',
+              }}
+            >
+              <span
+                style={{
+                  flex: 'none',
+                  width: 46,
+                  height: 46,
+                  borderRadius: 16,
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: on ? soft(258, night) : 'var(--chip)',
+                  color: on ? deep(258, night) : 'var(--ink2)',
+                }}
+              >
+                <Icon name={s.icon} size={22} />
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 17.5, fontWeight: 800 }}>{s.label}</span>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 600, opacity: 0.8 }}>{s.sub}</span>
+              </span>
+            </TapButton>
+          );
+        })}
+      </nav>
+
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+          paddingBottom: 8,
+        }}
+      >
+        {section === 'family' && <FamilySection {...props} />}
+        {section === 'calendar' && <CalendarSection {...props} />}
+        {section === 'chores' && <ChoresSection {...props} />}
+        {section === 'display' && <DisplaySection {...props} />}
+        {section === 'security' && <SecuritySection {...props} />}
+      </div>
+    </div>
+  );
+}
+
+// ---------- family ----------
+
+function FamilySection({ people, night, onEditPerson }: Props) {
+  const roleLabel: Record<Person['role'], string> = {
+    kid: 'Kid',
+    parent: 'Parent',
+    shared: 'Shared calendar',
+  };
+
+  return (
+    <Panel
+      title="Family members"
+      sub="Tap anyone to edit their name, photo, color, and birthday"
+      addLabel="+ Add someone"
+      onAdd={() => onEditPerson(null)}
+    >
+      {people.map((p) => (
+        <ItemRow
+          key={p.id}
+          label={p.name}
+          sub={[roleLabel[p.role], p.bday ? bdayLabel(p.bday) : null].filter(Boolean).join(' · ')}
+          leading={<Avatar name={p.name} hue={p.hue} night={night} size={46} avatarUrl={p.avatarUrl} ring />}
+          onClick={() => onEditPerson(p)}
+        />
+      ))}
+    </Panel>
+  );
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function bdayLabel(bday: string): string {
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(bday);
+  if (!m) return '';
+  return `${MONTHS[Number(m[1]) - 1] ?? ''} ${m[2]}`;
+}
+
+// ---------- calendar ----------
+
+function CalendarSection({ settings, people, night, say, onSettingsChange }: Props) {
+  const [accounts, setAccounts] = useState<GoogleAccount[]>([]);
+  const [calendars, setCalendars] = useState<SubscribedCalendar[]>([]);
+  const [configured, setConfigured] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api.calendars();
+      setAccounts(data.accounts);
+      setCalendars(data.calendars);
+      setConfigured(data.configured);
+    } catch {
+      /* the panel below shows the unconfigured state */
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const connect = async () => {
+    try {
+      const { url } = await api.googleAuthUrl();
+      // Google's consent screen refuses to render in an iframe, so this has to
+      // be a real window. On a kiosk it opens in the same tab and comes back.
+      const popup = window.open(url, 'google-auth', 'width=520,height=680');
+      if (!popup) {
+        window.location.href = url;
+        return;
+      }
+      const timer = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(timer);
+          void load();
+        }
+      }, 800);
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not start Google sign-in', 25);
+    }
+  };
+
+  const sync = async () => {
+    setSyncing(true);
+    try {
+      const res = await api.syncCalendars();
+      say(`Synced ${res.calendars} calendars`, 148);
+      await load();
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Sync failed', 25);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const patchSettings = async (patch: Partial<Settings>) => {
+    onSettingsChange({ ...settings, ...patch });
+    try {
+      onSettingsChange(await api.updateSettings(patch));
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not save', 25);
+    }
+  };
+
+  return (
+    <>
+      <Panel
+        title="Google accounts"
+        sub={
+          configured
+            ? 'Sign in to pull in every calendar on the account'
+            : 'Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the server, then restart it'
+        }
+        addLabel={configured ? '+ Add a Google account' : undefined}
+        onAdd={configured ? () => void connect() : undefined}
+      >
+        {accounts.map((account) => (
+          <div key={account.id} style={rowStyle}>
+            <span
+              style={{
+                flex: 'none',
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                background: account.error ? col(25, night) : col(148, night),
+              }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {account.email}
+              </div>
+              <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
+                {account.error
+                  ? account.error
+                  : account.lastSyncAt
+                    ? `Signed in · synced ${relative(account.lastSyncAt)}`
+                    : 'Signed in'}
+              </div>
+            </div>
+            <TapButton
+              onClick={async () => {
+                await api.disconnectAccount(account.id);
+                say(`${account.email} disconnected`, 25);
+                await load();
+              }}
+              style={disconnectStyle}
+            >
+              Disconnect
+            </TapButton>
+          </div>
+        ))}
+        {accounts.length === 0 && (
+          <div style={{ padding: '6px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
+            No Google account connected yet.
+          </div>
+        )}
+        {accounts.length > 0 && (
+          <TapButton onClick={() => void sync()} style={{ ...disconnectStyle, alignSelf: 'flex-start' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="sync" size={17} />
+              {syncing ? 'Syncing…' : 'Sync now'}
+            </span>
+          </TapButton>
+        )}
+      </Panel>
+
+      <Panel
+        title="Subscribed calendars"
+        sub="Assign a calendar to a person to give its events their color"
+        delay={60}
+      >
+        {calendars.map((cal) => (
+          <div key={cal.id} style={{ ...rowStyle, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontSize: 17, fontWeight: 800 }}>{cal.summary}</div>
+              <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
+                {cal.readOnly ? 'Read only' : 'Read + write'}
+                {cal.primary && ' · primary'}
+              </div>
+            </div>
+
+            <select
+              value={cal.personId ?? ''}
+              onChange={async (e) => {
+                const personId = e.target.value || null;
+                setCalendars((cs) => cs.map((c) => (c.id === cal.id ? { ...c, personId } : c)));
+                await api.updateCalendar(cal.id, { personId });
+              }}
+              style={selectStyle}
+            >
+              <option value="">Unassigned</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            <ToggleRowInline
+              on={cal.enabled}
+              onChange={async (enabled) => {
+                setCalendars((cs) => cs.map((c) => (c.id === cal.id ? { ...c, enabled } : c)));
+                await api.updateCalendar(cal.id, { enabled });
+              }}
+            />
+          </div>
+        ))}
+        {calendars.length === 0 && (
+          <div style={{ padding: '6px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
+            Connect an account to see its calendars.
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Display" delay={120}>
+        <ChipRow
+          label="Week starts on"
+          options={['Sunday', 'Monday'] as const}
+          value={settings.weekStart}
+          onChange={(weekStart) => void patchSettings({ weekStart })}
+        />
+        <ChipRow
+          label="Day view hours"
+          options={['6a – 10p', '7a – 9p', 'All 24'] as const}
+          value={settings.dayHours}
+          onChange={(dayHours) => void patchSettings({ dayHours })}
+        />
+        <ToggleRow
+          label="Show the all-day row"
+          on={settings.showAllDay}
+          onChange={(showAllDay) => void patchSettings({ showAllDay })}
+        />
+        <ToggleRow
+          label="Show family birthdays"
+          sub="An all-day event on everyone's big day"
+          on={settings.birthdaysOnCal}
+          onChange={(birthdaysOnCal) => void patchSettings({ birthdaysOnCal })}
+        />
+      </Panel>
+    </>
+  );
+}
+
+function ToggleRowInline({ on, onChange }: { on: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => onChange(!on)}
+      style={{
+        flex: 'none',
+        position: 'relative',
+        width: 66,
+        height: 38,
+        borderRadius: 999,
+        border: on ? '1px solid transparent' : '1px solid var(--line)',
+        padding: 0,
+        cursor: 'pointer',
+        background: on ? 'oklch(0.68 0.14 148)' : 'var(--chip)',
+        transition: `background .28s ${EASE}`,
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          top: 4,
+          left: on ? 32 : 4,
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          background: '#fff',
+          boxShadow: '0 2px 5px rgba(20,24,40,.3)',
+          transition: `left .28s ${EASE}`,
+        }}
+      />
+    </button>
+  );
+}
+
+function relative(iso: string): string {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+// ---------- chores ----------
+
+function ChoresSection({
+  people,
+  board,
+  settings,
+  night,
+  say,
+  onSettingsChange,
+  onPeopleChange,
+  onEditExtra,
+  onEditReward,
+}: Props) {
+  const patchSettings = async (patch: Partial<Settings>) => {
+    onSettingsChange({ ...settings, ...patch });
+    try {
+      onSettingsChange(await api.updateSettings(patch));
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not save', 25);
+    }
+  };
+
+  return (
+    <>
+      <Panel title="Who gets a chore board" sub="Parents can be left off entirely">
+        {people
+          .filter((p) => p.role !== 'shared')
+          .map((p) => (
+            <div key={p.id} style={rowStyle}>
+              <Avatar name={p.name} hue={p.hue} night={night} size={44} avatarUrl={p.avatarUrl} ring />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 17, fontWeight: 800 }}>{p.name}</div>
+                <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
+                  {board.points.find((pt) => pt.personId === p.id)?.points ?? 0} pts
+                </div>
+              </div>
+              <ToggleRowInline
+                on={p.onChores}
+                onChange={async (onChores) => {
+                  await api.updatePerson(p.id, { onChores });
+                  await onPeopleChange();
+                }}
+              />
+            </div>
+          ))}
+      </Panel>
+
+      <Panel title="Board behavior" delay={60}>
+        <ChipRow
+          label="Board resets"
+          options={['Every night', 'Sunday', 'Monday'] as const}
+          value={settings.choreReset}
+          onChange={(choreReset) => void patchSettings({ choreReset })}
+        />
+        <ToggleRow
+          label="Kids can claim extra jobs"
+          sub="Extra jobs show in the kid's own list"
+          on={settings.claimExtras}
+          onChange={(claimExtras) => void patchSettings({ claimExtras })}
+        />
+        <ToggleRow
+          label="Celebrate a cleared board"
+          sub="Confetti and a cheer when someone finishes"
+          on={settings.choreConfetti}
+          onChange={(choreConfetti) => void patchSettings({ choreConfetti })}
+        />
+      </Panel>
+
+      <Panel
+        title="Extra jobs"
+        sub="Kids pick these up for points"
+        addLabel="+ New extra job"
+        onAdd={() => onEditExtra(null)}
+        delay={120}
+      >
+        {board.extras.map((extra) => (
+          <ItemRow
+            key={extra.id}
+            label={extra.title}
+            tag={`+${extra.points}`}
+            tagStyle={{ background: soft(68, night), color: deep(68, night) }}
+            onClick={() => onEditExtra(extra)}
+          />
+        ))}
+      </Panel>
+
+      <Panel
+        title="Rewards"
+        sub="Goals kids can save toward"
+        addLabel="+ New reward"
+        onAdd={() => onEditReward(null)}
+        delay={180}
+      >
+        {board.rewards.map((reward) => (
+          <ItemRow
+            key={reward.id}
+            label={reward.label}
+            tag={`${reward.cost} pts`}
+            tagStyle={{ background: soft(305, night), color: deep(305, night) }}
+            onClick={() => onEditReward(reward)}
+          />
+        ))}
+      </Panel>
+    </>
+  );
+}
+
+// ---------- display ----------
+
+function DisplaySection({ settings, say, onSettingsChange }: Props) {
+  const patchSettings = async (patch: Partial<Settings>) => {
+    onSettingsChange({ ...settings, ...patch });
+    try {
+      onSettingsChange(await api.updateSettings(patch));
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not save', 25);
+    }
+  };
+
+  return (
+    <Panel title="Screen">
+      <ChipRow
+        label="Theme"
+        options={['Auto', 'Day', 'Night'] as const}
+        value={settings.theme}
+        onChange={(theme) => void patchSettings({ theme })}
+      />
+      <ChipRow
+        label="Frame mode after"
+        options={[1, 5, 15, 30] as const}
+        value={settings.idleMin as 1 | 5 | 15 | 30}
+        onChange={(idleMin) => void patchSettings({ idleMin })}
+      />
+      <ChipRow
+        label="Navigation"
+        options={['sidebar', 'tabs'] as const}
+        value={settings.navModel}
+        onChange={(navModel) => void patchSettings({ navModel })}
+      />
+      <ToggleRow
+        label="Playful copy"
+        sub="Warmer greetings and cheers"
+        on={settings.playful}
+        onChange={(playful) => void patchSettings({ playful })}
+      />
+    </Panel>
+  );
+}
+
+// ---------- security ----------
+
+function SecuritySection({ settings, say, onSettingsChange, onLock }: Props) {
+  const [pin, setPin] = useState('');
+  const [confirm, setConfirm] = useState('');
+
+  const save = async () => {
+    if (pin !== confirm) {
+      say('Those PINs do not match', 25);
+      return;
+    }
+    try {
+      await api.setPin(pin);
+      onSettingsChange({ ...settings, pinSet: true });
+      setPin('');
+      setConfirm('');
+      say('Parent PIN saved', 148);
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not save the PIN', 25);
+    }
+  };
+
+  return (
+    <>
+      <Panel
+        title={settings.pinSet ? 'Change the parent PIN' : 'Set a parent PIN'}
+        sub="Kids can always check chores off. The PIN covers everything in Settings: people, calendars, points, and rewards."
+      >
+        <input
+          type="password"
+          inputMode="numeric"
+          placeholder="New PIN (4–8 digits)"
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+          style={inputStyle}
+        />
+        <input
+          type="password"
+          inputMode="numeric"
+          placeholder="Confirm PIN"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value.replace(/\D/g, '').slice(0, 8))}
+          style={inputStyle}
+        />
+        <TapButton
+          onClick={() => void save()}
+          disabled={pin.length < 4}
+          style={{
+            minHeight: 52,
+            padding: '13px 28px',
+            borderRadius: 999,
+            background: 'var(--ink)',
+            color: 'var(--card)',
+            fontSize: 17,
+            fontWeight: 800,
+            alignSelf: 'flex-start',
+          }}
+        >
+          Save PIN
+        </TapButton>
+      </Panel>
+
+      {settings.pinSet && (
+        <Panel title="This screen" sub="Lock Settings again when you walk away" delay={60}>
+          <TapButton onClick={onLock} style={{ ...disconnectStyle, alignSelf: 'flex-start' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="lock" size={17} /> Lock now
+            </span>
+          </TapButton>
+          <TapButton
+            onClick={async () => {
+              await api.clearPin();
+              onSettingsChange({ ...settings, pinSet: false });
+              say('Parent PIN removed', 25);
+            }}
+            style={{ ...disconnectStyle, alignSelf: 'flex-start', color: 'oklch(0.62 0.19 25)' }}
+          >
+            Remove the PIN
+          </TapButton>
+        </Panel>
+      )}
+    </>
+  );
+}
+
+const disconnectStyle: React.CSSProperties = {
+  flex: 'none',
+  minHeight: 50,
+  padding: '13px 24px',
+  borderRadius: 999,
+  border: '1px solid var(--line)',
+  background: 'transparent',
+  color: 'var(--ink2)',
+  fontSize: 16.5,
+  fontWeight: 800,
+};
+
+const selectStyle: React.CSSProperties = {
+  flex: 'none',
+  minHeight: 50,
+  padding: '12px 16px',
+  borderRadius: 16,
+  border: '1px solid var(--line)',
+  background: 'transparent',
+  color: 'var(--ink)',
+  fontSize: 16,
+  fontWeight: 800,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 320,
+  minHeight: 56,
+  padding: '14px 18px',
+  borderRadius: 16,
+  border: '1px solid var(--line)',
+  background: 'transparent',
+  color: 'var(--ink)',
+  fontSize: 19,
+  fontWeight: 800,
+  letterSpacing: 4,
+  outline: 'none',
+};

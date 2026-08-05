@@ -1,0 +1,104 @@
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: #f4f5f8;
+  font-family: Nunito, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden; /* the shell scrolls its own panes; the page never does */
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+input,
+textarea,
+button,
+select {
+  font-family: Nunito;
+}
+
+button {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.8); }
+  62% { transform: scale(1.09); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes toastIn {
+  0% { opacity: 0; transform: translate(-50%, 26px) scale(0.94); }
+  14% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  86% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -8px); }
+}
+
+@keyframes confFall {
+  0% { opacity: 0; transform: translateY(-24px) rotate(0); }
+  9% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(78vh) rotate(620deg); }
+}
+
+@keyframes cheerLift {
+  0% { transform: none; }
+  26% { transform: translateY(-7px) scale(1.014); }
+  100% { transform: none; }
+}
+
+@keyframes growW {
+  from { width: 0; }
+}
+
+@keyframes kenburns {
+  0% { transform: scale(1.05) translate(0, 0); }
+  100% { transform: scale(1.17) translate(-1.8%, -2%); }
+}
+
+@keyframes blink {
+  0%, 44% { opacity: 1; }
+  50%, 94% { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

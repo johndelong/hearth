@@ -1,0 +1,686 @@
+import type { CalendarEvent, Chore, Extra, Person, Reward } from '@dashboard/shared';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ApiError, api } from './api';
+import { EventEditor } from './components/EventEditor';
+import { IdleFrame } from './components/IdleFrame';
+import { PinPad } from './components/PinPad';
+import { ChoreEditor, ExtraEditor, PersonEditor, RewardEditor } from './components/editors';
+import { ExtraPicker, RewardPicker } from './components/pickers';
+import { Confetti, Icon, TapButton, Toast } from './components/ui';
+import { CalendarScreen } from './screens/calendar/CalendarScreen';
+import type { CalView } from './screens/calendar/useEvents';
+import { useEvents } from './screens/calendar/useEvents';
+import { ChoresScreen } from './screens/chores/ChoresScreen';
+import { SettingsScreen, type SettingsSection } from './screens/settings/SettingsScreen';
+import { type Tab, useAppData, useClock, useIdle, useNight, useToast } from './state';
+import { EASE, type IconName, MONTHS_LONG, rootVars } from './theme';
+
+type Editor =
+  | { kind: 'person'; person: Person | null }
+  | { kind: 'chore'; chore: Chore | null }
+  | { kind: 'extra'; extra: Extra | { id?: string; title: string; points: number } | null }
+  | { kind: 'reward'; reward: Reward | { id?: string; label: string; cost: number } | null }
+  | { kind: 'event'; event: CalendarEvent | null }
+  | { kind: 'pickExtra'; person: Person }
+  | { kind: 'pickReward'; person: Person }
+  | null;
+
+export default function App() {
+  const data = useAppData();
+  const { people, settings, board } = data;
+  const night = useNight(settings.theme);
+  const now = useClock();
+  const [idle, poke] = useIdle(settings.idleMin);
+  const [toast, say] = useToast();
+
+  const [tab, setTab] = useState<Tab>('today');
+  const [calView, setCalView] = useState<CalView>('day');
+  const [anchor, setAnchor] = useState<Date>(() => new Date());
+  const [section, setSection] = useState<SettingsSection>('family');
+  const [editor, setEditor] = useState<Editor>(null);
+  const [confetti, setConfetti] = useState<number[] | null>(null);
+  const [unlocked, setUnlocked] = useState(true);
+  const [pinPrompt, setPinPrompt] = useState(false);
+  const [calendarNonce, setCalendarNonce] = useState(0);
+
+  // Frame mode needs today's events regardless of which tab is open.
+  const idleEvents = useEvents('day', now, settings.weekStart);
+
+  useEffect(() => {
+    void api
+      .session()
+      .then((s) => setUnlocked(s.unlocked))
+      .catch(() => undefined);
+  }, []);
+
+  // Coming back from frame mode should feel like a fresh start.
+  useEffect(() => {
+    if (!idle) return;
+    setEditor(null);
+    setAnchor(new Date());
+  }, [idle]);
+
+  const celebrate = useCallback((hues: number[]) => {
+    setConfetti(hues);
+    window.setTimeout(() => setConfetti(null), 3200);
+  }, []);
+
+  /** Settings is the one tab that can be locked behind the parent PIN. */
+  const openSettings = () => {
+    if (settings.pinSet && !unlocked) {
+      setPinPrompt(true);
+      return;
+    }
+    setTab('settings');
+  };
+
+  const openChores = useMemo(() => {
+    if (!board) return 0;
+    const onBoard = new Set(people.filter((p) => p.onChores && p.role !== 'shared').map((p) => p.id));
+    return (
+      board.chores.filter((c) => !c.done && onBoard.has(c.personId)).length +
+      board.claims.filter((c) => !c.done && onBoard.has(c.personId)).length
+    );
+  }, [board, people]);
+
+  const tabs: Array<{ id: Tab; label: string; icon: IconName; badge: number }> = [
+    { id: 'today', label: 'Calendar', icon: 'calendar', badge: 0 },
+    { id: 'chores', label: 'Chores', icon: 'check', badge: openChores },
+    { id: 'settings', label: 'Settings', icon: 'gear', badge: 0 },
+  ];
+
+  const { title, sub } = headerCopy({ tab, calView, anchor, now, settings, section, openChores });
+
+  if (data.loading) {
+    return <Splash text="Waking up…" night={night} />;
+  }
+  if (data.error) {
+    return <Splash text={data.error} night={night} tone="error" />;
+  }
+
+  const isSidebar = settings.navModel === 'sidebar';
+
+  return (
+    <div
+      onPointerDown={poke}
+      onPointerMove={poke}
+      style={{
+        ...rootVars(night),
+        background: 'var(--bg)',
+        color: 'var(--ink)',
+        height: '100vh',
+        width: '100%',
+        display: 'flex',
+        flexDirection: isSidebar ? 'row' : 'column',
+        transition: 'background .9s ease, color .9s ease',
+      }}
+    >
+      {isSidebar && (
+        <nav
+          style={{
+            width: 112,
+            flex: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 5,
+            padding: '16px 0 18px',
+            background: 'var(--card)',
+            borderRight: '1px solid var(--line)',
+          }}
+        >
+          {tabs.map((t) => (
+            <NavButton
+              key={t.id}
+              {...t}
+              active={tab === t.id}
+              rail
+              onClick={() => (t.id === 'settings' ? openSettings() : setTab(t.id))}
+            />
+          ))}
+        </nav>
+      )}
+
+      <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <header
+          style={{
+            flex: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 18,
+            flexWrap: 'wrap',
+            padding: '22px 30px 14px',
+          }}
+        >
+          <div style={{ minWidth: 0, flex: '1 1 260px' }}>
+            <h1 style={{ margin: 0, fontFamily: 'Outfit', fontSize: 34, fontWeight: 600, lineHeight: 1.1 }}>
+              {title}
+            </h1>
+            <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>{sub}</div>
+          </div>
+
+          {tab === 'today' && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <TapButton onClick={() => setAnchor((a) => shift(a, calView, -1))} style={iconBtn}>
+                  <Icon name="chevronLeft" size={22} />
+                </TapButton>
+                <TapButton onClick={() => setAnchor(new Date())} style={{ ...iconBtn, width: 'auto', padding: '0 16px', fontSize: 15.5, fontWeight: 800 }}>
+                  Today
+                </TapButton>
+                <TapButton onClick={() => setAnchor((a) => shift(a, calView, 1))} style={iconBtn}>
+                  <Icon name="chevronRight" size={22} />
+                </TapButton>
+              </div>
+
+              <div style={{ display: 'flex', gap: 4, padding: 5, borderRadius: 999, background: 'var(--chip)' }}>
+                {(['day', 'week', 'month'] as const).map((v) => (
+                  <TapButton
+                    key={v}
+                    onClick={() => setCalView(v)}
+                    style={{
+                      padding: '9px 20px',
+                      borderRadius: 999,
+                      background: calView === v ? 'var(--card)' : 'transparent',
+                      color: calView === v ? 'var(--ink)' : 'var(--ink2)',
+                      fontSize: 15.5,
+                      fontWeight: 800,
+                      boxShadow: calView === v ? '0 2px 6px rgba(20,24,40,.14)' : 'none',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {v}
+                  </TapButton>
+                ))}
+              </div>
+
+              <TapButton onClick={() => setEditor({ kind: 'event', event: null })} style={addBtn}>
+                <Icon name="plus" size={18} /> Add
+              </TapButton>
+            </>
+          )}
+        </header>
+
+        <div style={{ flex: 1, minHeight: 0, padding: '6px 30px 24px' }}>
+          {tab === 'today' && (
+            <CalendarScreen
+              key={calendarNonce}
+              view={calView}
+              anchor={anchor}
+              now={now}
+              people={people}
+              settings={settings}
+              night={night}
+              onEditEvent={(event) => setEditor({ kind: 'event', event })}
+            />
+          )}
+
+          {tab === 'chores' && board && (
+            <ChoresScreen
+              board={board}
+              people={people}
+              settings={settings}
+              night={night}
+              say={say}
+              onBoardChange={data.setBoard}
+              onCelebrate={celebrate}
+              onEditChore={(chore) => setEditor({ kind: 'chore', chore })}
+              onPickExtra={(person) => setEditor({ kind: 'pickExtra', person })}
+              onPickReward={(person) => setEditor({ kind: 'pickReward', person })}
+            />
+          )}
+
+          {tab === 'settings' && board && (
+            <SettingsScreen
+              section={section}
+              onSection={setSection}
+              people={people}
+              settings={settings}
+              board={board}
+              night={night}
+              say={say}
+              onSettingsChange={data.setSettings}
+              onPeopleChange={data.reloadPeople}
+              onBoardChange={data.reloadBoard}
+              onEditPerson={(person) => setEditor({ kind: 'person', person })}
+              onEditExtra={(extra) => setEditor({ kind: 'extra', extra })}
+              onEditReward={(reward) => setEditor({ kind: 'reward', reward })}
+              onLock={async () => {
+                await api.lock();
+                setUnlocked(false);
+                setTab('today');
+                say('Settings locked', 258);
+              }}
+            />
+          )}
+        </div>
+
+        {!isSidebar && (
+          <nav
+            style={{
+              flex: 'none',
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 10,
+              padding: '10px 20px 18px',
+            }}
+          >
+            {tabs.map((t) => (
+              <NavButton
+                key={t.id}
+                {...t}
+                active={tab === t.id}
+                onClick={() => (t.id === 'settings' ? openSettings() : setTab(t.id))}
+              />
+            ))}
+          </nav>
+        )}
+      </main>
+
+      {idle && (
+        <IdleFrame
+          now={now}
+          events={idleEvents.events}
+          people={people}
+          settings={settings}
+          night={night}
+        />
+      )}
+
+      {confetti && <Confetti hues={confetti} big />}
+      <Toast toast={toast} />
+
+      {pinPrompt && (
+        <PinPad
+          onUnlocked={() => {
+            setUnlocked(true);
+            setPinPrompt(false);
+            setTab('settings');
+          }}
+          onCancel={() => setPinPrompt(false)}
+        />
+      )}
+
+      {renderEditor()}
+    </div>
+  );
+
+  function renderEditor() {
+    if (!editor || !board) return null;
+    const close = () => setEditor(null);
+
+    /** Any parent-gated save can come back 401 if the session lapsed. */
+    const guard = async (action: () => Promise<void>) => {
+      try {
+        await action();
+      } catch (err) {
+        if (err instanceof ApiError && err.needsPin) {
+          setUnlocked(false);
+          setPinPrompt(true);
+          say('Settings locked — enter the PIN', 25);
+          return;
+        }
+        say(err instanceof Error ? err.message : 'Something went wrong', 25);
+      }
+    };
+
+    switch (editor.kind) {
+      case 'person':
+        return (
+          <PersonEditor
+            person={editor.person}
+            night={night}
+            onClose={close}
+            onSave={(patch) =>
+              void guard(async () => {
+                if (editor.person) await api.updatePerson(editor.person.id, patch);
+                else await api.createPerson(patch);
+                await data.reloadPeople();
+                say('Saved', 148);
+                close();
+              })
+            }
+            onDelete={
+              editor.person
+                ? () =>
+                    void guard(async () => {
+                      await api.deletePerson(editor.person!.id);
+                      await data.reloadPeople();
+                      await data.reloadBoard();
+                      say('Removed', 25);
+                      close();
+                    })
+                : undefined
+            }
+          />
+        );
+
+      case 'chore':
+        return (
+          <ChoreEditor
+            chore={editor.chore}
+            people={people}
+            onClose={close}
+            onSave={(patch) =>
+              void guard(async () => {
+                if (editor.chore) await api.updateChore(editor.chore.id, patch);
+                else await api.createChore(patch);
+                await data.reloadBoard();
+                say('Saved', 148);
+                close();
+              })
+            }
+            onDelete={
+              editor.chore
+                ? () =>
+                    void guard(async () => {
+                      await api.deleteChore(editor.chore!.id);
+                      await data.reloadBoard();
+                      say('Deleted', 25);
+                      close();
+                    })
+                : undefined
+            }
+          />
+        );
+
+      case 'extra':
+        return (
+          <ExtraEditor
+            extra={editor.extra}
+            onClose={close}
+            onSave={(patch) =>
+              void guard(async () => {
+                if (editor.extra?.id) await api.updateExtra(editor.extra.id, patch);
+                else await api.createExtra(patch);
+                await data.reloadBoard();
+                say('Saved', 148);
+                close();
+              })
+            }
+            onDelete={
+              editor.extra?.id
+                ? () =>
+                    void guard(async () => {
+                      await api.deleteExtra(editor.extra!.id!);
+                      await data.reloadBoard();
+                      say('Deleted', 25);
+                      close();
+                    })
+                : undefined
+            }
+          />
+        );
+
+      case 'reward':
+        return (
+          <RewardEditor
+            reward={editor.reward}
+            onClose={close}
+            onSave={(patch) =>
+              void guard(async () => {
+                if (editor.reward?.id) await api.updateReward(editor.reward.id, patch);
+                else await api.createReward(patch);
+                await data.reloadBoard();
+                say('Saved', 148);
+                close();
+              })
+            }
+            onDelete={
+              editor.reward?.id
+                ? () =>
+                    void guard(async () => {
+                      await api.deleteReward(editor.reward!.id!);
+                      await data.reloadBoard();
+                      say('Deleted', 25);
+                      close();
+                    })
+                : undefined
+            }
+          />
+        );
+
+      case 'event':
+        return (
+          <EventEditor
+            event={editor.event}
+            defaultDate={anchor}
+            onClose={close}
+            onSaved={() => setCalendarNonce((n) => n + 1)}
+            say={say}
+          />
+        );
+
+      case 'pickExtra':
+        return (
+          <ExtraPicker
+            person={editor.person}
+            extras={board.extras}
+            night={night}
+            onClose={close}
+            onPick={(extra) =>
+              void guard(async () => {
+                await api.claim(extra.id, editor.person.id);
+                await data.reloadBoard();
+                say(`${extra.title} added to ${editor.person.name}'s board`, editor.person.hue);
+                close();
+              })
+            }
+          />
+        );
+
+      case 'pickReward': {
+        const points = board.points.find((p) => p.personId === editor.person.id)?.points ?? 0;
+        return (
+          <RewardPicker
+            person={editor.person}
+            rewards={board.rewards}
+            points={points}
+            night={night}
+            onClose={close}
+            onRedeem={(reward) =>
+              void guard(async () => {
+                await api.redeem(editor.person.id, reward.id);
+                await data.reloadBoard();
+                say(`${editor.person.name} redeemed ${reward.label}!`, editor.person.hue);
+                celebrate([editor.person.hue]);
+                close();
+              })
+            }
+            onSetGoal={(reward) =>
+              void guard(async () => {
+                await api.updatePerson(editor.person.id, { goalRewardId: reward.id });
+                await data.reloadPeople();
+                say(`Saving toward ${reward.label}`, editor.person.hue);
+                close();
+              })
+            }
+          />
+        );
+      }
+    }
+  }
+}
+
+function NavButton({
+  label,
+  icon,
+  badge,
+  active,
+  rail,
+  onClick,
+}: {
+  label: string;
+  icon: IconName;
+  badge: number;
+  active: boolean;
+  rail?: boolean;
+  onClick: () => void;
+}) {
+  const base: React.CSSProperties = rail
+    ? {
+        position: 'relative',
+        width: 88,
+        height: 72,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 5,
+        borderRadius: 22,
+        background: active ? 'var(--chip)' : 'transparent',
+        color: active ? 'var(--ink)' : 'var(--ink2)',
+      }
+    : {
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 9,
+        padding: '11px 19px',
+        borderRadius: 999,
+        border: active ? '1px solid transparent' : '1px solid var(--line)',
+        background: active ? 'var(--ink)' : 'transparent',
+        color: active ? 'var(--card)' : 'var(--ink2)',
+      };
+
+  return (
+    <TapButton onClick={onClick} style={{ ...base, fontSize: 16.5, fontWeight: 800, transition: `all .3s ${EASE}` }}>
+      <Icon name={icon} size={rail ? 24 : 20} />
+      <span style={{ fontSize: rail ? 13 : 16.5, fontWeight: 800 }}>{label}</span>
+      {badge > 0 && (
+        <span
+          style={
+            rail
+              ? {
+                  position: 'absolute',
+                  top: 7,
+                  right: 11,
+                  minWidth: 22,
+                  padding: '2px 6px',
+                  borderRadius: 999,
+                  background: 'oklch(0.68 0.15 25)',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  animation: `popIn .4s ${EASE} both`,
+                }
+              : {
+                  minWidth: 23,
+                  padding: '2px 7px',
+                  borderRadius: 999,
+                  background: active ? 'var(--card)' : 'oklch(0.68 0.15 25)',
+                  color: active ? 'var(--ink)' : '#fff',
+                  fontSize: 13,
+                  fontWeight: 800,
+                }
+          }
+        >
+          {badge}
+        </span>
+      )}
+    </TapButton>
+  );
+}
+
+function Splash({ text, night, tone }: { text: string; night: boolean; tone?: 'error' }) {
+  return (
+    <div
+      style={{
+        ...rootVars(night),
+        background: 'var(--bg)',
+        color: tone === 'error' ? 'oklch(0.62 0.19 25)' : 'var(--ink2)',
+        height: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        fontSize: 20,
+        fontWeight: 800,
+        textAlign: 'center',
+        padding: 32,
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+function shift(anchor: Date, view: CalView, direction: number): Date {
+  const d = new Date(anchor);
+  if (view === 'day') d.setDate(d.getDate() + direction);
+  else if (view === 'week') d.setDate(d.getDate() + 7 * direction);
+  else d.setMonth(d.getMonth() + direction);
+  return d;
+}
+
+function headerCopy({
+  tab,
+  calView,
+  anchor,
+  now,
+  settings,
+  section,
+  openChores,
+}: {
+  tab: Tab;
+  calView: CalView;
+  anchor: Date;
+  now: Date;
+  settings: { playful: boolean };
+  section: SettingsSection;
+  openChores: number;
+}): { title: string; sub: string } {
+  if (tab === 'chores') {
+    return {
+      title: 'Chores & points',
+      sub: openChores
+        ? `${openChores} left today · tap to check off, hold to edit`
+        : 'Everything is done. Nice work.',
+    };
+  }
+  if (tab === 'settings') {
+    const labels: Record<SettingsSection, string> = {
+      family: 'Family settings',
+      calendar: 'Calendar settings',
+      chores: 'Chores settings',
+      display: 'Display settings',
+      security: 'Parent PIN',
+    };
+    return { title: labels[section], sub: 'Changes save as you make them' };
+  }
+
+  if (calView === 'day') {
+    const isToday = anchor.toDateString() === now.toDateString();
+    const hour = now.getHours();
+    const greeting = hour < 11 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    return {
+      title: anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+      sub: isToday && settings.playful ? greeting : '',
+    };
+  }
+  if (calView === 'week') {
+    return { title: 'This week', sub: `${MONTHS_LONG[anchor.getMonth()]} ${anchor.getFullYear()}` };
+  }
+  return { title: `${MONTHS_LONG[anchor.getMonth()]} ${anchor.getFullYear()}`, sub: '' };
+}
+
+const iconBtn: React.CSSProperties = {
+  display: 'grid',
+  placeItems: 'center',
+  width: 46,
+  height: 46,
+  borderRadius: 999,
+  border: '1px solid var(--line)',
+  color: 'var(--ink2)',
+};
+
+const addBtn: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  minHeight: 46,
+  padding: '11px 22px',
+  borderRadius: 999,
+  background: 'var(--ink)',
+  color: 'var(--card)',
+  fontSize: 16,
+  fontWeight: 800,
+};
