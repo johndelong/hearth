@@ -497,7 +497,9 @@ function AboutPanel({ say }: { say: (text: string, hue?: number) => void }) {
     <Panel title="This dashboard" sub="Version and updates" delay={60}>
       <div style={rowStyle}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>Version {displayVersion(info.current)}</div>
+          <div title={info.current} style={{ fontSize: 17, fontWeight: 800 }}>
+            {/^v\d/.test(info.current) ? `Version ${info.current}` : displayVersion(info.current)}
+          </div>
           {/*
             Nothing is said when release checking is off. It is optional, and a
             dashboard on the kitchen wall should not nag the household to go set

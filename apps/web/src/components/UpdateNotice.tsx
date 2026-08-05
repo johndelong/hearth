@@ -4,11 +4,17 @@ import { EASE, col } from '../theme';
 import { Icon, TapButton } from './ui';
 
 /**
- * Versions are normally tags like `v0.2.0`, but a rollback or a hand-built image
- * can leave a commit SHA. Nobody needs forty characters of it.
+ * What to call this build in front of the family.
+ *
+ * Normally a release tag. A commit SHA can end up stamped instead — a rollback,
+ * or an image built by hand — and that means nothing to anyone reading a
+ * kitchen wall, so it is described rather than printed. The exact string is
+ * still available on hover for whoever is debugging.
  */
 export function displayVersion(version: string): string {
-  return /^[0-9a-f]{40}$/i.test(version) ? version.slice(0, 7) : version;
+  if (/^v\d/.test(version)) return version;
+  if (version === 'dev') return 'Development build';
+  return 'Unreleased build';
 }
 
 export interface VersionState {
@@ -80,9 +86,12 @@ export function UpdateToast({ version, onReload }: { version: string; onReload: 
         animation: `dropIn .4s ${EASE} both`,
       }}
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 16.5, fontWeight: 800 }}>
+      <span
+        title={version}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 16.5, fontWeight: 800 }}
+      >
         <Icon name="sync" size={19} />
-        Hearth {displayVersion(version)} is ready
+        {/^v\d/.test(version) ? `Hearth ${version} is ready` : 'A new version is ready'}
       </span>
       <TapButton
         onClick={onReload}

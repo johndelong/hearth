@@ -73,19 +73,26 @@ TARGET="${1:-$(newest_tag)}"
 [[ -n "$TARGET" ]] || fail "No release tags found. Cut one with: git tag v0.1.0 && git push --tags"
 git rev-parse --verify "refs/tags/${TARGET}" >/dev/null 2>&1 || fail "Unknown tag: ${TARGET}"
 
-# Where to return to if this goes wrong. Detached HEAD is normal here — this
-# script leaves the checkout on a tag — so fall back to a short SHA rather than
-# a 40-character one, since whatever lands here is shown to people in Settings.
-PREVIOUS="$(git describe --tags --exact-match 2>/dev/null || true)"
-if [ -z "$PREVIOUS" ]; then
-  branch="$(git rev-parse --abbrev-ref HEAD)"
-  PREVIOUS="$([ "$branch" = "HEAD" ] && git rev-parse --short HEAD || echo "$branch")"
-fi
-
 RUNNING="$(current_version || true)"
 if [[ "$RUNNING" == "$TARGET" ]]; then
   info "${TARGET} is already running. Nothing to do."
   exit 0
+fi
+
+# Where to return to if this goes wrong. Whatever lands here gets stamped into
+# the image and shown in Settings, so it has to be a release tag — never a
+# commit. Prefer what the running container reports, since that is the version
+# actually serving the house.
+PREVIOUS=""
+if [[ "$RUNNING" == v* ]] && git rev-parse --verify "refs/tags/${RUNNING}" >/dev/null 2>&1; then
+  PREVIOUS="$RUNNING"
+else
+  PREVIOUS="$(git describe --tags --exact-match 2>/dev/null || true)"
+fi
+if [ -z "$PREVIOUS" ]; then
+  # Nothing tagged to return to — the newest other release is the best answer,
+  # and is still something a person can read.
+  PREVIOUS="$(git tag --list 'v*' --sort=-v:refname | grep -vFx "$TARGET" | head -n1 || true)"
 fi
 
 # --- snapshot the database ----------------------------------------------------
@@ -137,9 +144,13 @@ if wait_healthy; then
   info "Deployed ${TARGET} — ${BASE_URL} now reporting $(current_version)"
   info "Wall panels will reload themselves once idle; open tablets will offer a Refresh button."
 else
-  warn "New version did not answer at ${HEALTH_URL} within ${HEALTH_TIMEOUT}s. Rolling back to ${PREVIOUS}."
+  warn "New version did not answer at ${HEALTH_URL} within ${HEALTH_TIMEOUT}s."
   warn "Logs from the failed deploy:"
   docker compose logs --tail 40 hearth || true
+  if [ -z "$PREVIOUS" ]; then
+    fail "No earlier release to roll back to. Fix forward, or deploy a specific tag."
+  fi
+  warn "Rolling back to ${PREVIOUS}."
   deploy_tag "$PREVIOUS" 2>/dev/null || {
     git checkout --quiet "$PREVIOUS"
     APP_VERSION="$PREVIOUS" docker compose up -d --build
