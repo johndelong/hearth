@@ -183,9 +183,15 @@ on the next request the panel makes anyway, and instantly on any tap.
 This matters because a wall panel can sit on the same page for weeks; without it,
 it keeps running whatever JavaScript it loaded back then.
 
-### Optional: notice new releases from the dashboard
+### Optional: notice undeployed releases from the dashboard
 
-Set `UPDATE_CHECK_TOKEN` in `.env` to a GitHub
+You probably don't need this. Panels already notice a **deploy** without any
+token — that half reads the version off the server they're talking to. This adds
+one thing on top: a nudge that you tagged a release and haven't deployed it yet.
+Since you're the one cutting releases, `./scripts/deploy.sh --check` on the mini
+usually answers that already, using the deploy key it already has.
+
+If you do want it in the UI, set `UPDATE_CHECK_TOKEN` in `.env` to a GitHub
 [fine-grained token](https://github.com/settings/tokens?type=beta) scoped to just
 this repository with **Contents: Read-only**. The server checks GitHub hourly —
 once for the whole house, not per panel — and **Settings › Display › This
@@ -194,6 +200,10 @@ and a **Check now** button when you don't want to wait for the next check.
 
 Without the token everything still works — the panel just won't know a newer
 release exists until you deploy it.
+
+A token is needed only because the repo is private. Making it public would remove
+that need, but the seed data carries the girls' names and birthdays, so keeping it
+private is worth more than saving one line of config.
 
 The deploy itself is deliberately a command you run, not a button in the app. A
 container can't rebuild itself: the process doing the work gets killed partway
