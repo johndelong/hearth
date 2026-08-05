@@ -1,49 +1,25 @@
-import { db, fromBool } from './index.js';
+import { getRaw, setRaw } from '../store/settings.js';
+import { db } from './index.js';
 
 /**
- * First-boot data. Names and colors come from the approved design so the wall
- * panel looks right immediately; everything here is editable in Settings.
+ * First-boot content.
+ *
+ * Deliberately impersonal: no people and no chores, because those are specific
+ * to a household and belong to whoever installs this — add them in Settings.
+ * What is seeded is the generic starting material that saves everyone the same
+ * typing: a handful of extra jobs and a reward catalog.
  */
-// Birthdays the design prototype carried were placeholders; the kids' real
-// dates are below. Robin's and John's are left blank rather than guessed —
-// add them in Settings › Family.
-const PEOPLE: Array<[string, string, number, 'kid' | 'parent' | 'shared', string | null, number | null, boolean]> = [
-  ['parent1', 'Robin', 350, 'parent', null, null, true],
-  ['parent2', 'Alex', 258, 'parent', null, null, false],
-  ['kid1', 'Maya', 196, 'kid', '4-12', 2015, true],
-  ['kid2', 'Nora', 148, 'kid', '9-3', 2018, true],
-  ['kid3', 'Iris', 305, 'kid', '1-22', 2021, true],
-  ['family', 'Family', -1, 'shared', null, null, false],
-];
-
-const CHORES: Array<[string, string, string]> = [
-  ['parent1', 'Meal plan + order', 'Weekly'],
-  ['parent1', 'Laundry — whites', 'Weekdays'],
-  ['parent2', 'Trash & recycling', 'Weekly'],
-  ['parent2', 'Mow the yard', 'Weekends'],
-  ['parent2', 'Dishwasher — night', 'Daily'],
-  ['kid1', 'Feed Biscuit', 'Daily'],
-  ['kid1', 'Set the table', 'Daily'],
-  ['kid1', 'Clean your room', 'Weekends'],
-  ['kid2', 'Water the plants', 'Weekdays'],
-  ['kid2', 'Put away shoes', 'Daily'],
-  ['kid2', 'Feed Biscuit — dinner', 'Daily'],
-  ['kid3', 'Toys in the bin', 'Daily'],
-  ['kid3', 'Books on the shelf', 'Daily'],
-];
 
 const EXTRAS: Array<[string, number]> = [
   ['Vacuum the stairs', 15],
-  ['Fold + put away laundry', 20],
+  ['Fold and put away laundry', 20],
   ['Weed the flower bed', 25],
   ['Clean out the car', 30],
-  ['Read 30 minutes', 10],
+  ['Read for 30 minutes', 10],
   ['Help cook dinner', 15],
   ['Wipe the baseboards', 20],
 ];
 
-// Icons ship with the seed because migrations run before seeding — a backfill
-// in a migration only reaches databases that already had rewards.
 const REWARDS: Array<[string, number, string]> = [
   ['Ice cream trip', 40, '🍦'],
   ['Sticker book', 60, '📓'],
@@ -52,28 +28,21 @@ const REWARDS: Array<[string, number, string]> = [
   ['Roller skates', 200, '🛼'],
 ];
 
+/**
+ * Runs once, tracked by a marker rather than by "is the people table empty".
+ * Counting people would re-seed on every boot now that none are created — and
+ * would resurrect extras and rewards somebody had deliberately deleted.
+ */
 export function seedIfEmpty(): void {
-  const count = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM people').get()?.n ?? 0;
-  if (count > 0) return;
+  if (getRaw('_seeded')) return;
 
   db.transaction(() => {
-    const person = db.prepare(
-      `INSERT INTO people (id, name, hue, role, bday, byear, on_chores, on_cal, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-    );
-    PEOPLE.forEach(([id, name, hue, role, bday, byear, onChores], i) =>
-      person.run(id, name, hue, role, bday, byear, fromBool(onChores), i),
-    );
-
-    const chore = db.prepare(
-      'INSERT INTO chores (id, person_id, title, repeat, sort_order) VALUES (?, ?, ?, ?, ?)',
-    );
-    CHORES.forEach(([who, title, repeat], i) => chore.run(`ch${i}`, who, title, repeat, i));
-
     const extra = db.prepare('INSERT INTO extras (id, title, points) VALUES (?, ?, ?)');
     EXTRAS.forEach(([title, points], i) => extra.run(`xj${i}`, title, points));
 
     const reward = db.prepare('INSERT INTO rewards (id, label, cost, icon) VALUES (?, ?, ?, ?)');
     REWARDS.forEach(([label, cost, icon], i) => reward.run(`rw${i}`, label, cost, icon));
   })();
+
+  setRaw('_seeded', new Date().toISOString());
 }

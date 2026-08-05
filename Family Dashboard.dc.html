@@ -777,7 +777,7 @@ class Component extends DCLogic {
       [9, 0, 'Standup', 'parent2', 'Zoom', 3], [12, 30, 'Lunch w/ Ross', 'parent2', 'Cafe Lou', 3],
       [13, 0, 'Client review', 'parent1', 'Zoom', 3], [13, 0, 'Nap', 'kid3', '', 3],
       [15, 45, 'Cross country', 'kid1', 'Track', 3], [16, 0, 'Piano lesson', 'kid2', 'Ms. Duval', 3],
-      [17, 15, 'Violet pickup', 'parent1', 'Little Sprouts', 3], [18, 30, 'Soccer carpool', 'parent2', 'Field 3', 3],
+      [17, 15, 'Iris pickup', 'parent1', 'Little Sprouts', 3], [18, 30, 'Soccer carpool', 'parent2', 'Field 3', 3],
       [19, 0, 'Algebra homework', 'kid1', '', 3], [19, 45, 'Movie night', 'family', 'Living room', 3],
       [9, 30, 'Dentist', 'parent1', 'Dr. Pham', 4], [16, 0, 'Site visit', 'parent2', 'Elm St', 4],
       [15, 45, 'Cross country', 'kid1', 'Track', 4], [8, 45, 'Preschool', 'kid3', 'Little Sprouts', 4],
@@ -786,7 +786,7 @@ class Component extends DCLogic {
       [18, 30, 'Grandma dinner', 'family', 'Home', 5], [19, 0, 'Poker', 'parent2', 'Dave\u2019s', 6],
       [15, 45, 'Meet vs. Oak', 'kid1', 'Oak HS', 6], [16, 0, 'Piano lesson', 'kid2', 'Ms. Duval', 6],
       [12, 0, 'PTA lunch', 'parent1', 'School', 7], [15, 0, 'Half day', 'parent2', '', 7],
-      [19, 0, 'Sleepover @ Nora', 'kid1', '', 7], [17, 30, 'Birthday party', 'kid2', 'Skate Zone', 7],
+      [19, 0, 'Sleepover @ a friend', 'kid1', '', 7], [17, 30, 'Birthday party', 'kid2', 'Skate Zone', 7],
       [19, 45, 'Movie night', 'family', 'Living room', 7], [10, 0, 'Gatlinburg trip', 'family', 'Cabin', 12],
       [16, 0, 'Maya turns 10', 'kid1', 'Home', 30]
     ].map((e, i) => ({ id: 'ev' + i, h: e[0], m: e[1], title: e[2], who: e[3], place: e[4], day: e[5] }));
@@ -1082,7 +1082,7 @@ class Component extends DCLogic {
       ? (view === 'day' ? now.toLocaleDateString('en-US', { weekday: 'long' }) + ', ' + now.toLocaleDateString('en-US', { month: 'long' }) + ' ' + today
         : view === 'week' ? 'Aug 3 – 7' : 'August 2026')
       : S.tab === 'chores' ? 'Chores & points' : S.tab === 'lists' ? 'Groceries' : S.tab === 'home' ? 'Home' : 'Settings';
-    const viewSub = S.tab === 'today' ? (playful ? part + ', Family' : dayEvents.length + ' events today')
+    const viewSub = S.tab === 'today' ? (playful ? part + '' : dayEvents.length + ' events today')
       : S.tab === 'chores' ? openChores + ' left today · tap to check off, hold to edit'
         : S.tab === 'lists' ? S.groceries.filter(g => !g.bought).length + ' to pick up · hold an item to edit'
           : S.tab === 'home' ? 'On your way out' : 'Profiles, extra jobs, and rewards';

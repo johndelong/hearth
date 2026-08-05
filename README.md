@@ -31,7 +31,9 @@ npm run dev                                   # api on :8080, web on :5173
 ```
 
 Open http://localhost:5173. The web dev server proxies `/api` to the API, and the
-API seeds the family, chores, extra jobs, and rewards on first boot.
+API seeds a starter set of extra jobs and rewards on first boot. Add your own
+household in **Settings › Family** — nothing about a specific family ships in the
+repo.
 
 To run the way production does — one process serving both:
 
@@ -44,8 +46,8 @@ node apps/api/dist/index.js     # http://localhost:8080
 
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project
    and enable the **Google Calendar API**.
-2. Configure the OAuth consent screen as **External**, and add yourself and Robin as
-   test users. (Test-user refresh tokens expire after 7 days while the app is in
+2. Configure the OAuth consent screen as **External**, and add every adult whose
+   calendar you want on the dashboard as a test user. (Test-user refresh tokens expire after 7 days while the app is in
    "Testing"; publishing the app stops that. It stays private either way — nobody can
    use it without being added.)
 3. Create an **OAuth client ID** of type *Web application* and add this authorized
