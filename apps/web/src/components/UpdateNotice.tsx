@@ -3,6 +3,14 @@ import { onServerVersion } from '../api';
 import { EASE, col } from '../theme';
 import { Icon, TapButton } from './ui';
 
+/**
+ * Versions are normally tags like `v0.2.0`, but a rollback or a hand-built image
+ * can leave a commit SHA. Nobody needs forty characters of it.
+ */
+export function displayVersion(version: string): string {
+  return /^[0-9a-f]{40}$/i.test(version) ? version.slice(0, 7) : version;
+}
+
 export interface VersionState {
   /** The server is running different code than this tab loaded. Reload fixes it. */
   stale: boolean;
@@ -74,7 +82,7 @@ export function UpdateToast({ version, onReload }: { version: string; onReload: 
     >
       <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 16.5, fontWeight: 800 }}>
         <Icon name="sync" size={19} />
-        Hearth {version} is ready
+        Hearth {displayVersion(version)} is ready
       </span>
       <TapButton
         onClick={onReload}

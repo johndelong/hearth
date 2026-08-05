@@ -6,6 +6,7 @@ import type {
 } from '@dashboard/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { type Board, type VersionInfo, api } from '../../api';
+import { displayVersion } from '../../components/UpdateNotice';
 import { Avatar, Button, Icon, Switch, TapButton } from '../../components/ui';
 import { EASE, type IconName, col, deep, soft } from '../../theme';
 import { ChipRow, ItemRow, Panel, ToggleRow, rowStyle } from './controls';
@@ -496,16 +497,21 @@ function AboutPanel({ say }: { say: (text: string, hue?: number) => void }) {
     <Panel title="This dashboard" sub="Version and updates" delay={60}>
       <div style={rowStyle}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>Running {info.current}</div>
-          <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
-            {!info.checkEnabled
-              ? 'Release checking is off — set UPDATE_CHECK_TOKEN to enable it'
-              : info.error
+          <div style={{ fontSize: 17, fontWeight: 800 }}>Version {displayVersion(info.current)}</div>
+          {/*
+            Nothing is said when release checking is off. It is optional, and a
+            dashboard on the kitchen wall should not nag the household to go set
+            an environment variable.
+          */}
+          {info.checkEnabled && (
+            <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
+              {info.error
                 ? `Last check failed: ${info.error}`
                 : behind
                   ? `${info.available} is available — deploy it on the Mac mini`
                   : 'Up to date'}
-          </div>
+            </div>
+          )}
         </div>
         {info.checkEnabled && (
           <Button

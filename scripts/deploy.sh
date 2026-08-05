@@ -73,10 +73,14 @@ TARGET="${1:-$(newest_tag)}"
 [[ -n "$TARGET" ]] || fail "No release tags found. Cut one with: git tag v0.1.0 && git push --tags"
 git rev-parse --verify "refs/tags/${TARGET}" >/dev/null 2>&1 || fail "Unknown tag: ${TARGET}"
 
-# Where to return to if this goes wrong. Detached HEAD is normal here, so fall
-# back to the commit itself.
-PREVIOUS="$(git describe --tags --exact-match 2>/dev/null || git rev-parse --abbrev-ref HEAD)"
-[[ "$PREVIOUS" == "HEAD" ]] && PREVIOUS="$(git rev-parse HEAD)"
+# Where to return to if this goes wrong. Detached HEAD is normal here — this
+# script leaves the checkout on a tag — so fall back to a short SHA rather than
+# a 40-character one, since whatever lands here is shown to people in Settings.
+PREVIOUS="$(git describe --tags --exact-match 2>/dev/null || true)"
+if [ -z "$PREVIOUS" ]; then
+  branch="$(git rev-parse --abbrev-ref HEAD)"
+  PREVIOUS="$([ "$branch" = "HEAD" ] && git rev-parse --short HEAD || echo "$branch")"
+fi
 
 RUNNING="$(current_version || true)"
 if [[ "$RUNNING" == "$TARGET" ]]; then
