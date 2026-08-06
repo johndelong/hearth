@@ -23,6 +23,26 @@ export function periodKey(reset: ChoreReset, d = new Date()): string {
   return `w:${localDate(start)}`;
 }
 
+/**
+ * The day after a period ends, as `YYYY-MM-DD` — an exclusive upper bound.
+ *
+ * Anchored to the period's own start, so a weekly board asked about a Wednesday
+ * ends the following Sunday rather than the Wednesday after.
+ */
+export function periodEnd(reset: ChoreReset, d = new Date()): string {
+  const key = periodKey(reset, d);
+  const start = new Date(`${key.startsWith('w:') ? key.slice(2) : key}T00:00:00`);
+  start.setDate(start.getDate() + (reset === 'Every night' ? 1 : 7));
+  return localDate(start);
+}
+
+/** Steps a date back by one board period. */
+export function previousPeriod(reset: ChoreReset, d: Date): Date {
+  const prev = new Date(d);
+  prev.setDate(prev.getDate() - (reset === 'Every night' ? 1 : 7));
+  return prev;
+}
+
 /** Whether a chore with this repeat rule belongs on today's board. */
 export function isDue(repeat: Repeat, reset: ChoreReset, d = new Date()): boolean {
   // A weekly board shows everything assigned for that week at once.

@@ -5,7 +5,7 @@
  * design already settled on a vocabulary (hue, role, repeat, points).
  */
 
-export type Role = 'kid' | 'parent' | 'shared';
+export type Role = 'kid' | 'parent';
 
 /** Repeat rules a chore can carry. Mirrors REPEATS in the prototype. */
 export type Repeat = 'Daily' | 'Weekdays' | 'Weekly' | 'Weekends';
@@ -32,6 +32,8 @@ export interface Person {
   /** Reward this kid is currently saving toward. */
   goalRewardId: string | null;
   avatarUrl: string | null;
+  /** One of the built-in avatar faces. A photo, when set, wins over it. */
+  avatarKey: string | null;
   sortOrder: number;
 }
 
@@ -139,6 +141,19 @@ export interface PointEvent {
   createdAt: string;
 }
 
+/**
+ * How many board periods in a row someone has finished every required chore.
+ * Derived from completion history on each read, never stored.
+ */
+export interface Streak {
+  personId: string;
+  length: number;
+  /** While paused, the streak neither grows nor breaks. */
+  paused: boolean;
+  /** First day of the run, `YYYY-MM-DD`. Null when there is no streak. */
+  since: string | null;
+}
+
 export interface PointsBalance {
   personId: string;
   points: number;
@@ -242,7 +257,7 @@ export const SWATCHES: ReadonlyArray<readonly [string, number]> = [
 ];
 
 export const REPEATS: readonly Repeat[] = ['Daily', 'Weekdays', 'Weekly', 'Weekends'];
-export const ROLES: readonly Role[] = ['kid', 'parent', 'shared'];
+export const ROLES: readonly Role[] = ['kid', 'parent'];
 export const MONTHS: readonly string[] = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];

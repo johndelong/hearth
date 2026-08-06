@@ -14,19 +14,14 @@ interface Props {
   onEditEvent: (event: CalendarEvent) => void;
 }
 
-const FALLBACK: Person = {
-  id: 'family',
-  name: 'Family',
-  hue: -1,
-  role: 'shared',
-  bday: null,
-  byear: null,
-  onChores: false,
-  onCal: true,
-  goalRewardId: null,
-  avatarUrl: null,
-  sortOrder: 99,
-};
+/**
+ * Events on a calendar nobody owns. Only the colour and the label are ever
+ * read, so this is deliberately not a Person — it isn't one, and pretending
+ * otherwise is what put a "Family" placeholder in the household to begin with.
+ */
+type EventOwner = Pick<Person, 'name' | 'hue' | 'avatarUrl' | 'avatarKey'>;
+
+const FALLBACK: EventOwner = { name: 'Household', hue: -1, avatarUrl: null, avatarKey: null };
 
 export function DayView({ day, now, events, byPerson, night, settings, onEditEvent }: Props) {
   const hours = dayHourRange(settings.dayHours);
@@ -47,7 +42,8 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
     scroller.current.scrollTo({ top: Math.max(0, row.offsetTop - 120), behavior: 'smooth' });
   }, [isToday, day, timed.length]);
 
-  const person = (e: CalendarEvent): Person => (e.personId ? byPerson.get(e.personId) ?? FALLBACK : FALLBACK);
+  const person = (e: CalendarEvent): EventOwner =>
+    (e.personId ? byPerson.get(e.personId) : undefined) ?? FALLBACK;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>
@@ -134,7 +130,7 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
                         animation: `riseIn .45s ${EASE} ${hi * 18 + ei * 30}ms both`,
                       }}
                     >
-                      <Avatar name={p.name} hue={p.hue} night={night} size={27} avatarUrl={p.avatarUrl} />
+                      <Avatar name={p.name} hue={p.hue} night={night} size={27} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
                       <span style={{ minWidth: 0 }}>
                         <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, opacity: 0.75 }}>
                           {fmtTime(new Date(e.start))}

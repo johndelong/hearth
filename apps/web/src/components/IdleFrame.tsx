@@ -1,23 +1,29 @@
-import type { CalendarEvent, Person, Settings } from '@dashboard/shared';
+import type { CalendarEvent, Person } from '@dashboard/shared';
 import { EASE, col } from '../theme';
 import { fmtTime } from '../screens/calendar/useEvents';
 
 /**
  * Frame mode: what the panel shows when nobody has touched it. Big clock, the
  * next few things happening, and nothing tappable — any touch wakes it.
+ *
+ * Always black, in both themes. On the OLED panels this runs on, black is
+ * pixels that are switched off — so frame mode is the one screen that should
+ * never honour the light theme. That also means it cannot use --ink and
+ * --ink2, which follow the theme and would leave dark text on a dark screen.
  */
+
+/** Deliberately below pure white: a wall panel at 2am is in someone's hallway. */
+const FRAME_INK = '#e4e7ee';
+const FRAME_INK2 = '#767c88';
+
 export function IdleFrame({
   now,
   events,
   people,
-  settings,
-  night,
 }: {
   now: Date;
   events: CalendarEvent[];
   people: Person[];
-  settings: Settings;
-  night: boolean;
 }) {
   const upcoming = events
     .filter((e) => new Date(e.end) > now)
@@ -25,8 +31,6 @@ export function IdleFrame({
     .slice(0, 4);
 
   const byPerson = new Map(people.map((p) => [p.id, p]));
-  const hour = now.getHours();
-  const greeting = hour < 11 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
     <div
@@ -34,8 +38,8 @@ export function IdleFrame({
         position: 'fixed',
         inset: 0,
         zIndex: 90,
-        background: 'var(--bg)',
-        color: 'var(--ink)',
+        background: '#000',
+        color: FRAME_INK,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'flex-end',
@@ -55,12 +59,10 @@ export function IdleFrame({
             }}
           >
             {now.getHours() % 12 || 12}
-            <span style={{ opacity: 0.35 }}>:</span>
+            <span style={{ animation: 'colonPulse 1s ease-in-out infinite' }}>:</span>
             {String(now.getMinutes()).padStart(2, '0')}
           </div>
-          <div style={{ marginTop: 14, fontSize: 26, fontWeight: 700, color: 'var(--ink2)' }}>
-            {settings.playful ? greeting : ''}
-            {settings.playful ? ' · ' : ''}
+          <div style={{ marginTop: 14, fontSize: 26, fontWeight: 700, color: FRAME_INK2 }}>
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
         </div>
@@ -76,20 +78,21 @@ export function IdleFrame({
                     width: 10,
                     height: 10,
                     borderRadius: '50%',
-                    background: col(p?.hue ?? -1, night),
+                    // Always the night palette: the ground is always black here.
+                    background: col(p?.hue ?? -1, true),
                   }}
                 />
                 <span style={{ flex: 1, minWidth: 0, fontSize: 21, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {e.title}
                 </span>
-                <span style={{ flex: 'none', fontSize: 19, fontWeight: 700, color: 'var(--ink2)' }}>
+                <span style={{ flex: 'none', fontSize: 19, fontWeight: 700, color: FRAME_INK2 }}>
                   {e.allDay ? 'All day' : fmtTime(new Date(e.start))}
                 </span>
               </div>
             );
           })}
           {upcoming.length === 0 && (
-            <div style={{ fontSize: 21, fontWeight: 700, color: 'var(--ink2)' }}>Nothing else today.</div>
+            <div style={{ fontSize: 21, fontWeight: 700, color: FRAME_INK2 }}>Nothing else today.</div>
           )}
         </div>
       </div>

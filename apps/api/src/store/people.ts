@@ -12,6 +12,7 @@ interface Row {
   on_cal: number;
   goal_reward_id: string | null;
   avatar_url: string | null;
+  avatar_key: string | null;
   sort_order: number;
 }
 
@@ -26,6 +27,7 @@ const toPerson = (r: Row): Person => ({
   onCal: toBool(r.on_cal),
   goalRewardId: r.goal_reward_id,
   avatarUrl: r.avatar_url,
+  avatarKey: r.avatar_key,
   sortOrder: r.sort_order,
 });
 
@@ -47,8 +49,8 @@ export function createPerson(input: PersonInput): Person {
     .prepare<[], { m: number | null }>('SELECT MAX(sort_order) AS m FROM people')
     .get()?.m;
   db.prepare(
-    `INSERT INTO people (id, name, hue, role, bday, byear, on_chores, on_cal, goal_reward_id, avatar_url, sort_order)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO people (id, name, hue, role, bday, byear, on_chores, on_cal, goal_reward_id, avatar_url, avatar_key, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     personId,
     input.name,
@@ -60,6 +62,7 @@ export function createPerson(input: PersonInput): Person {
     fromBool(input.onCal ?? true),
     input.goalRewardId ?? null,
     input.avatarUrl ?? null,
+    input.avatarKey ?? null,
     input.sortOrder ?? (maxOrder ?? 0) + 1,
   );
   return getPerson(personId)!;
@@ -75,6 +78,7 @@ const COLUMNS: Record<string, string> = {
   onCal: 'on_cal',
   goalRewardId: 'goal_reward_id',
   avatarUrl: 'avatar_url',
+  avatarKey: 'avatar_key',
   sortOrder: 'sort_order',
 };
 const BOOL_FIELDS = new Set(['onChores', 'onCal']);

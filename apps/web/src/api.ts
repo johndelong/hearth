@@ -10,6 +10,7 @@ import type {
   Redemption,
   Reward,
   Settings,
+  Streak,
   SubscribedCalendar,
 } from '@dashboard/shared';
 
@@ -76,6 +77,11 @@ const patch = <T,>(path: string, body: unknown) =>
 const del = <T,>(path: string) => call<T>(path, { method: 'DELETE' });
 
 export interface Board {
+  /** The day this board describes, `YYYY-MM-DD`. */
+  date: string;
+  today: boolean;
+  /** Past and future boards are a record, not a control surface. */
+  readOnly: boolean;
   /** One row per person per chore — see BoardChore. */
   chores: BoardChore[];
   extras: Extra[];
@@ -83,6 +89,7 @@ export interface Board {
   rewards: Reward[];
   points: PointsBalance[];
   redemptions: Redemption[];
+  streaks: Streak[];
 }
 
 export interface VersionInfo {
@@ -104,7 +111,9 @@ export const api = {
   updatePerson: (id: string, body: Record<string, unknown>) => patch<Person>(`/api/people/${id}`, body),
   deletePerson: (id: string) => del<{ ok: true }>(`/api/people/${id}`),
 
-  board: () => call<Board>('/api/chores/board'),
+  board: (date?: string) => call<Board>(`/api/chores/board${date ? `?date=${date}` : ''}`),
+  setStreakPaused: (personId: string, paused: boolean) =>
+    post<Streak>(`/api/people/${personId}/streak-pause`, { paused }),
   setChoreDone: (id: string, personId: string, done: boolean) =>
     post<{ chore: BoardChore; points: PointsBalance[] }>(`/api/chores/${id}/done`, { personId, done }),
   /** Every chore, including ones not due today. Settings manages against this. */

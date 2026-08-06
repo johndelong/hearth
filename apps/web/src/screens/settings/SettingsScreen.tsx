@@ -125,7 +125,6 @@ function FamilySection({ people, night, onEditPerson }: Props) {
   const roleLabel: Record<Person['role'], string> = {
     kid: 'Kid',
     parent: 'Parent',
-    shared: 'Shared calendar',
   };
 
   return (
@@ -140,7 +139,7 @@ function FamilySection({ people, night, onEditPerson }: Props) {
           key={p.id}
           label={p.name}
           sub={[roleLabel[p.role], p.bday ? bdayLabel(p.bday) : null].filter(Boolean).join(' · ')}
-          leading={<Avatar name={p.name} hue={p.hue} night={night} size={46} avatarUrl={p.avatarUrl} ring />}
+          leading={<Avatar name={p.name} hue={p.hue} night={night} size={46} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} ring />}
           onClick={() => onEditPerson(p)}
         />
       ))}
@@ -381,6 +380,7 @@ function ChoresSection({
   say,
   onSettingsChange,
   onPeopleChange,
+  onBoardChange,
   onEditChore,
   onEditExtra,
   onEditReward,
@@ -397,11 +397,9 @@ function ChoresSection({
   return (
     <>
       <Panel title="Who gets a chore board" sub="Parents can be left off entirely">
-        {people
-          .filter((p) => p.role !== 'shared')
-          .map((p) => (
+        {people.map((p) => (
             <div key={p.id} style={rowStyle}>
-              <Avatar name={p.name} hue={p.hue} night={night} size={44} avatarUrl={p.avatarUrl} ring />
+              <Avatar name={p.name} hue={p.hue} night={night} size={44} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} ring />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 800 }}>{p.name}</div>
                 <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
@@ -418,6 +416,47 @@ function ChoresSection({
               />
             </div>
           ))}
+      </Panel>
+
+      <Panel
+        title="Streaks"
+        sub="Pause someone while they're away, and the streak neither grows nor breaks"
+        delay={40}
+      >
+        {people
+          .filter((p) => p.onChores)
+          .map((p) => {
+            const streak = board.streaks.find((s) => s.personId === p.id);
+            return (
+              <div key={p.id} style={rowStyle}>
+                <Avatar name={p.name} hue={p.hue} night={night} size={44} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} ring />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 17, fontWeight: 800 }}>{p.name}</div>
+                  <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
+                    {streak?.paused
+                      ? `Paused at ${streak.length} in a row`
+                      : streak?.length
+                        ? `${streak.length} in a row`
+                        : 'No streak yet'}
+                  </div>
+                </div>
+                <Switch
+                  night={night}
+                  label={`Pause ${p.name}'s streak`}
+                  on={Boolean(streak?.paused)}
+                  onChange={async (paused) => {
+                    try {
+                      await api.setStreakPaused(p.id, paused);
+                      await onBoardChange();
+                      say(paused ? `${p.name}'s streak is paused` : `${p.name}'s streak resumes`, p.hue);
+                    } catch (err) {
+                      say(err instanceof Error ? err.message : 'Could not save', 25);
+                    }
+                  }}
+                />
+              </div>
+            );
+          })}
       </Panel>
 
       <ChoreListPanel
@@ -519,7 +558,7 @@ function ChoreListPanel({
       .catch((err) => say(err instanceof Error ? err.message : 'Could not load the chores', 25));
   }, [version, say]);
 
-  const boardPeople = people.filter((p) => p.role !== 'shared');
+  const boardPeople = people;
   // A chore assigned to nobody who still exists would otherwise never be listed.
   const orphans = chores.filter((c) => !c.personIds.some((id) => boardPeople.some((p) => p.id === id)));
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? 'Unknown';
@@ -548,7 +587,7 @@ function ChoreListPanel({
                 color: 'var(--ink2)',
               }}
             >
-              <Avatar name={person.name} hue={person.hue} night={night} size={26} avatarUrl={person.avatarUrl} />
+              <Avatar name={person.name} hue={person.hue} night={night} size={26} avatarUrl={person.avatarUrl} avatarKey={person.avatarKey} />
               {person.name}
               {!person.onChores && ' · board is off'}
             </div>

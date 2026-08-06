@@ -6,6 +6,7 @@ import { EASE, col, deep, soft } from '../../theme';
 import { ChoreDetails } from './ChoreDetails';
 import { ChoreRow } from './ChoreRow';
 import { CardConfetti, GoalRing } from './GoalRing';
+import { ProgressPill, StreakPill } from './Pills';
 
 interface Props {
   board: Board;
@@ -96,7 +97,7 @@ export function ChoresScreen({
   useEffect(() => {
     const newlyUnlocked: string[] = [];
     for (const person of people) {
-      if (!person.onChores || person.role === 'shared') continue;
+      if (!person.onChores) continue;
       const open = choresDoneFor(person.id);
       // Only celebrate a board that actually had chores to finish.
       const hadChores = board.chores.some((c) => c.personId === person.id);
@@ -109,7 +110,7 @@ export function ChoresScreen({
     }
   }, [people, board.chores, choresDoneFor]);
 
-  const boards = useMemo(() => people.filter((p) => p.onChores && p.role !== 'shared'), [people]);
+  const boards = useMemo(() => people.filter((p) => p.onChores), [people]);
 
   const pointsFor = (personId: string) => board.points.find((p) => p.personId === personId)?.points ?? 0;
 
@@ -143,7 +144,7 @@ export function ChoresScreen({
   ];
 
   const toggle = async (person: Person, row: Row) => {
-    if (busy) return;
+    if (busy || board.readOnly) return;
     setBusy(row.key);
     const next = !row.done;
 
@@ -227,8 +228,11 @@ export function ChoresScreen({
     >
       {boards.map((person, bi) => {
         const rows = rowsFor(person.id);
-        const left = rows.filter((r) => !r.done).length;
+        const required = rows.filter((r) => r.kind === 'chore');
+        const requiredTotal = required.length;
+        const requiredDone = required.filter((r) => r.done).length;
         const points = pointsFor(person.id);
+        const streak = board.streaks.find((s) => s.personId === person.id) ?? null;
         const goal = board.rewards.find((r) => r.id === person.goalRewardId) ?? null;
         const isKid = person.role === 'kid';
 
@@ -241,8 +245,8 @@ export function ChoresScreen({
           >
             {bursting === person.id && <CardConfetti hue={person.hue} night={night} />}
 
-            <header style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-              <Avatar name={person.name} hue={person.hue} night={night} size={56} avatarUrl={person.avatarUrl} ring />
+            <header style={{ display: 'flex', alignItems: 'flex-start', gap: 13 }}>
+              <Avatar name={person.name} hue={person.hue} night={night} size={56} avatarUrl={person.avatarUrl} avatarKey={person.avatarKey} ring />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div
                   style={{
@@ -257,46 +261,47 @@ export function ChoresScreen({
                 >
                   {person.name}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4, flexWrap: 'wrap' }}>
-                  {isKid ? (
-                    <span
-                      style={{
-                        padding: '3px 11px',
-                        borderRadius: 999,
-                        fontSize: 13.5,
-                        fontWeight: 800,
-                        background: soft(person.hue, night),
-                        color: deep(person.hue, night),
-                        animation: cheering === person.id ? `ptsPop .6s ${EASE} both` : undefined,
-                      }}
-                    >
-                      {points} points
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        padding: '3px 11px',
-                        borderRadius: 999,
-                        fontSize: 13.5,
-                        fontWeight: 800,
-                        background: 'var(--chip)',
-                        color: 'var(--ink2)',
-                      }}
-                    >
-                      {rows.length - left} of {rows.length} done
-                    </span>
-                  )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5, flexWrap: 'wrap' }}>
+                  <ProgressPill done={requiredDone} total={requiredTotal} night={night} />
+                  {streak && <StreakPill streak={streak} night={night} />}
                 </div>
               </div>
 
+              {/*
+                Points sit under the goal ring and overlap it: what you've
+                banked and what you're saving it for are one thought, so they
+                read as one control rather than two pills in a row.
+              */}
               {isKid && (
-                <GoalRing
-                  person={person}
-                  goal={goal}
-                  points={points}
-                  night={night}
-                  onOpen={() => onOpenCatalog(person)}
-                />
+                <div style={{ flex: 'none', position: 'relative', paddingBottom: 13 }}>
+                  <GoalRing
+                    person={person}
+                    goal={goal}
+                    points={points}
+                    night={night}
+                    onOpen={() => onOpenCatalog(person)}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      bottom: 0,
+                      transform: 'translateX(-50%)',
+                      padding: '3px 11px',
+                      borderRadius: 999,
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      whiteSpace: 'nowrap',
+                      background: soft(person.hue, night),
+                      color: deep(person.hue, night),
+                      // Lifted off the ring it overlaps, so the arc reads behind it.
+                      boxShadow: `0 0 0 3px var(--card)`,
+                      animation: cheering === person.id ? `ptsPop .6s ${EASE} both` : undefined,
+                    }}
+                  >
+                    {points} pts
+                  </span>
+                </div>
               )}
             </header>
 
@@ -312,20 +317,25 @@ export function ChoresScreen({
                   night={night}
                   busy={busy === row.key}
                   shimmer={shimmer === row.key}
+                  readOnly={board.readOnly}
                   onToggle={() => void toggle(person, row)}
                   onOpen={() => setOpened({ personId: person.id, rowKey: row.key })}
-                  onRemove={row.kind === 'claim' ? () => onRemoveClaim(row.id, person) : undefined}
+                  onRemove={
+                    row.kind === 'claim' && !board.readOnly
+                      ? () => onRemoveClaim(row.id, person)
+                      : undefined
+                  }
                 />
               ))}
 
               {rows.length === 0 && (
                 <div style={{ padding: '10px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
-                  Nothing on the board today.
+                  {board.today ? 'Nothing on the board today.' : 'Nothing was on the board that day.'}
                 </div>
               )}
             </div>
 
-            {isKid && settings.claimExtras && (() => {
+            {isKid && settings.claimExtras && !board.readOnly && (() => {
               const unlocked = choresDoneFor(person.id);
               return (
                 <TapButton
@@ -370,6 +380,7 @@ export function ChoresScreen({
         done={openedRow.done}
         person={openedPerson}
         night={night}
+        readOnly={board.readOnly}
         onToggle={() => void toggle(openedPerson, openedRow)}
         onClose={() => setOpened(null)}
       />

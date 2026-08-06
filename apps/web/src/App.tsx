@@ -78,9 +78,10 @@ export default function App() {
     setTab('settings');
   };
 
+  // Only today's board can have anything "left" — a past day is a record.
   const openChores = useMemo(() => {
-    if (!board) return 0;
-    const onBoard = new Set(people.filter((p) => p.onChores && p.role !== 'shared').map((p) => p.id));
+    if (!board?.today) return 0;
+    const onBoard = new Set(people.filter((p) => p.onChores).map((p) => p.id));
     return (
       board.chores.filter((c) => !c.done && onBoard.has(c.personId)).length +
       board.claims.filter((c) => !c.done && onBoard.has(c.personId)).length
@@ -92,8 +93,6 @@ export default function App() {
     { id: 'chores', label: 'Chores', icon: 'check', badge: openChores },
     { id: 'settings', label: 'Settings', icon: 'gear', badge: 0 },
   ];
-
-  const { title, sub } = headerCopy({ tab, calView, anchor, now, settings, section, openChores });
 
   if (data.loading) {
     return <Splash text="Waking up…" night={night} />;
@@ -156,11 +155,18 @@ export default function App() {
             padding: '22px 30px 14px',
           }}
         >
+          {/*
+            The same clock on every tab. A wall panel is glanced at far more
+            often than it is used, and the date and time are what that glance
+            is usually for — the tab you're on is already obvious from the nav.
+          */}
           <div style={{ minWidth: 0, flex: '1 1 260px' }}>
             <h1 style={{ margin: 0, fontFamily: 'Outfit', fontSize: 34, fontWeight: 600, lineHeight: 1.1 }}>
-              {title}
+              {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </h1>
-            <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>{sub}</div>
+            <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>
+              {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </div>
           </div>
 
           {tab === 'today' && (
@@ -203,6 +209,49 @@ export default function App() {
                 <Icon name="plus" size={18} /> Add
               </Button>
             </>
+          )}
+          {tab === 'chores' && board && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <IconButton
+                  name="chevronLeft"
+                  title="Previous day"
+                  onClick={() => data.setBoardDate(shiftDay(board.date, -1))}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => data.setBoardDate(null)}
+                  selected={!board.today}
+                  style={{ fontSize: 15.5 }}
+                >
+                  Today
+                </Button>
+                <IconButton
+                  name="chevronRight"
+                  title="Next day"
+                  onClick={() => data.setBoardDate(shiftDay(board.date, 1))}
+                />
+              </div>
+
+              {/*
+                Only says which day when it isn't today — on today's board the
+                header clock above has already answered the question.
+              */}
+              {!board.today && (
+                <span
+                  style={{
+                    padding: '7px 15px',
+                    borderRadius: 999,
+                    background: 'var(--chip)',
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: 'var(--ink2)',
+                  }}
+                >
+                  {dayLabel(board.date)} · {dayDirection(board.date) === 'past' ? 'looking back' : 'coming up'}
+                </span>
+              )}
+            </div>
           )}
         </header>
 
@@ -297,8 +346,6 @@ export default function App() {
           now={now}
           events={idleEvents.events}
           people={people}
-          settings={settings}
-          night={night}
         />
       )}
 
@@ -629,54 +676,34 @@ function shift(anchor: Date, view: CalView, direction: number): Date {
   return d;
 }
 
-function headerCopy({
-  tab,
-  calView,
-  anchor,
-  now,
-  settings,
-  section,
-  openChores,
-}: {
-  tab: Tab;
-  calView: CalView;
-  anchor: Date;
-  now: Date;
-  settings: { playful: boolean };
-  section: SettingsSection;
-  openChores: number;
-}): { title: string; sub: string } {
-  if (tab === 'chores') {
-    return {
-      title: 'Chores & points',
-      sub: openChores
-        ? `${openChores} left today · check the box, or tap a chore for details`
-        : 'Everything is done. Nice work.',
-    };
-  }
-  if (tab === 'settings') {
-    const labels: Record<SettingsSection, string> = {
-      family: 'Family settings',
-      calendar: 'Calendar settings',
-      chores: 'Chores settings',
-      display: 'Display settings',
-      security: 'Parent PIN',
-    };
-    return { title: labels[section], sub: 'Changes save as you make them' };
-  }
-
-  if (calView === 'day') {
-    const isToday = anchor.toDateString() === now.toDateString();
-    const hour = now.getHours();
-    const greeting = hour < 11 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-    return {
-      title: anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
-      sub: isToday && settings.playful ? greeting : '',
-    };
-  }
-  if (calView === 'week') {
-    return { title: 'This week', sub: `${MONTHS_LONG[anchor.getMonth()]} ${anchor.getFullYear()}` };
-  }
-  return { title: `${MONTHS_LONG[anchor.getMonth()]} ${anchor.getFullYear()}`, sub: '' };
+/** Steps a `YYYY-MM-DD` by whole days, parsed as local midnight. */
+function shiftDay(date: string, by: number): string {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() + by);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** "Mon, Aug 3" — enough to place a day without spelling out the year. */
+function dayLabel(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/** Today as `YYYY-MM-DD` in local time — never via toISOString, which is UTC. */
+function localToday(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Whether a board date is behind, level with, or ahead of today. */
+function dayDirection(date: string): 'past' | 'today' | 'future' {
+  const today = localToday();
+  if (date < today) return 'past';
+  if (date > today) return 'future';
+  return 'today';
+}

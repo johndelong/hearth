@@ -95,24 +95,32 @@ export interface AppData {
   error: string | null;
   reloadPeople: () => Promise<void>;
   reloadBoard: () => Promise<void>;
+  /** `YYYY-MM-DD` the Chores screen is looking at, or null for today. */
+  boardDate: string | null;
+  setBoardDate: (date: string | null) => void;
   reloadSettings: () => Promise<void>;
   setSettings: (s: Settings) => void;
   setBoard: (b: Board) => void;
 }
 
 const EMPTY_BOARD: Board = {
+  date: '',
+  today: true,
+  readOnly: false,
   chores: [],
   extras: [],
   claims: [],
   rewards: [],
   points: [],
   redemptions: [],
+  streaks: [],
 };
 
 export function useAppData(): AppData {
   const [people, setPeople] = useState<Person[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [board, setBoard] = useState<Board | null>(null);
+  const [boardDate, setBoardDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,8 +128,8 @@ export function useAppData(): AppData {
     setPeople(await api.people());
   }, []);
   const reloadBoard = useCallback(async () => {
-    setBoard(await api.board());
-  }, []);
+    setBoard(await api.board(boardDate ?? undefined));
+  }, [boardDate]);
   const reloadSettings = useCallback(async () => {
     setSettings(await api.settings());
   }, []);
@@ -151,11 +159,21 @@ export function useAppData(): AppData {
   // shows up on the others without anyone reloading.
   useEffect(() => {
     const timer = window.setInterval(() => {
-      void api.board().then(setBoard).catch(() => undefined);
+      void api.board(boardDate ?? undefined).then(setBoard).catch(() => undefined);
       void api.people().then(setPeople).catch(() => undefined);
     }, 60_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [boardDate]);
+
+  // Stepping to another day refetches immediately rather than waiting on the poll.
+  const firstLoad = useRef(true);
+  useEffect(() => {
+    if (firstLoad.current) {
+      firstLoad.current = false;
+      return;
+    }
+    void api.board(boardDate ?? undefined).then(setBoard).catch(() => undefined);
+  }, [boardDate]);
 
   return useMemo(
     () => ({
@@ -169,7 +187,9 @@ export function useAppData(): AppData {
       reloadSettings,
       setSettings,
       setBoard,
+      boardDate,
+      setBoardDate,
     }),
-    [people, settings, board, loading, error, reloadPeople, reloadBoard, reloadSettings],
+    [people, settings, board, loading, error, reloadPeople, reloadBoard, reloadSettings, boardDate],
   );
 }

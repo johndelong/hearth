@@ -25,17 +25,42 @@ import {
   updateExtra,
   updateReward,
 } from '../store/chores.js';
+import { listPeople } from '../store/people.js';
+import { localDate, periodKey } from '../store/period.js';
+import { getSettings } from '../store/settings.js';
+import { listStreaks, pauseStreak, resumeStreak } from '../store/streaks.js';
 
 export async function choreRoutes(app: FastifyInstance): Promise<void> {
   // One call backs the whole Chores screen, so the boards never render half-updated.
-  app.get('/api/chores/board', async () => ({
-    chores: listChores(),
-    extras: listExtras(),
-    claims: listClaims(),
-    rewards: listRewards(),
-    points: listPoints(),
-    redemptions: listRedemptions(8),
-  }));
+  //
+  // `?date=YYYY-MM-DD` looks at another day's board. Anything but today comes
+  // back `readOnly` — history is a record, and the future hasn't happened.
+  app.get<{ Querystring: { date?: string } }>('/api/chores/board', async (request, reply) => {
+    const raw = request.query.date;
+    if (raw !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      return reply.code(400).send({ error: 'date must be YYYY-MM-DD' });
+    }
+    // Parsed as local midnight; `new Date('2026-08-05')` would be UTC and can
+    // land on the previous day for anyone west of Greenwich.
+    const on = raw ? new Date(`${raw}T00:00:00`) : new Date();
+    if (Number.isNaN(on.getTime())) return reply.code(400).send({ error: 'Unparseable date' });
+
+    const { choreReset } = getSettings();
+    const today = periodKey(choreReset) === periodKey(choreReset, on);
+
+    return {
+      date: localDate(on),
+      today,
+      readOnly: !today,
+      chores: listChores(on),
+      extras: listExtras(),
+      claims: listClaims(on),
+      rewards: listRewards(),
+      points: listPoints(),
+      redemptions: listRedemptions(8),
+      streaks: listStreaks(listPeople().map((p) => p.id)),
+    };
+  });
 
   // --- checking off is deliberately unguarded: it is the kids' interaction ---
 
@@ -138,6 +163,16 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
       deleteReward(request.params.id);
       return { ok: true };
     });
+
+    // Pausing a streak is a parent's call — "she's at Grandma's this week".
+    guarded.post<{ Params: { id: string }; Body: { paused?: boolean } }>(
+      '/api/people/:id/streak-pause',
+      async (request) => {
+        if (request.body?.paused === false) resumeStreak(request.params.id);
+        else pauseStreak(request.params.id);
+        return listStreaks([request.params.id])[0];
+      },
+    );
 
     guarded.post<{ Body: { personId: string; delta: number; reason?: string } }>(
       '/api/points/adjust',

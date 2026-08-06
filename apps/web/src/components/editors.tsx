@@ -9,6 +9,7 @@ import {
 } from '@dashboard/shared';
 import { useState } from 'react';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
+import { AVATAR_PACK, AvatarArt, avatarLabel, isAvatarKey } from './AvatarArt';
 import { Avatar, Button, TapButton } from './ui';
 import { col, deep, soft } from '../theme';
 
@@ -51,6 +52,19 @@ export function formatBday(person: Person | null): string {
   return `${MONTHS[Number(m[1]) - 1]} ${m[2]}${person.byear ? ` ${person.byear}` : ''}`;
 }
 
+/** A 52px avatar choice tile — selected reads as a ring in the person's colour. */
+function avatarChoiceStyle(on: boolean, hue: number, night: boolean) {
+  return {
+    width: 52,
+    height: 52,
+    padding: 0,
+    borderRadius: '50%',
+    overflow: 'hidden',
+    background: 'var(--chip)',
+    boxShadow: on ? `0 0 0 3px ${col(hue, night)}` : 'inset 0 0 0 1px var(--line)',
+  } as const;
+}
+
 export function PersonEditor({
   person,
   night,
@@ -69,6 +83,7 @@ export function PersonEditor({
   const [role, setRole] = useState<Person['role']>(person?.role ?? 'kid');
   const [bday, setBday] = useState(formatBday(person));
   const [avatarUrl, setAvatarUrl] = useState(person?.avatarUrl ?? '');
+  const [avatarKey, setAvatarKey] = useState<string | null>(person?.avatarKey ?? null);
 
   const save = () => {
     const [parsed, year] = parseBday(bday);
@@ -79,6 +94,7 @@ export function PersonEditor({
       bday: parsed,
       byear: year,
       avatarUrl: avatarUrl.trim() || null,
+      avatarKey,
     });
   };
 
@@ -94,9 +110,76 @@ export function PersonEditor({
         </>
       }
     >
+      {/*
+        Exactly what the board will render, following the same photo → face →
+        initial order — so the effect of every field below is visible while you
+        are still editing it, including a photo URL that turns out not to load.
+      */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <Avatar
+          name={name}
+          hue={hue}
+          night={night}
+          size={86}
+          avatarUrl={avatarUrl.trim() || null}
+          avatarKey={avatarKey}
+          ring
+        />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: 'Outfit', fontSize: 22, fontWeight: 600 }}>
+            {name.trim() || 'Someone'}
+          </div>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink2)' }}>
+            {avatarUrl.trim()
+              ? 'Showing the photo'
+              : isAvatarKey(avatarKey)
+                ? `Showing ${avatarLabel(avatarKey)}`
+                : 'Showing the initial'}
+          </div>
+        </div>
+      </div>
+
       <Field label="Name">
         <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} autoFocus />
       </Field>
+
+      <Field label="Avatar" sub="Pick a face, or leave it off and use the initial">
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {/* Off first, so clearing a choice is where you'd reach for it. */}
+          <TapButton
+            title="No avatar"
+            onClick={() => setAvatarKey(null)}
+            style={{
+              ...avatarChoiceStyle(avatarKey === null, hue, night),
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 19,
+              fontWeight: 800,
+              color: 'var(--ink2)',
+            }}
+          >
+            {(name || '?').trim().charAt(0).toUpperCase()}
+          </TapButton>
+
+          {AVATAR_PACK.map((key) => (
+            <TapButton
+              key={key}
+              title={avatarLabel(key)}
+              onClick={() => setAvatarKey(key)}
+              style={avatarChoiceStyle(avatarKey === key, hue, night)}
+            >
+              <AvatarArt id={key} size={52} ground={col(hue, night)} />
+            </TapButton>
+          ))}
+        </div>
+      </Field>
+
+      {avatarUrl.trim() && avatarKey && (
+        <p style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: 'var(--ink2)' }}>
+          A photo is set, so it will be shown instead of this face. Clear the photo URL below to
+          use the face.
+        </p>
+      )}
 
       <Field label="Color">
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -171,7 +254,7 @@ export function ChoreEditor({
   onDelete?: () => void;
   onClose: () => void;
 }) {
-  const assignable = people.filter((p) => p.role !== 'shared');
+  const assignable = people;
   const [title, setTitle] = useState(chore?.title ?? '');
   // A new chore starts on nobody; picking at least one is what enables Save.
   const [personIds, setPersonIds] = useState<string[]>(chore?.personIds ?? []);
@@ -232,7 +315,7 @@ export function ChoreEditor({
                   color: on ? deep(p.hue, night) : 'var(--ink2)',
                 }}
               >
-                <Avatar name={p.name} hue={p.hue} night={night} size={34} avatarUrl={p.avatarUrl} />
+                <Avatar name={p.name} hue={p.hue} night={night} size={34} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
                 {p.name}
               </TapButton>
             );

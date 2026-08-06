@@ -87,6 +87,17 @@ button {
   100% { transform: scale(1.17) translate(-1.8%, -2%); }
 }
 
+/*
+  The colon between the hours and minutes, once a second. Held rather than
+  eased at each end so it reads as a tick, not a throb — and it never goes
+  fully dark, which would look like the clock had dropped a character.
+*/
+@keyframes colonPulse {
+  0%, 48% { opacity: .58; }
+  52%, 96% { opacity: .1; }
+  100% { opacity: .58; }
+}
+
 @keyframes blink {
   0%, 44% { opacity: 1; }
   50%, 94% { opacity: 0.25; }

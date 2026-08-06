@@ -12,7 +12,7 @@ import type {
 } from '@dashboard/shared';
 import { db, fromBool, id, nowIso, toBool } from '../db/index.js';
 import { getSettings } from './settings.js';
-import { isDue, periodKey } from './period.js';
+import { isDue, periodEnd, periodKey } from './period.js';
 
 // ---------- chores ----------
 
@@ -66,9 +66,9 @@ const toChore = (r: ChoreRow, personIds: string[]): Chore => ({
  * completion for the current period — so one kid checking off "Make the bed"
  * says nothing about the other two.
  */
-export function listChores(): BoardChore[] {
+export function listChores(on = new Date()): BoardChore[] {
   const { choreReset } = getSettings();
-  const period = periodKey(choreReset);
+  const period = periodKey(choreReset, on);
   return db
     .prepare<
       [string],
@@ -83,7 +83,7 @@ export function listChores(): BoardChore[] {
         ORDER BY c.sort_order, c.title`,
     )
     .all(period)
-    .filter((r) => isDue(r.repeat, choreReset))
+    .filter((r) => isDue(r.repeat, choreReset, on))
     .map((r) => ({
       choreId: r.id,
       personId: r.person_id,
@@ -191,6 +191,7 @@ export function setChoreDone(choreId: string, personId: string, done: boolean): 
     .get(choreId, personId);
   if (!assigned?.n) return null;
 
+  // Deliberately today's period, never the one being viewed: history is read-only.
   const period = periodKey(getSettings().choreReset);
   if (done) {
     db.prepare(
@@ -304,14 +305,34 @@ const toClaim = (r: ClaimRow): Claim => ({
 });
 
 /** Open claims, plus anything completed inside the current board period. */
-export function listClaims(): Claim[] {
-  const period = periodKey(getSettings().choreReset);
-  const since = period.startsWith('w:') ? period.slice(2) : period;
+/**
+ * Claims for a board period. Today's board also carries anything still open,
+ * since an unfinished job stays on the list until it is done or given back; a
+ * past board shows only what was actually claimed within it.
+ */
+export function listClaims(on = new Date()): Claim[] {
+  const { choreReset } = getSettings();
+  const period = periodKey(choreReset, on);
+  const start = period.startsWith('w:') ? period.slice(2) : period;
+  const isToday = period === periodKey(choreReset);
+
+  if (isToday) {
+    return db
+      .prepare<[string], ClaimRow>(
+        'SELECT * FROM claims WHERE done = 0 OR completed_at >= ? ORDER BY claimed_at',
+      )
+      .all(start)
+      .map(toClaim);
+  }
+
+  const end = periodEnd(choreReset, on);
   return db
-    .prepare<[string], ClaimRow>(
-      'SELECT * FROM claims WHERE done = 0 OR completed_at >= ? ORDER BY claimed_at',
+    .prepare<[string, string], ClaimRow>(
+      `SELECT * FROM claims
+        WHERE claimed_at >= ? AND claimed_at < ?
+        ORDER BY claimed_at`,
     )
-    .all(since)
+    .all(start, end)
     .map(toClaim);
 }
 

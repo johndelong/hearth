@@ -31,6 +31,7 @@ export function ChoreRow({
   night,
   busy,
   shimmer,
+  readOnly,
   onToggle,
   onOpen,
   onRemove,
@@ -43,6 +44,8 @@ export function ChoreRow({
   night: boolean;
   busy: boolean;
   shimmer: boolean;
+  /** A past or future board. The row still opens; it just cannot be changed. */
+  readOnly?: boolean;
   onToggle: () => void;
   onOpen: () => void;
   /** Bonus items only. Its absence is what makes a row un-swipeable. */
@@ -221,10 +224,11 @@ export function ChoreRow({
           type="button"
           aria-label={done ? `Uncheck ${title}` : `Check off ${title}`}
           aria-pressed={done}
-          disabled={busy}
+          disabled={busy || readOnly}
+          title={readOnly ? 'This day is a record — it cannot be changed' : undefined}
           onClick={(e) => {
             e.stopPropagation();
-            if (swiping) return;
+            if (swiping || readOnly) return;
             onToggle();
           }}
           style={{
@@ -237,7 +241,8 @@ export function ChoreRow({
             border: 'none',
             borderRadius: '18px 0 0 18px',
             background: 'transparent',
-            cursor: busy ? 'default' : 'pointer',
+            cursor: busy || readOnly ? 'default' : 'pointer',
+            opacity: readOnly ? 0.75 : 1,
           }}
         >
           <span

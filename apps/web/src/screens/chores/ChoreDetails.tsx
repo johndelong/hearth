@@ -20,6 +20,7 @@ export function ChoreDetails({
   done,
   person,
   night,
+  readOnly,
   onToggle,
   onClose,
 }: {
@@ -32,6 +33,7 @@ export function ChoreDetails({
   done: boolean;
   person: Person;
   night: boolean;
+  readOnly?: boolean;
   onToggle: () => void;
   onClose: () => void;
 }) {
@@ -45,17 +47,19 @@ export function ChoreDetails({
           <Button size="lg" onClick={onClose}>
             Close
           </Button>
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => {
-              onToggle();
-              onClose();
-            }}
-          >
-            <Icon name="check" size={19} />
-            {done ? 'Mark not done' : 'Check it off'}
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => {
+                onToggle();
+                onClose();
+              }}
+            >
+              <Icon name="check" size={19} />
+              {done ? 'Mark not done' : 'Check it off'}
+            </Button>
+          )}
         </>
       }
     >

@@ -30,7 +30,7 @@ export function MonthView({ anchor, now, events, byPerson, night, settings, onEd
   });
 
   // Legend doubles as a color key for the family.
-  const legend = [...byPerson.values()].filter((p) => p.onCal && p.role !== 'shared');
+  const legend = [...byPerson.values()].filter((p) => p.onCal);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%' }}>

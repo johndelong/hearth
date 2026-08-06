@@ -19,6 +19,17 @@ export function soft(hue: number, night: boolean): string {
   return `oklch(0.96 0.028 ${hue})`;
 }
 
+/**
+ * Lift under an avatar.
+ *
+ * The ground behind a pack face is the person's colour at full strength, which
+ * is the point — but a saturated disc on a light card has no edge of its own.
+ * A small shadow gives it one without a border, which would compete with the
+ * ring some avatars already carry.
+ */
+export const AVATAR_LIFT =
+  '0 1px 2px rgba(20,24,40,.14), 0 5px 12px -4px rgba(20,24,40,.34)';
+
 /** Readable text color on top of `soft()`. */
 export function deep(hue: number, night: boolean): string {
   if (night) return '#eef0f6';
@@ -63,6 +74,7 @@ export const ICONS = {
   sync: 'M4 12a8 8 0 0113.7-5.7M20 12a8 8 0 01-13.7 5.7M17.5 3.5v3h-3M6.5 20.5v-3h3',
   trash: 'M5 7h14M10 7V5h4v2M6.5 7l1 12h9l1-12',
   x: 'M6 6l12 12M18 6L6 18',
+  flame: 'M12 3c.6 3-1.2 4.2-2.6 5.6A6.3 6.3 0 007.5 13a4.5 4.5 0 009 0c0-1.7-.8-2.9-1.7-3.9-.7-.8-1.2-1.6-1-2.6-1 .5-1.8 1.4-2 2.4-.9-1.2-1-3.2.2-5.9z',
 } as const;
 
 export type IconName = keyof typeof ICONS;

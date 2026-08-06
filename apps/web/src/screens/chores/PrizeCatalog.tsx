@@ -79,7 +79,7 @@ export function PrizeCatalog({
         }}
       >
         <header style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <Avatar name={person.name} hue={person.hue} night={night} size={56} avatarUrl={person.avatarUrl} ring />
+          <Avatar name={person.name} hue={person.hue} night={night} size={56} avatarUrl={person.avatarUrl} avatarKey={person.avatarKey} ring />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontFamily: 'Outfit', fontSize: 27, fontWeight: 600, letterSpacing: '-.01em' }}>
               {person.name}'s prizes
@@ -126,7 +126,7 @@ export function PrizeCatalog({
                     color: on ? deep(kid.hue, night) : 'var(--ink2)',
                   }}
                 >
-                  <Avatar name={kid.name} hue={kid.hue} night={night} size={30} avatarUrl={kid.avatarUrl} />
+                  <Avatar name={kid.name} hue={kid.hue} night={night} size={30} avatarUrl={kid.avatarUrl} avatarKey={kid.avatarKey} />
                   <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.15 }}>
                     <span style={{ fontSize: 15, fontWeight: 800 }}>{kid.name}</span>
                     <span style={{ fontSize: 12, fontWeight: 800, opacity: 0.7 }}>{pointsFor(kid.id)} pts</span>

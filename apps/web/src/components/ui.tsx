@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { CARD, EASE, ICONS, type IconName, col } from '../theme';
+import { AVATAR_LIFT, CARD, EASE, ICONS, type IconName, col } from '../theme';
+import { AvatarArt, isAvatarKey } from './AvatarArt';
 
 export function Icon({
   name,
@@ -27,13 +28,18 @@ export function Icon({
   );
 }
 
-/** Round avatar. Falls back to the person's initial when there is no photo. */
+/**
+ * Round avatar, in order of preference: a photo, a face from the built-in
+ * pack, then the person's initial. A photo outranks a pack face so that
+ * picking one never quietly discards a photo somebody set.
+ */
 export function Avatar({
   name,
   hue,
   night,
   size = 40,
   avatarUrl,
+  avatarKey,
   ring,
 }: {
   name: string;
@@ -41,6 +47,7 @@ export function Avatar({
   night: boolean;
   size?: number;
   avatarUrl?: string | null;
+  avatarKey?: string | null;
   ring?: boolean;
 }) {
   const base: CSSProperties = {
@@ -56,10 +63,18 @@ export function Avatar({
     fontWeight: 800,
     background: col(hue, night),
     color: night ? '#14161c' : '#fff',
-    boxShadow: ring ? `inset 0 0 0 2px ${col(hue, night)}` : undefined,
+    // The ring is inset so it survives alongside the lift, which is not.
+    boxShadow: ring ? `inset 0 0 0 2px ${col(hue, night)}, ${AVATAR_LIFT}` : AVATAR_LIFT,
   };
   if (avatarUrl) {
     return <img src={avatarUrl} alt={name} style={{ ...base, objectFit: 'cover' }} />;
+  }
+  if (isAvatarKey(avatarKey)) {
+    return (
+      <div style={{ ...base, background: 'transparent' }}>
+        <AvatarArt id={avatarKey} size={size} ground={col(hue, night)} />
+      </div>
+    );
   }
   return <div style={base}>{(name || '?').trim().charAt(0).toUpperCase()}</div>;
 }
