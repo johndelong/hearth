@@ -1,8 +1,21 @@
-import type { CalendarEvent, Person, Settings } from '@dashboard/shared';
+import { type CalendarEvent, type Person, type Settings, eventEnd, eventStart } from '@dashboard/shared';
 import { useEffect, useRef } from 'react';
 import { Avatar, Card, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
-import { dayHourRange, eventsOn, fmtTime, sameDay } from './useEvents';
+import { dayHourRange, eventsOn, fmtRange, layoutDay, sameDay } from './useEvents';
+
+/**
+ * Height of one hour of the grid. Every block's height is derived from this, so
+ * the rows must be exactly this tall — hence `boxSizing: border-box`, which keeps
+ * the 1px rule inside the row instead of drifting the grid a pixel per hour.
+ */
+const HOUR_H = 84;
+
+/** Width of the hour-label gutter: the 74px label plus the 18px row gap. */
+const GUTTER = 92;
+
+/** Breathing room between a block and the one in the next lane. */
+const LANE_GAP = 7;
 
 interface Props {
   day: Date;
@@ -28,7 +41,10 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
   const dayEvents = eventsOn(events, day);
   const allDay = dayEvents.filter((e) => e.allDay);
   const timed = dayEvents.filter((e) => !e.allDay);
+  const boxes = layoutDay(timed, day, hours);
   const isToday = sameDay(day, now);
+  const nowMin = (now.getHours() - (hours[0] ?? 0)) * 60 + now.getMinutes();
+  const showNowLine = isToday && nowMin >= 0 && nowMin <= hours.length * 60;
   const scroller = useRef<HTMLDivElement>(null);
   const scrolledFor = useRef<string>('');
 
@@ -77,93 +93,104 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
       )}
 
       <Card ref={scroller} style={{ flex: 1, overflowY: 'auto' }} padding="10px 20px 28px">
-        {hours.map((h, hi) => {
-          const rowEvents = timed.filter((e) => new Date(e.start).getHours() === h);
-          const isNow = isToday && now.getHours() === h;
-          return (
-            <div
-              key={h}
-              data-now={isNow ? 'true' : undefined}
-              style={{
-                position: 'relative',
-                display: 'flex',
-                gap: 18,
-                alignItems: 'flex-start',
-                minHeight: 78,
-                padding: '12px 0',
-                borderTop: hi === 0 ? 'none' : '1px solid var(--line)',
-              }}
-            >
+        <div style={{ position: 'relative' }}>
+          {hours.map((h, hi) => {
+            const isNow = isToday && now.getHours() === h;
+            return (
               <div
+                key={h}
+                data-now={isNow ? 'true' : undefined}
                 style={{
-                  flex: 'none',
-                  width: 74,
-                  paddingTop: 2,
-                  fontSize: 14.5,
-                  fontWeight: 800,
-                  color: isNow ? col(25, night) : 'var(--ink2)',
+                  boxSizing: 'border-box',
+                  height: HOUR_H,
+                  paddingTop: 6,
+                  borderTop: hi === 0 ? 'none' : '1px solid var(--line)',
                 }}
               >
-                {(h % 12 || 12) + (h < 12 ? ' AM' : ' PM')}
-              </div>
-
-              <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 10, minWidth: 0 }}>
-                {rowEvents.map((e, ei) => {
-                  const p = person(e);
-                  return (
-                    <TapButton
-                      key={e.id}
-                      onClick={() => !e.synthetic && onEditEvent(e)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 10,
-                        flex: '1 1 208px',
-                        maxWidth: 330,
-                        minWidth: 0,
-                        padding: '10px 13px',
-                        borderRadius: 14,
-                        borderLeft: `3px solid ${col(p.hue, night)}`,
-                        background: soft(p.hue, night),
-                        color: deep(p.hue, night),
-                        textAlign: 'left',
-                        animation: `riseIn .45s ${EASE} ${hi * 18 + ei * 30}ms both`,
-                      }}
-                    >
-                      <Avatar name={p.name} hue={p.hue} night={night} size={27} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
-                      <span style={{ minWidth: 0 }}>
-                        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, opacity: 0.75 }}>
-                          {fmtTime(new Date(e.start))}
-                        </span>
-                        <span style={{ display: 'block', fontSize: 16.5, fontWeight: 800 }}>{e.title}</span>
-                        {e.location && (
-                          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, opacity: 0.7 }}>
-                            {e.location}
-                          </span>
-                        )}
-                      </span>
-                    </TapButton>
-                  );
-                })}
-              </div>
-
-              {isNow && (
                 <div
                   style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    top: `${Math.round((now.getMinutes() / 60) * 100)}%`,
-                    height: 2,
-                    borderRadius: 2,
-                    background: 'oklch(0.66 0.17 25)',
-                    pointerEvents: 'none',
+                    width: 74,
+                    fontSize: 14.5,
+                    fontWeight: 800,
+                    color: isNow ? col(25, night) : 'var(--ink2)',
                   }}
-                />
-              )}
-            </div>
-          );
-        })}
+                >
+                  {(h % 12 || 12) + (h < 12 ? ' AM' : ' PM')}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Blocks float above the grid; the layer itself must not eat taps. */}
+          <div style={{ position: 'absolute', inset: 0, left: GUTTER, pointerEvents: 'none' }}>
+            {boxes.map((box, i) => {
+              const e = box.event;
+              const p = person(e);
+              const height = ((box.endMin - box.startMin) / 60) * HOUR_H - 4;
+              const width = 100 / box.columns;
+              // Below roughly two lines of type there is only room for one.
+              const tight = height < 58;
+
+              return (
+                <TapButton
+                  key={e.id}
+                  onClick={() => !e.synthetic && onEditEvent(e)}
+                  style={{
+                    position: 'absolute',
+                    pointerEvents: 'auto',
+                    top: (box.startMin / 60) * HOUR_H,
+                    height,
+                    left: `${box.column * width}%`,
+                    width: `calc(${width}% - ${LANE_GAP}px)`,
+                    display: 'flex',
+                    alignItems: tight ? 'center' : 'flex-start',
+                    gap: 10,
+                    overflow: 'hidden',
+                    padding: tight ? '6px 12px' : '9px 13px',
+                    borderRadius: 14,
+                    borderLeft: `3px solid ${col(p.hue, night)}`,
+                    background: soft(p.hue, night),
+                    color: deep(p.hue, night),
+                    textAlign: 'left',
+                    animation: `riseIn .45s ${EASE} ${i * 26}ms both`,
+                  }}
+                >
+                  {!tight && (
+                    <Avatar name={p.name} hue={p.hue} night={night} size={27} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
+                  )}
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, opacity: 0.75 }}>
+                      {fmtRange(eventStart(e), eventEnd(e))}
+                    </span>
+                    <span style={{ display: 'block', fontSize: tight ? 14.5 : 16.5, fontWeight: 800 }}>
+                      {e.title}
+                    </span>
+                    {e.location && height >= 84 && (
+                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, opacity: 0.7 }}>
+                        {e.location}
+                      </span>
+                    )}
+                  </span>
+                </TapButton>
+              );
+            })}
+
+            {showNowLine && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: -GUTTER,
+                  right: 0,
+                  top: (nowMin / 60) * HOUR_H,
+                  height: 2,
+                  borderRadius: 2,
+                  background: 'oklch(0.66 0.17 25)',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </div>
+        </div>
 
         {timed.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--ink2)', fontWeight: 700 }}>
