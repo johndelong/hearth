@@ -653,39 +653,32 @@ function AboutPanel({ say }: { say: (text: string, hue?: number) => void }) {
           <div title={info.current} style={{ fontSize: 17, fontWeight: 800 }}>
             {/^v\d/.test(info.current) ? `Version ${info.current}` : displayVersion(info.current)}
           </div>
-          {/*
-            Nothing is said when release checking is off. It is optional, and a
-            dashboard on the kitchen wall should not nag the household to go set
-            an environment variable.
-          */}
-          {info.checkEnabled && (
-            <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
-              {info.error
-                ? `Last check failed: ${info.error}`
-                : behind
-                  ? `${info.available} is available — deploy it on the Mac mini`
-                  : 'Up to date'}
-            </div>
-          )}
+          <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
+            {info.error
+              ? `Last check failed: ${info.error}`
+              : behind
+                ? `${info.available} is available — deploy it on the Mac mini`
+                : info.checkedAt
+                  ? 'Up to date'
+                  : 'Checking for updates…'}
+          </div>
         </div>
-        {info.checkEnabled && (
-          <Button
-            onClick={async () => {
-              setChecking(true);
-              try {
-                setInfo(await api.checkVersion());
-                say('Checked for updates', 148);
-              } catch (err) {
-                say(err instanceof Error ? err.message : 'Check failed', 25);
-              } finally {
-                setChecking(false);
-              }
-            }}
-            style={{ flex: 'none' }}
-          >
-            {checking ? 'Checking…' : 'Check now'}
-          </Button>
-        )}
+        <Button
+          onClick={async () => {
+            setChecking(true);
+            try {
+              setInfo(await api.checkVersion());
+              say('Checked for updates', 148);
+            } catch (err) {
+              say(err instanceof Error ? err.message : 'Check failed', 25);
+            } finally {
+              setChecking(false);
+            }
+          }}
+          style={{ flex: 'none' }}
+        >
+          {checking ? 'Checking…' : 'Check now'}
+        </Button>
       </div>
 
       {behind && info.releaseUrl && (

@@ -1,33 +1,32 @@
 /**
  * What version am I, and is there a newer one?
  *
- * `APP_VERSION` is stamped into the image at build time. The release check is
- * optional: without a token the dashboard still reports what it is running and
- * still catches stale browser tabs after a deploy — it just won't know that a
- * newer release exists on GitHub.
+ * `APP_VERSION` is stamped into the image at build time. The release check
+ * needs no credentials: the repository is public, so GitHub answers
+ * /releases/latest anonymously. A token is still honoured if one happens to be
+ * set — it only raises the rate limit, which one call an hour never approaches.
  */
 
 export interface VersionInfo {
   /** The build this server is running, e.g. `v0.2.0` or `v0.2.0-3-gabc1234`. */
   current: string;
-  /** Newest release tag seen on GitHub, when the check is configured. */
+  /** Newest release tag seen on GitHub. Null until the first check lands. */
   available: string | null;
   releaseUrl: string | null;
   releaseNotes: string | null;
   checkedAt: string | null;
   /** Set when the last check failed, so Settings can say why. */
   error: string | null;
-  /** False when no token is configured — the UI then hides the release notice. */
-  checkEnabled: boolean;
 }
 
 const REPO = process.env.UPDATE_REPO ?? 'johndelong/hearth';
+/** Optional. Only raises the API rate limit; the check works without it. */
 const TOKEN = process.env.UPDATE_CHECK_TOKEN ?? process.env.GITHUB_TOKEN ?? '';
 const INTERVAL_MS = Number(process.env.UPDATE_CHECK_INTERVAL_MS ?? 60 * 60_000);
 
 export const CURRENT_VERSION = process.env.APP_VERSION ?? 'dev';
 
-let latest: Omit<VersionInfo, 'current' | 'checkEnabled'> = {
+let latest: Omit<VersionInfo, 'current'> = {
   available: null,
   releaseUrl: null,
   releaseNotes: null,
@@ -36,7 +35,7 @@ let latest: Omit<VersionInfo, 'current' | 'checkEnabled'> = {
 };
 
 export function versionInfo(): VersionInfo {
-  return { current: CURRENT_VERSION, checkEnabled: Boolean(TOKEN), ...latest };
+  return { current: CURRENT_VERSION, ...latest };
 }
 
 /** Compares `v1.2.3` style tags. Returns true when `candidate` is newer. */
@@ -55,13 +54,12 @@ export function isNewer(candidate: string, current: string): boolean {
 }
 
 async function checkOnce(): Promise<void> {
-  if (!TOKEN) return;
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
       headers: {
-        authorization: `Bearer ${TOKEN}`,
         accept: 'application/vnd.github+json',
         'user-agent': 'hearth-dashboard',
+        ...(TOKEN ? { authorization: `Bearer ${TOKEN}` } : null),
       },
     });
 
@@ -92,7 +90,7 @@ async function checkOnce(): Promise<void> {
 let timer: NodeJS.Timeout | null = null;
 
 export function startVersionChecks(): void {
-  if (!TOKEN || timer) return;
+  if (timer) return;
   void checkOnce();
   timer = setInterval(() => void checkOnce(), INTERVAL_MS);
   timer.unref?.();

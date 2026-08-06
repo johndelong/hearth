@@ -99,7 +99,6 @@ export interface VersionInfo {
   releaseNotes: string | null;
   checkedAt: string | null;
   error: string | null;
-  checkEnabled: boolean;
 }
 
 export const api = {

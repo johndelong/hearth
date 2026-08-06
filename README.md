@@ -139,13 +139,7 @@ Restart the server and it applies. Rules worth knowing:
 On the mini, with Docker Desktop installed and running:
 
 ```bash
-# The repo is private, so give the mini read-only access. On the mini:
-ssh-keygen -t ed25519 -C "hearth-mac-mini" -f ~/.ssh/hearth_deploy
-cat ~/.ssh/hearth_deploy.pub
-# Add that key at: github.com/johndelong/hearth → Settings → Deploy keys
-#   (leave "Allow write access" unchecked)
-
-git clone git@github.com:johndelong/hearth.git ~/hearth
+git clone https://github.com/johndelong/hearth.git ~/hearth
 cd ~/hearth
 cp .env.example .env        # fill in PUBLIC_URL, Google credentials, COOKIE_SECRET
 ./scripts/deploy.sh         # builds and starts the newest release tag
@@ -218,27 +212,29 @@ on the next request the panel makes anyway, and instantly on any tap.
 This matters because a wall panel can sit on the same page for weeks; without it,
 it keeps running whatever JavaScript it loaded back then.
 
-### Optional: notice undeployed releases from the dashboard
+### Noticing undeployed releases
 
-You probably don't need this. Panels already notice a **deploy** without any
-token — that half reads the version off the server they're talking to. This adds
-one thing on top: a nudge that you tagged a release and haven't deployed it yet.
-Since you're the one cutting releases, `./scripts/deploy.sh --check` on the mini
-usually answers that already, using the deploy key it already has.
+Two different things keep the panels honest, and only one of them involves GitHub.
 
-If you do want it in the UI, set `UPDATE_CHECK_TOKEN` in `.env` to a GitHub
-[fine-grained token](https://github.com/settings/tokens?type=beta) scoped to just
-this repository with **Contents: Read-only**. The server checks GitHub hourly —
-once for the whole house, not per panel — and **Settings › Display › This
-dashboard** shows what's running, what's available, a link to the release notes,
-and a **Check now** button when you don't want to wait for the next check.
+**After a deploy**, every API response carries an `x-hearth-version` header. A tab
+that booted against an older build sees the new version come back and offers to
+reload, so a tablet left on the same page for weeks can't keep running last
+month's JavaScript. Nothing to configure.
 
-Without the token everything still works — the panel just won't know a newer
-release exists until you deploy it.
+**Before a deploy**, the server asks GitHub hourly whether a newer release exists
+— once for the whole house, not once per panel. This repository is public, so
+that call needs no credentials. **Settings › Display › This dashboard** shows
+what's running, what's available, a link to the release notes, and a **Check
+now** button when you don't want to wait out the hour.
 
-A token is needed only because the repo is private. Making it public would remove
-that need, but the seed data carries the girls' names and birthdays, so keeping it
-private is worth more than saving one line of config.
+`UPDATE_CHECK_TOKEN` is still read if it is set, but it is no longer needed: it
+only raises GitHub's rate limit, and one call an hour never comes close. Leave it
+blank.
+
+On the mini, `./scripts/deploy.sh --check` answers the same question from git
+rather than the releases API — it compares tags, where the app compares published
+releases. The two agree unless a tag was pushed and the release workflow failed
+to publish it, in which case the tag is the one to distrust.
 
 The deploy itself is deliberately a command you run, not a button in the app. A
 container can't rebuild itself: the process doing the work gets killed partway
@@ -268,5 +264,5 @@ matters.
 | `TRUST_PROXY` | `false` | Set `true` only behind a reverse proxy |
 | `TZ` | system | Local time for resets and day boundaries |
 | `APP_VERSION` | `dev` | Stamped in at build time; reported at `/api/version` |
-| `UPDATE_CHECK_TOKEN` | — | Read-only GitHub token; enables the new-release notice |
+| `UPDATE_CHECK_TOKEN` | — | Not needed. Only raises GitHub's rate limit for the release check |
 | `UPDATE_REPO` | `johndelong/hearth` | Repo to check for releases |
