@@ -107,6 +107,7 @@ const EMPTY_BOARD: Board = {
   date: '',
   today: true,
   readOnly: false,
+  daysAhead: 0,
   chores: [],
   extras: [],
   claims: [],

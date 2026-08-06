@@ -5,10 +5,28 @@
  * design already settled on a vocabulary (hue, role, repeat, points).
  */
 
+import type { Recurrence } from './recurrence.js';
+
+export * from './recurrence.js';
+
 export type Role = 'kid' | 'parent';
 
-/** Repeat rules a chore can carry. Mirrors REPEATS in the prototype. */
-export type Repeat = 'Daily' | 'Weekdays' | 'Weekly' | 'Weekends';
+/**
+ * Which part of the day a chore belongs to. Purely organisational — it groups
+ * the board into sections and has no bearing on when a chore is due, which is
+ * entirely the recurrence rule's business.
+ */
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'any';
+
+/** Board order: through the day, with the unscoped chores last. */
+export const TIMES_OF_DAY: readonly TimeOfDay[] = ['morning', 'afternoon', 'evening', 'any'];
+
+export const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  evening: 'Evening',
+  any: 'Any time',
+};
 
 /** How often every chore board clears itself. */
 export type ChoreReset = 'Every night' | 'Sunday' | 'Monday';
@@ -53,7 +71,10 @@ export interface Chore {
   description: string | null;
   /** How to do it — the step-by-step half of the details modal. */
   instructions: string | null;
-  repeat: Repeat;
+  /** When this chore comes around. See `Recurrence`. */
+  recurrence: Recurrence;
+  /** Which section of the board it sits under. Never affects whether it is due. */
+  timeOfDay: TimeOfDay;
   active: boolean;
   sortOrder: number;
 }
@@ -70,10 +91,17 @@ export interface BoardChore {
   title: string;
   description: string | null;
   instructions: string | null;
-  repeat: Repeat;
+  recurrence: Recurrence;
+  timeOfDay: TimeOfDay;
   sortOrder: number;
   /** Checked off by this person, for the current board period. */
   done: boolean;
+  /**
+   * Local `YYYY-MM-DD` the tick actually happened, which is not always the day
+   * it counts for — a chore due Sunday may have been done on Friday. Null when
+   * it has not been done.
+   */
+  completedOn: string | null;
 }
 
 /** An optional job any kid can pick up for points. */
@@ -98,6 +126,12 @@ export interface Claim {
   instructions: string | null;
   points: number;
   done: boolean;
+  /**
+   * Whether the points have actually landed in the ledger. An extra job can be
+   * finished before the day's required chores are, and when it is the points
+   * wait rather than being refused — see `releaseClaimPoints`.
+   */
+  paid: boolean;
   claimedAt: string;
   completedAt: string | null;
 }
@@ -256,7 +290,6 @@ export const SWATCHES: ReadonlyArray<readonly [string, number]> = [
   ['Slate', -1],
 ];
 
-export const REPEATS: readonly Repeat[] = ['Daily', 'Weekdays', 'Weekly', 'Weekends'];
 export const ROLES: readonly Role[] = ['kid', 'parent'];
 export const MONTHS: readonly string[] = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',

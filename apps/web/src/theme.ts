@@ -12,11 +12,18 @@ export function col(hue: number, night: boolean): string {
   return night ? `oklch(0.78 0.13 ${hue})` : `oklch(0.68 0.14 ${hue})`;
 }
 
-/** Tinted background wash for cards and chips. */
+/**
+ * Tinted background wash for cards and chips.
+ *
+ * Night keeps the hue rather than collapsing to a grey overlay. Whose chip this
+ * is has to survive the dark theme — a board where every person washes out to
+ * the same white film loses the one thing the colours were for, and it left
+ * `col()` as the only tinted thing on screen, which is why the odd saturated
+ * border stood out so badly.
+ */
 export function soft(hue: number, night: boolean): string {
-  if (night) return 'rgba(255,255,255,.055)';
-  if (hue < 0) return 'rgba(30,34,48,.05)';
-  return `oklch(0.96 0.028 ${hue})`;
+  if (hue < 0) return night ? 'rgba(255,255,255,.07)' : 'rgba(30,34,48,.05)';
+  return night ? `oklch(0.32 0.05 ${hue})` : `oklch(0.96 0.028 ${hue})`;
 }
 
 /**
@@ -30,11 +37,16 @@ export function soft(hue: number, night: boolean): string {
 export const AVATAR_LIFT =
   '0 1px 2px rgba(20,24,40,.14), 0 5px 12px -4px rgba(20,24,40,.34)';
 
-/** Readable text color on top of `soft()`. */
+/**
+ * Readable text color on top of `soft()`.
+ *
+ * Light and dark are mirror images: dark saturated ink on a pale wash, light
+ * saturated ink on a dark one. Both keep well clear of their background in
+ * lightness, which is what carries the contrast — the hue only says whose it is.
+ */
 export function deep(hue: number, night: boolean): string {
-  if (night) return '#eef0f6';
-  if (hue < 0) return '#2b3040';
-  return `oklch(0.4 0.09 ${hue})`;
+  if (hue < 0) return night ? '#eef0f6' : '#2b3040';
+  return night ? `oklch(0.88 0.08 ${hue})` : `oklch(0.4 0.09 ${hue})`;
 }
 
 export const CARD =

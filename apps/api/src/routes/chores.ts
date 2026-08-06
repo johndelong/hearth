@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { requireParent } from '../auth.js';
 import {
+  CompletionOutOfRange,
   InsufficientPoints,
   adjustPoints,
   createChore,
@@ -26,15 +27,16 @@ import {
   updateReward,
 } from '../store/chores.js';
 import { listPeople } from '../store/people.js';
-import { localDate, periodKey } from '../store/period.js';
+import { MAX_DAYS_AHEAD, daysAhead, localDate, periodKey } from '../store/period.js';
 import { getSettings } from '../store/settings.js';
 import { listStreaks, pauseStreak, resumeStreak } from '../store/streaks.js';
 
 export async function choreRoutes(app: FastifyInstance): Promise<void> {
   // One call backs the whole Chores screen, so the boards never render half-updated.
   //
-  // `?date=YYYY-MM-DD` looks at another day's board. Anything but today comes
-  // back `readOnly` — history is a record, and the future hasn't happened.
+  // `?date=YYYY-MM-DD` looks at another day's board. The past comes back
+  // `readOnly` — history is a record. The week ahead does not, so a chore can
+  // be ticked off before the day it is due.
   app.get<{ Querystring: { date?: string } }>('/api/chores/board', async (request, reply) => {
     const raw = request.query.date;
     if (raw !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
@@ -47,11 +49,15 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
 
     const { choreReset } = getSettings();
     const today = periodKey(choreReset) === periodKey(choreReset, on);
+    const ahead = daysAhead(on);
 
     return {
       date: localDate(on),
       today,
-      readOnly: !today,
+      // The past is a record. The week ahead is not: a chore can be done early,
+      // so those boards stay writable even though they are not today.
+      readOnly: !today && (ahead < 0 || ahead > MAX_DAYS_AHEAD),
+      daysAhead: ahead,
       chores: listChores(on),
       extras: listExtras(),
       claims: listClaims(on),
@@ -65,14 +71,31 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
   // --- checking off is deliberately unguarded: it is the kids' interaction ---
 
   // A chore can be assigned to several people, so checking off names which one.
-  app.post<{ Params: { id: string }; Body: { personId?: string; done?: boolean } }>(
+  //
+  // `date` names the occurrence being satisfied rather than the day of the tap,
+  // which is how a chore gets done ahead of time. The store decides how far
+  // ahead is allowed.
+  app.post<{ Params: { id: string }; Body: { personId?: string; done?: boolean; date?: string } }>(
     '/api/chores/:id/done',
     async (request, reply) => {
       const personId = request.body?.personId;
       if (!personId) return reply.code(400).send({ error: 'personId is required' });
-      const chore = setChoreDone(request.params.id, personId, request.body?.done ?? true);
-      if (!chore) return reply.code(404).send({ error: 'Unknown chore for that person' });
-      return { chore, points: listPoints() };
+
+      const raw = request.body?.date;
+      if (raw !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        return reply.code(400).send({ error: 'date must be YYYY-MM-DD' });
+      }
+      const on = raw ? new Date(`${raw}T00:00:00`) : new Date();
+      if (Number.isNaN(on.getTime())) return reply.code(400).send({ error: 'Unparseable date' });
+
+      try {
+        const chore = setChoreDone(request.params.id, personId, request.body?.done ?? true, on);
+        if (!chore) return reply.code(404).send({ error: 'Unknown chore for that person that day' });
+        return { chore, points: listPoints() };
+      } catch (err) {
+        if (err instanceof CompletionOutOfRange) return reply.code(400).send({ error: err.message });
+        throw err;
+      }
     },
   );
 

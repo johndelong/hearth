@@ -74,16 +74,19 @@ export function StreakPill({ streak, night }: { streak: Streak; night: boolean }
     );
   }
 
-  if (streak.length === 0) return null;
-
-  const tier = TIERS.find((t) => streak.length >= t.min) ?? TIERS[TIERS.length - 1]!;
+  // No tier at all is the zero state, and it stays on the card rather than
+  // disappearing — a streak you cannot see is one you cannot be reminded of,
+  // and an empty slot beside everyone else's flame reads as broken. Neutral
+  // grey, the same way an unfinished ProgressPill says "not yet" rather than
+  // saying anything worse.
+  const tier = TIERS.find((t) => streak.length >= t.min) ?? null;
   // Past the top tier the pill keeps intensifying a little, so a 60-day run
   // still reads as more than a 30-day one.
   const heat = Math.min(1, streak.length / 30);
 
   return (
     <span
-      title={`${streak.length} in a row — ${tier.label}`}
+      title={tier ? `${streak.length} in a row — ${tier.label}` : 'No streak yet — finish today to start one'}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -92,9 +95,10 @@ export function StreakPill({ streak, night }: { streak: Streak; night: boolean }
         borderRadius: 999,
         fontSize: 14,
         fontWeight: 800,
-        background: soft(tier.hue, night),
-        color: deep(tier.hue, night),
-        boxShadow: heat > 0.4 ? `0 0 0 2px ${col(tier.hue, night)}${heat > 0.85 ? '' : '66'}` : 'none',
+        background: tier ? soft(tier.hue, night) : 'var(--chip)',
+        color: tier ? deep(tier.hue, night) : 'var(--ink2)',
+        boxShadow:
+          tier && heat > 0.4 ? `0 0 0 2px ${col(tier.hue, night)}${heat > 0.85 ? '' : '66'}` : 'none',
         transition: `background .5s ${EASE}, box-shadow .5s ${EASE}`,
         animation: streak.length >= 14 ? `ptsPop 2.6s ${EASE} infinite` : undefined,
       }}

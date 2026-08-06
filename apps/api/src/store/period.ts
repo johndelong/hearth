@@ -1,4 +1,4 @@
-import type { ChoreReset, Repeat } from '@dashboard/shared';
+import { type ChoreReset, type Recurrence, dueOn, dueWithin } from '@dashboard/shared';
 
 /** Local `YYYY-MM-DD` for a date, using the server's configured TZ. */
 export function localDate(d = new Date()): string {
@@ -43,19 +43,24 @@ export function previousPeriod(reset: ChoreReset, d: Date): Date {
   return prev;
 }
 
-/** Whether a chore with this repeat rule belongs on today's board. */
-export function isDue(repeat: Repeat, reset: ChoreReset, d = new Date()): boolean {
-  // A weekly board shows everything assigned for that week at once.
-  if (reset !== 'Every night') return true;
-  const dow = d.getDay();
-  switch (repeat) {
-    case 'Daily':
-      return true;
-    case 'Weekdays':
-      return dow >= 1 && dow <= 5;
-    case 'Weekends':
-      return dow === 0 || dow === 6;
-    case 'Weekly':
-      return dow === 0;
-  }
+/** How many days ahead a chore may be checked off. */
+export const MAX_DAYS_AHEAD = 7;
+
+/** Whole days from today to `on`. Negative for the past, 0 for today. */
+export function daysAhead(on: Date, from = new Date()): number {
+  const a = new Date(from);
+  const b = new Date(on);
+  a.setHours(0, 0, 0, 0);
+  b.setHours(0, 0, 0, 0);
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+
+/** Whether a chore with this recurrence rule belongs on a given board. */
+export function isDue(rec: Recurrence, reset: ChoreReset, d = new Date()): boolean {
+  if (reset === 'Every night') return dueOn(rec, d);
+  // A weekly board shows everything assigned for that week at once, so a chore
+  // earns its place by landing on any day in the period — not on the day the
+  // board happens to be looked at.
+  const start = new Date(`${periodKey(reset, d).slice(2)}T00:00:00`);
+  return dueWithin(rec, start, 7);
 }

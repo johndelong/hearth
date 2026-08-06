@@ -1,4 +1,4 @@
-import type { CalendarEvent, Chore, Extra, Person, Reward } from '@dashboard/shared';
+import type { CalendarEvent, Chore, Extra, Person, Reward, WeekStart } from '@dashboard/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError, api } from './api';
 import { EventEditor } from './components/EventEditor';
@@ -10,7 +10,7 @@ import { ExtraPicker } from './components/pickers';
 import { Button, Confetti, Icon, IconButton, TapButton, Toast } from './components/ui';
 import { CalendarScreen } from './screens/calendar/CalendarScreen';
 import type { CalView } from './screens/calendar/useEvents';
-import { useEvents } from './screens/calendar/useEvents';
+import { rangeFor, useEvents } from './screens/calendar/useEvents';
 import { ChoresScreen } from './screens/chores/ChoresScreen';
 import { PrizeCatalog } from './screens/chores/PrizeCatalog';
 import { SettingsScreen, type SettingsSection } from './screens/settings/SettingsScreen';
@@ -49,6 +49,35 @@ export default function App() {
 
   // Frame mode needs today's events regardless of which tab is open.
   const idleEvents = useEvents('day', now, settings.weekStart);
+
+  /**
+   * The day the header names: whatever the open tab is pointed at. Each tab
+   * keeps its own place, so switching between them does not quietly drag the
+   * other one along.
+   */
+  const viewing = useMemo(() => {
+    if (tab === 'chores' && board?.date) return new Date(`${board.date}T00:00:00`);
+    if (tab === 'today') return anchor;
+    return now;
+  }, [tab, board?.date, anchor, now]);
+
+  /**
+   * What the header actually reads. A single day is named by its date; a week
+   * or a month is named by the month, the way macOS Calendar does it, because
+   * picking one day out of a grid of thirty to put in the title is arbitrary.
+   */
+  const heading = useMemo(() => {
+    if (tab === 'today' && calView !== 'day') return spanLabel(calView, anchor, settings.weekStart);
+    return {
+      title: viewing.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        // Only worth the width once the year is no longer the obvious one.
+        ...(viewing.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+      }),
+      sub: viewing.toLocaleDateString('en-US', { weekday: 'long' }),
+    };
+  }, [tab, calView, anchor, settings.weekStart, viewing, now]);
 
   useEffect(() => {
     void api
@@ -156,16 +185,17 @@ export default function App() {
           }}
         >
           {/*
-            The same clock on every tab. A wall panel is glanced at far more
-            often than it is used, and the date and time are what that glance
-            is usually for — the tab you're on is already obvious from the nav.
+            Whichever day is being looked at, on every tab — the arrows below
+            move this, and `Today` brings it back. A wall panel is glanced at
+            far more often than it is used, and "which day am I looking at" is
+            what that glance is usually for.
           */}
           <div style={{ minWidth: 0, flex: '1 1 260px' }}>
             <h1 style={{ margin: 0, fontFamily: 'Outfit', fontSize: 34, fontWeight: 600, lineHeight: 1.1 }}>
-              {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              {heading.title}
             </h1>
             <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>
-              {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              {heading.sub}
             </div>
           </div>
 
@@ -234,8 +264,9 @@ export default function App() {
               </div>
 
               {/*
-                Only says which day when it isn't today — on today's board the
-                header clock above has already answered the question.
+                Which day it is now lives in the header, so this only has to say
+                which direction you have gone — and on a future board that is
+                also the hint that the rows can still be tapped.
               */}
               {!board.today && (
                 <span
@@ -248,7 +279,7 @@ export default function App() {
                     color: 'var(--ink2)',
                   }}
                 >
-                  {dayLabel(board.date)} · {dayDirection(board.date) === 'past' ? 'looking back' : 'coming up'}
+                  {dayDirection(board.date) === 'past' ? 'Looking back' : 'Coming up'}
                 </span>
               )}
             </div>
@@ -668,6 +699,46 @@ function Splash({ text, night, tone }: { text: string; night: boolean; tone?: 'e
   );
 }
 
+/**
+ * The month a whole-week or whole-month view is sitting in, with the year
+ * underneath. A week straddling two months names both — calling Aug 30–Sep 5
+ * "August" would be a half-truth, and it is exactly the week you most need the
+ * header to be honest about.
+ */
+function spanLabel(
+  view: CalView,
+  anchor: Date,
+  weekStart: WeekStart,
+): { title: string; sub: string } {
+  if (view === 'month') {
+    return {
+      title: anchor.toLocaleDateString('en-US', { month: 'long' }),
+      sub: String(anchor.getFullYear()),
+    };
+  }
+
+  // `rangeFor` ends exclusive, so the last day on screen is the day before it.
+  const [start, end] = rangeFor('week', anchor, weekStart);
+  const last = new Date(end);
+  last.setDate(last.getDate() - 1);
+
+  if (start.getMonth() === last.getMonth() && start.getFullYear() === last.getFullYear()) {
+    return {
+      title: start.toLocaleDateString('en-US', { month: 'long' }),
+      sub: String(start.getFullYear()),
+    };
+  }
+
+  const short = (d: Date) => d.toLocaleDateString('en-US', { month: 'short' });
+  return {
+    title: `${short(start)} – ${short(last)}`,
+    sub:
+      start.getFullYear() === last.getFullYear()
+        ? String(start.getFullYear())
+        : `${start.getFullYear()} – ${last.getFullYear()}`,
+  };
+}
+
 function shift(anchor: Date, view: CalView, direction: number): Date {
   const d = new Date(anchor);
   if (view === 'day') d.setDate(d.getDate() + direction);
@@ -682,15 +753,6 @@ function shiftDay(date: string, by: number): string {
   d.setDate(d.getDate() + by);
   const m = String(d.getMonth() + 1).padStart(2, '0');
   return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/** "Mon, Aug 3" — enough to place a day without spelling out the year. */
-function dayLabel(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
 }
 
 /** Today as `YYYY-MM-DD` in local time — never via toISOString, which is UTC. */

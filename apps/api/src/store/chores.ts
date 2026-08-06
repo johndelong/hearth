@@ -1,18 +1,22 @@
-import type {
-  BoardChore,
-  Chore,
-  ChoreInput,
-  Claim,
-  Extra,
-  ExtraInput,
-  PointsBalance,
-  Redemption,
-  Reward,
-  RewardInput,
+import {
+  type BoardChore,
+  type Chore,
+  type ChoreInput,
+  type Claim,
+  type Extra,
+  type ExtraInput,
+  type PointsBalance,
+  type Recurrence,
+  type Redemption,
+  type Reward,
+  type RewardInput,
+  TIMES_OF_DAY,
+  type TimeOfDay,
+  normalizeRecurrence,
 } from '@dashboard/shared';
 import { db, fromBool, id, nowIso, toBool } from '../db/index.js';
 import { getSettings } from './settings.js';
-import { isDue, periodEnd, periodKey } from './period.js';
+import { MAX_DAYS_AHEAD, daysAhead, isDue, localDate, periodEnd, periodKey } from './period.js';
 
 // ---------- chores ----------
 
@@ -21,9 +25,43 @@ interface ChoreRow {
   title: string;
   description: string | null;
   instructions: string | null;
-  repeat: Chore['repeat'];
+  freq: Recurrence['freq'];
+  interval_n: number;
+  by_day: string;
+  by_month_day: number | null;
+  by_set_pos: number | null;
+  starts_on: string;
+  time_of_day: string;
   active: number;
   sort_order: number;
+}
+
+/** An unrecognised label would drop a chore out of every section it could sort into. */
+const toTimeOfDay = (raw: string | null): TimeOfDay =>
+  TIMES_OF_DAY.includes(raw as TimeOfDay) ? (raw as TimeOfDay) : 'any';
+
+/** The recurrence columns, back into the rule the rest of the app speaks. */
+function toRecurrence(r: ChoreRow): Recurrence {
+  return normalizeRecurrence({
+    freq: r.freq,
+    interval: r.interval_n,
+    byDay: r.by_day ? r.by_day.split(',').map(Number) : [],
+    byMonthDay: r.by_month_day,
+    bySetPos: r.by_set_pos,
+    startsOn: r.starts_on,
+  });
+}
+
+/** The rule, flattened back into the six columns it is stored as. */
+function recurrenceColumns(rec: Recurrence): Record<string, string | number | null> {
+  return {
+    freq: rec.freq,
+    interval_n: rec.interval,
+    by_day: rec.byDay.join(','),
+    by_month_day: rec.byMonthDay,
+    by_set_pos: rec.bySetPos,
+    starts_on: rec.startsOn,
+  };
 }
 
 /** Assignees for a set of chores, in one query rather than one per chore. */
@@ -54,7 +92,8 @@ const toChore = (r: ChoreRow, personIds: string[]): Chore => ({
   title: r.title,
   description: r.description,
   instructions: r.instructions,
-  repeat: r.repeat,
+  recurrence: toRecurrence(r),
+  timeOfDay: toTimeOfDay(r.time_of_day),
   active: toBool(r.active),
   sortOrder: r.sort_order,
 });
@@ -72,9 +111,9 @@ export function listChores(on = new Date()): BoardChore[] {
   return db
     .prepare<
       [string],
-      ChoreRow & { person_id: string; done: number }
+      ChoreRow & { person_id: string; completed_at: string | null }
     >(
-      `SELECT c.*, cp.person_id, (cc.chore_id IS NOT NULL) AS done
+      `SELECT c.*, cp.person_id, cc.completed_at
          FROM chores c
          JOIN chore_people cp ON cp.chore_id = c.id
          LEFT JOIN chore_completions cc
@@ -83,16 +122,18 @@ export function listChores(on = new Date()): BoardChore[] {
         ORDER BY c.sort_order, c.title`,
     )
     .all(period)
-    .filter((r) => isDue(r.repeat, choreReset, on))
+    .filter((r) => isDue(toRecurrence(r), choreReset, on))
     .map((r) => ({
       choreId: r.id,
       personId: r.person_id,
       title: r.title,
       description: r.description,
       instructions: r.instructions,
-      repeat: r.repeat,
+      recurrence: toRecurrence(r),
+      timeOfDay: toTimeOfDay(r.time_of_day),
       sortOrder: r.sort_order,
-      done: toBool(r.done),
+      done: r.completed_at !== null,
+      completedOn: r.completed_at ? localDate(new Date(r.completed_at)) : null,
     }));
 }
 
@@ -120,28 +161,43 @@ function setChorePeople(choreId: string, personIds: string[]): void {
 
 export const createChore = db.transaction((input: ChoreInput): Chore => {
   const choreId = id('ch');
+  const rec = recurrenceColumns(normalizeRecurrence(input.recurrence));
   db.prepare(
-    `INSERT INTO chores (id, title, description, instructions, repeat, active, sort_order)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO chores
+       (id, title, description, instructions, freq, interval_n, by_day, by_month_day,
+        by_set_pos, starts_on, time_of_day, active, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     choreId,
     input.title,
     input.description ?? null,
     input.instructions ?? null,
-    input.repeat ?? 'Daily',
+    rec.freq,
+    rec.interval_n,
+    rec.by_day,
+    rec.by_month_day,
+    rec.by_set_pos,
+    rec.starts_on,
+    toTimeOfDay(input.timeOfDay ?? null),
     fromBool(input.active ?? true),
     input.sortOrder ?? 0,
   );
   setChorePeople(choreId, input.personIds);
+  // A new chore makes these boards incomplete, which puts any extra-job points
+  // already paid out today back into holding.
+  for (const personId of input.personIds) releaseClaimPoints(personId);
   return findChore(choreId)!;
 });
 
 export const updateChore = db.transaction((choreId: string, patch: Partial<ChoreInput>): Chore | null => {
+  // Whoever this chore touches on either side of the edit, since both boards
+  // can change completeness — one gains an outstanding chore, one loses it.
+  const affected = new Set(peopleByChore([choreId]).get(choreId) ?? []);
   const columns: Record<string, string> = {
     title: 'title',
     description: 'description',
     instructions: 'instructions',
-    repeat: 'repeat',
+    timeOfDay: 'time_of_day',
     active: 'active',
     sortOrder: 'sort_order',
   };
@@ -151,7 +207,18 @@ export const updateChore = db.transaction((choreId: string, patch: Partial<Chore
     const column = columns[key];
     if (!column) continue;
     sets.push(`${column} = ?`);
-    values.push(key === 'active' ? fromBool(value) : value);
+    if (key === 'active') values.push(fromBool(value));
+    else if (key === 'timeOfDay') values.push(toTimeOfDay(value as string));
+    else values.push(value);
+  }
+  // The rule is replaced whole rather than field by field: a half-applied
+  // change (monthly frequency still carrying last week's day list) would be a
+  // rule nobody chose.
+  if (patch.recurrence) {
+    for (const [column, value] of Object.entries(recurrenceColumns(normalizeRecurrence(patch.recurrence)))) {
+      sets.push(`${column} = ?`);
+      values.push(value);
+    }
   }
   if (sets.length) {
     db.prepare(`UPDATE chores SET ${sets.join(', ')} WHERE id = ?`).run(...values, choreId);
@@ -165,13 +232,19 @@ export const updateChore = db.transaction((choreId: string, patch: Partial<Chore
       `DELETE FROM chore_completions
         WHERE chore_id = ?${patch.personIds.length ? ` AND person_id NOT IN (${holes})` : ''}`,
     ).run(choreId, ...patch.personIds);
+    for (const personId of patch.personIds) affected.add(personId);
   }
+  for (const personId of affected) releaseClaimPoints(personId);
   return findChore(choreId);
 });
 
-export function deleteChore(choreId: string): void {
+export const deleteChore = db.transaction((choreId: string): void => {
+  // Read the assignees before the cascade takes them away — losing an
+  // outstanding chore can be what completes a board.
+  const affected = peopleByChore([choreId]).get(choreId) ?? [];
   db.prepare('DELETE FROM chores WHERE id = ?').run(choreId);
-}
+  for (const personId of affected) releaseClaimPoints(personId);
+});
 
 function findChore(choreId: string): Chore | null {
   const r = db.prepare<[string], ChoreRow>('SELECT * FROM chores WHERE id = ?').get(choreId);
@@ -179,11 +252,28 @@ function findChore(choreId: string): Chore | null {
   return toChore(r, peopleByChore([choreId]).get(choreId) ?? []);
 }
 
+/** A tick aimed at a day the board will not accept it for. */
+export class CompletionOutOfRange extends Error {}
+
 /**
  * Check one person's copy of a chore off, or undo it. Chores pay no points —
  * they are the baseline expectation, and only extra jobs earn.
+ *
+ * `on` is the day whose occurrence is being satisfied, which is not necessarily
+ * today. A chore due Sunday can be ticked on Friday: the completion files under
+ * Sunday's period, so the streak finds it when Sunday comes, while `completed_at`
+ * still records the Friday it actually happened.
+ *
+ * Forward only, and no further than a week. The past stays a record — if
+ * yesterday could be edited, a broken streak would always be one tap from being
+ * un-broken, and the whole thing would stop meaning anything.
  */
-export function setChoreDone(choreId: string, personId: string, done: boolean): BoardChore | null {
+export function setChoreDone(
+  choreId: string,
+  personId: string,
+  done: boolean,
+  on = new Date(),
+): BoardChore | null {
   const assigned = db
     .prepare<[string, string], { n: number }>(
       'SELECT COUNT(*) AS n FROM chore_people WHERE chore_id = ? AND person_id = ?',
@@ -191,9 +281,30 @@ export function setChoreDone(choreId: string, personId: string, done: boolean): 
     .get(choreId, personId);
   if (!assigned?.n) return null;
 
-  // Deliberately today's period, never the one being viewed: history is read-only.
-  const period = periodKey(getSettings().choreReset);
+  const r = db.prepare<[string], ChoreRow>('SELECT * FROM chores WHERE id = ?').get(choreId);
+  if (!r) return null;
+  const rec = toRecurrence(r);
+  const { choreReset } = getSettings();
+
+  // The current period is always writable, however the board is reset; beyond
+  // it, only the week ahead is.
+  if (periodKey(choreReset) !== periodKey(choreReset, on)) {
+    const ahead = daysAhead(on);
+    if (ahead < 0) {
+      throw new CompletionOutOfRange('That day is a record and cannot be changed');
+    }
+    if (ahead > MAX_DAYS_AHEAD) {
+      throw new CompletionOutOfRange(`Chores can only be done up to ${MAX_DAYS_AHEAD} days ahead`);
+    }
+  }
+
+  // No occurrence on that day means there is nothing there to check off.
+  if (!isDue(rec, choreReset, on)) return null;
+
+  const period = periodKey(choreReset, on);
   if (done) {
+    // OR IGNORE, so re-ticking something already done keeps the day it was
+    // first finished rather than quietly moving it to now.
     db.prepare(
       `INSERT OR IGNORE INTO chore_completions (chore_id, person_id, period, completed_at)
        VALUES (?, ?, ?, ?)`,
@@ -204,17 +315,27 @@ export function setChoreDone(choreId: string, personId: string, done: boolean): 
     ).run(choreId, personId, period);
   }
 
-  const r = db.prepare<[string], ChoreRow>('SELECT * FROM chores WHERE id = ?').get(choreId);
-  if (!r) return null;
+  // Finishing (or un-finishing) a chore is what opens and closes the gate on
+  // any extra jobs already done today.
+  releaseClaimPoints(personId);
+
+  const completedAt = db
+    .prepare<[string, string, string], { completed_at: string }>(
+      'SELECT completed_at FROM chore_completions WHERE chore_id = ? AND person_id = ? AND period = ?',
+    )
+    .get(choreId, personId, period);
+
   return {
     choreId: r.id,
     personId,
     title: r.title,
     description: r.description,
     instructions: r.instructions,
-    repeat: r.repeat,
+    recurrence: rec,
+    timeOfDay: toTimeOfDay(r.time_of_day),
     sortOrder: r.sort_order,
     done,
+    completedOn: completedAt ? localDate(new Date(completedAt.completed_at)) : null,
   };
 }
 
@@ -291,7 +412,7 @@ interface ClaimRow {
   completed_at: string | null;
 }
 
-const toClaim = (r: ClaimRow): Claim => ({
+const toClaim = (r: ClaimRow & { paid?: number }): Claim => ({
   id: r.id,
   extraId: r.extra_id,
   personId: r.person_id,
@@ -300,6 +421,7 @@ const toClaim = (r: ClaimRow): Claim => ({
   instructions: r.instructions,
   points: r.points,
   done: toBool(r.done),
+  paid: toBool(r.paid),
   claimedAt: r.claimed_at,
   completedAt: r.completed_at,
 });
@@ -318,8 +440,12 @@ export function listClaims(on = new Date()): Claim[] {
 
   if (isToday) {
     return db
-      .prepare<[string], ClaimRow>(
-        'SELECT * FROM claims WHERE done = 0 OR completed_at >= ? ORDER BY claimed_at',
+      .prepare<[string], ClaimRow & { paid: number }>(
+        `SELECT c.*, (pe.id IS NOT NULL) AS paid
+           FROM claims c
+           LEFT JOIN point_events pe ON pe.ref_type = 'claim' AND pe.ref_id = c.id
+          WHERE c.done = 0 OR c.completed_at >= ?
+          ORDER BY c.claimed_at`,
       )
       .all(start)
       .map(toClaim);
@@ -327,10 +453,12 @@ export function listClaims(on = new Date()): Claim[] {
 
   const end = periodEnd(choreReset, on);
   return db
-    .prepare<[string, string], ClaimRow>(
-      `SELECT * FROM claims
-        WHERE claimed_at >= ? AND claimed_at < ?
-        ORDER BY claimed_at`,
+    .prepare<[string, string], ClaimRow & { paid: number }>(
+      `SELECT c.*, (pe.id IS NOT NULL) AS paid
+         FROM claims c
+         LEFT JOIN point_events pe ON pe.ref_type = 'claim' AND pe.ref_id = c.id
+        WHERE c.claimed_at >= ? AND c.claimed_at < ?
+        ORDER BY c.claimed_at`,
     )
     .all(start, end)
     .map(toClaim);
@@ -361,21 +489,90 @@ export function createClaim(extraId: string, personId: string): Claim | null {
   return listClaims().find((c) => c.id === claimId)!;
 }
 
+/**
+ * Whether every chore required of this person today has been checked off.
+ *
+ * Vacuously true for someone with nothing assigned — a kid with no chores is
+ * not being held to a standard they were never given.
+ */
+export function choresCompleteFor(personId: string, on = new Date()): boolean {
+  return listChores(on)
+    .filter((c) => c.personId === personId)
+    .every((c) => c.done);
+}
+
+/**
+ * Pays a finished extra job into the ledger.
+ *
+ * `OR IGNORE` against the unique index on (ref_type, ref_id) is what makes this
+ * safe to call as often as we like — a claim can only ever pay out once, so
+ * reconciliation never has to work out whether it already ran.
+ */
+function payClaim(personId: string, claimId: string, points: number, title: string): void {
+  db.prepare(
+    `INSERT OR IGNORE INTO point_events (id, person_id, delta, reason, ref_type, ref_id, created_at)
+     VALUES (?, ?, ?, ?, 'claim', ?, ?)`,
+  ).run(id('pt'), personId, points, title, claimId, nowIso());
+}
+
+const unpayClaim = (claimId: string): void => {
+  db.prepare("DELETE FROM point_events WHERE ref_type = 'claim' AND ref_id = ?").run(claimId);
+};
+
+const isPaid = (claimId: string): boolean =>
+  Boolean(
+    db
+      .prepare<[string], { n: number }>(
+        "SELECT COUNT(*) AS n FROM point_events WHERE ref_type = 'claim' AND ref_id = ?",
+      )
+      .get(claimId)?.n,
+  );
+
+/**
+ * Brings this person's finished extra jobs in line with their chore board.
+ *
+ * Extra jobs can be picked up and finished at any hour — making dinner should
+ * not have to wait on an evening chore. What waits is the payment: the points
+ * land once the day's required chores are done, and go back into holding if a
+ * chore is unchecked again, so the two can never disagree.
+ *
+ * Returns whether the points are currently released.
+ */
+export const releaseClaimPoints = db.transaction((personId: string): boolean => {
+  const { choreReset } = getSettings();
+  const period = periodKey(choreReset);
+  const start = period.startsWith('w:') ? period.slice(2) : period;
+  const end = periodEnd(choreReset);
+  const unlocked = choresCompleteFor(personId);
+
+  const claims = db
+    .prepare<[string, string, string], { id: string; title: string; points: number }>(
+      `SELECT id, title, points FROM claims
+        WHERE person_id = ? AND done = 1 AND completed_at >= ? AND completed_at < ?`,
+    )
+    .all(personId, start, end);
+
+  for (const c of claims) {
+    if (unlocked) payClaim(personId, c.id, c.points, c.title);
+    else unpayClaim(c.id);
+  }
+  return unlocked;
+});
+
 export const setClaimDone = db.transaction((claimId: string, done: boolean): Claim | null => {
   const row = db.prepare<[string], ClaimRow>('SELECT * FROM claims WHERE id = ?').get(claimId);
   if (!row) return null;
   const claim = toClaim(row);
   if (done) {
     db.prepare('UPDATE claims SET done = 1, completed_at = ? WHERE id = ?').run(nowIso(), claimId);
-    db.prepare(
-      `INSERT OR IGNORE INTO point_events (id, person_id, delta, reason, ref_type, ref_id, created_at)
-       VALUES (?, ?, ?, ?, 'claim', ?, ?)`,
-    ).run(id('pt'), claim.personId, claim.points, claim.title, claimId, nowIso());
+    // Finishing the job is not the same as earning for it. The points only move
+    // if the required chores are already behind them.
+    if (choresCompleteFor(claim.personId)) payClaim(claim.personId, claimId, claim.points, claim.title);
   } else {
     db.prepare('UPDATE claims SET done = 0, completed_at = NULL WHERE id = ?').run(claimId);
-    db.prepare("DELETE FROM point_events WHERE ref_type = 'claim' AND ref_id = ?").run(claimId);
+    unpayClaim(claimId);
   }
-  return { ...claim, done };
+  return { ...claim, done, paid: done && isPaid(claimId) };
 });
 
 export function deleteClaim(claimId: string): void {

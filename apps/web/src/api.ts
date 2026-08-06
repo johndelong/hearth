@@ -80,8 +80,10 @@ export interface Board {
   /** The day this board describes, `YYYY-MM-DD`. */
   date: string;
   today: boolean;
-  /** Past and future boards are a record, not a control surface. */
+  /** A past board is a record. The week ahead stays writable, so this is false there. */
   readOnly: boolean;
+  /** Whole days from today to this board. Negative in the past, 0 for today. */
+  daysAhead: number;
   /** One row per person per chore — see BoardChore. */
   chores: BoardChore[];
   extras: Extra[];
@@ -113,8 +115,13 @@ export const api = {
   board: (date?: string) => call<Board>(`/api/chores/board${date ? `?date=${date}` : ''}`),
   setStreakPaused: (personId: string, paused: boolean) =>
     post<Streak>(`/api/people/${personId}/streak-pause`, { paused }),
-  setChoreDone: (id: string, personId: string, done: boolean) =>
-    post<{ chore: BoardChore; points: PointsBalance[] }>(`/api/chores/${id}/done`, { personId, done }),
+  /** `date` names the occurrence being satisfied — omit it to mean today. */
+  setChoreDone: (id: string, personId: string, done: boolean, date?: string) =>
+    post<{ chore: BoardChore; points: PointsBalance[] }>(`/api/chores/${id}/done`, {
+      personId,
+      done,
+      date,
+    }),
   /** Every chore, including ones not due today. Settings manages against this. */
   allChores: () => call<Chore[]>('/api/chores'),
   createChore: (body: Record<string, unknown>) => post<Chore>('/api/chores', body),

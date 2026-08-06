@@ -1,9 +1,10 @@
-import type {
-  Chore,
-  GoogleAccount,
-  Person,
-  Settings,
-  SubscribedCalendar,
+import {
+  type Chore,
+  type GoogleAccount,
+  type Person,
+  type Settings,
+  type SubscribedCalendar,
+  describeRecurrence,
 } from '@dashboard/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { type Board, type VersionInfo, api } from '../../api';
@@ -601,7 +602,7 @@ function ChoreListPanel({
                   key={chore.id}
                   label={chore.title}
                   sub={[shared, chore.description].filter(Boolean).join(' · ') || undefined}
-                  tag={chore.repeat}
+                  tag={describeRecurrence(chore.recurrence)}
                   tagStyle={{ background: soft(person.hue, night), color: deep(person.hue, night) }}
                   onClick={() => onEditChore(chore)}
                 />
@@ -618,7 +619,12 @@ function ChoreListPanel({
             Nobody assigned
           </div>
           {orphans.map((chore) => (
-            <ItemRow key={chore.id} label={chore.title} tag={chore.repeat} onClick={() => onEditChore(chore)} />
+            <ItemRow
+              key={chore.id}
+              label={chore.title}
+              tag={describeRecurrence(chore.recurrence)}
+              onClick={() => onEditChore(chore)}
+            />
           ))}
         </div>
       )}

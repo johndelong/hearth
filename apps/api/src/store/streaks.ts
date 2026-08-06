@@ -1,4 +1,4 @@
-import type { ChoreReset, Repeat, Streak } from '@dashboard/shared';
+import { type ChoreReset, type Recurrence, type Streak, normalizeRecurrence } from '@dashboard/shared';
 import { db, id, toBool } from '../db/index.js';
 import { isDue, localDate, periodEnd, periodKey, previousPeriod } from './period.js';
 import { getSettings } from './settings.js';
@@ -68,9 +68,25 @@ export function resumeStreak(personId: string): void {
 }
 
 interface DueRow {
-  repeat: Repeat;
+  by_day: string;
+  freq: string;
+  interval_n: number;
+  by_month_day: number | null;
+  by_set_pos: number | null;
+  starts_on: string;
   done: number;
 }
+
+/** The stored recurrence columns as the rule `isDue` wants. */
+const ruleOf = (r: DueRow): Recurrence =>
+  normalizeRecurrence({
+    freq: r.freq as Recurrence['freq'],
+    interval: r.interval_n,
+    byDay: r.by_day ? r.by_day.split(',').map(Number) : [],
+    byMonthDay: r.by_month_day,
+    bySetPos: r.by_set_pos,
+    startsOn: r.starts_on,
+  });
 
 /** Whether this person has any active chore at all, due today or not. */
 function hasAnyChore(personId: string): boolean {
@@ -88,11 +104,16 @@ function hasAnyChore(personId: string): boolean {
 /**
  * The required chores assigned to one person in a period, and whether each was
  * completed. Extra jobs live in another table entirely, so they cannot leak in.
+ *
+ * A chore ticked ahead of time is already filed under the period it satisfies,
+ * so nothing here has to know it was done early — the completion is simply
+ * sitting where this query comes looking.
  */
 function requiredIn(personId: string, period: string, reset: ChoreReset, on: Date): DueRow[] {
   return db
     .prepare<[string, string], DueRow>(
-      `SELECT c.repeat, (cc.chore_id IS NOT NULL) AS done
+      `SELECT c.freq, c.interval_n, c.by_day, c.by_month_day, c.by_set_pos, c.starts_on,
+              (cc.chore_id IS NOT NULL) AS done
          FROM chores c
          JOIN chore_people cp ON cp.chore_id = c.id AND cp.person_id = ?
          LEFT JOIN chore_completions cc
@@ -100,7 +121,7 @@ function requiredIn(personId: string, period: string, reset: ChoreReset, on: Dat
         WHERE c.active = 1`,
     )
     .all(personId, period)
-    .filter((r) => isDue(r.repeat, reset, on));
+    .filter((r) => isDue(ruleOf(r), reset, on));
 }
 
 /**

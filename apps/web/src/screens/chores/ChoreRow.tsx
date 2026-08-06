@@ -31,7 +31,9 @@ export function ChoreRow({
   night,
   busy,
   shimmer,
+  pointsLocked,
   readOnly,
+  readOnlyHint,
   onToggle,
   onOpen,
   onRemove,
@@ -45,7 +47,11 @@ export function ChoreRow({
   busy: boolean;
   shimmer: boolean;
   /** A past or future board. The row still opens; it just cannot be changed. */
+  /** Earned, but not yet paid: the day's required chores are still outstanding. */
+  pointsLocked?: boolean;
   readOnly?: boolean;
+  /** Why it cannot be tapped — a past day reads differently from one too far off. */
+  readOnlyHint?: string;
   onToggle: () => void;
   onOpen: () => void;
   /** Bonus items only. Its absence is what makes a row un-swipeable. */
@@ -225,7 +231,7 @@ export function ChoreRow({
           aria-label={done ? `Uncheck ${title}` : `Check off ${title}`}
           aria-pressed={done}
           disabled={busy || readOnly}
-          title={readOnly ? 'This day is a record — it cannot be changed' : undefined}
+          title={readOnly ? (readOnlyHint ?? 'This day is a record — it cannot be changed') : undefined}
           onClick={(e) => {
             e.stopPropagation();
             if (swiping || readOnly) return;
@@ -306,16 +312,24 @@ export function ChoreRow({
 
             {points !== null && (
               <span
+                title={pointsLocked ? 'These land once the day’s chores are done' : undefined}
                 style={{
                   flex: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
                   padding: '3px 10px',
                   borderRadius: 999,
                   fontSize: 14,
                   fontWeight: 800,
-                  background: soft(68, night),
-                  color: deep(68, night),
+                  // Held points read as waiting, not as lost — the amber comes
+                  // back the moment the board is finished.
+                  background: pointsLocked ? 'var(--chip)' : soft(68, night),
+                  color: pointsLocked ? 'var(--ink2)' : deep(68, night),
+                  transition: `background .3s ${EASE}, color .3s ${EASE}`,
                 }}
               >
+                {pointsLocked && <Icon name="lock" size={12} />}
                 +{points}
               </span>
             )}

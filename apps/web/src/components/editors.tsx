@@ -2,14 +2,17 @@ import {
   type Chore,
   type Extra,
   type Person,
-  REPEATS,
   ROLES,
   type Reward,
   SWATCHES,
+  TIMES_OF_DAY,
+  TIME_OF_DAY_LABELS,
+  everyDay,
 } from '@dashboard/shared';
 import { useState } from 'react';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
 import { AVATAR_PACK, AvatarArt, avatarLabel, isAvatarKey } from './AvatarArt';
+import { RepeatPicker } from './RepeatPicker';
 import { Avatar, Button, TapButton } from './ui';
 import { col, deep, soft } from '../theme';
 
@@ -258,7 +261,8 @@ export function ChoreEditor({
   const [title, setTitle] = useState(chore?.title ?? '');
   // A new chore starts on nobody; picking at least one is what enables Save.
   const [personIds, setPersonIds] = useState<string[]>(chore?.personIds ?? []);
-  const [repeat, setRepeat] = useState(chore?.repeat ?? 'Daily');
+  const [recurrence, setRecurrence] = useState(chore?.recurrence ?? everyDay());
+  const [timeOfDay, setTimeOfDay] = useState(chore?.timeOfDay ?? 'any');
   const [description, setDescription] = useState(chore?.description ?? '');
   const [instructions, setInstructions] = useState(chore?.instructions ?? '');
 
@@ -275,7 +279,8 @@ export function ChoreEditor({
               onSave({
                 title: title.trim(),
                 personIds,
-                repeat,
+                recurrence,
+                timeOfDay,
                 description: description.trim() || null,
                 instructions: instructions.trim() || null,
               })
@@ -323,17 +328,19 @@ export function ChoreEditor({
         </div>
       </Field>
 
-      <Field label="Repeats">
+      <RepeatPicker value={recurrence} onChange={setRecurrence} night={night} />
+
+      <Field label="Time of day" sub="Groups the board into sections — it does not change when the chore is due">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {REPEATS.map((r) => (
+          {TIMES_OF_DAY.map((t) => (
             <Button
-              key={r}
+              key={t}
               size="lg"
-              selected={repeat === r}
-              onClick={() => setRepeat(r)}
-              style={{ flex: '1 1 120px', fontSize: 16 }}
+              selected={timeOfDay === t}
+              onClick={() => setTimeOfDay(t)}
+              style={{ flex: '1 1 110px', fontSize: 16 }}
             >
-              {r}
+              {TIME_OF_DAY_LABELS[t]}
             </Button>
           ))}
         </div>

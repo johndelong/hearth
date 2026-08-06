@@ -1,5 +1,14 @@
-import type { Person, Settings } from '@dashboard/shared';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DAY_NAMES,
+  type Person,
+  type Settings,
+  TIMES_OF_DAY,
+  TIME_OF_DAY_LABELS,
+  type TimeOfDay,
+  describeRecurrence,
+  fromYmd,
+} from '@dashboard/shared';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Board, api } from '../../api';
 import { Avatar, Card, Icon, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
@@ -20,6 +29,42 @@ interface Props {
   onOpenCatalog: (person: Person) => void;
 }
 
+/**
+ * A quiet divider between parts of the day. Deliberately understated — it is
+ * scaffolding for the eye, and must never compete with the chore rows or with
+ * the person's name at the top of the card.
+ */
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 9,
+        marginTop: 3,
+        fontSize: 12.5,
+        fontWeight: 800,
+        letterSpacing: '.06em',
+        textTransform: 'uppercase',
+        color: 'var(--ink2)',
+        opacity: 0.72,
+      }}
+    >
+      {children}
+      <span style={{ flex: 1, height: 1, background: 'var(--line)' }} />
+    </div>
+  );
+}
+
+/** Local today as `YYYY-MM-DD`, for the optimistic row. */
+const todayYmd = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** "Sunday" — how a board being worked ahead refers to itself. */
+const dayLabel = (ymd: string): string => DAY_NAMES[fromYmd(ymd).getDay()] ?? ymd;
+
 interface Row {
   kind: 'chore' | 'claim';
   /** The id the API wants: a chore id, or a claim id. */
@@ -30,6 +75,8 @@ interface Row {
    * is open — has to key on the person too.
    */
   key: string;
+  /** Which part of the day this row is filed under on the board. */
+  section: TimeOfDay;
   title: string;
   /** Repeat rule for a chore; extra jobs say so. Doubles as the modal's frequency. */
   sub: string;
@@ -38,6 +85,8 @@ interface Row {
   instructions: string | null;
   /** Only extra jobs are worth points — chores are the baseline. */
   points: number | null;
+  /** Earned but not yet paid, because the day's chores are not finished. */
+  pointsLocked: boolean;
   done: boolean;
 }
 
@@ -82,33 +131,13 @@ export function ChoresScreen({
   }, []);
 
   /**
-   * Extra jobs stay locked until the day's chores are done. `unlocked` tracks
-   * who has cleared their chores so the button can pulse on the transition
-   * rather than on every render.
+   * Whether this person's required chores are all done — the gate on extra-job
+   * points, used here only to guess right while the server catches up.
    */
-  const [justUnlocked, setJustUnlocked] = useState<string[]>([]);
-  const wasUnlocked = useRef<Record<string, boolean>>({});
-
   const choresDoneFor = useCallback(
     (personId: string) => board.chores.filter((c) => c.personId === personId).every((c) => c.done),
     [board.chores],
   );
-
-  useEffect(() => {
-    const newlyUnlocked: string[] = [];
-    for (const person of people) {
-      if (!person.onChores) continue;
-      const open = choresDoneFor(person.id);
-      // Only celebrate a board that actually had chores to finish.
-      const hadChores = board.chores.some((c) => c.personId === person.id);
-      if (open && hadChores && wasUnlocked.current[person.id] === false) newlyUnlocked.push(person.id);
-      wasUnlocked.current[person.id] = open;
-    }
-    if (newlyUnlocked.length) {
-      setJustUnlocked(newlyUnlocked);
-      window.setTimeout(() => setJustUnlocked([]), 1600);
-    }
-  }, [people, board.chores, choresDoneFor]);
 
   const boards = useMemo(() => people.filter((p) => p.onChores), [people]);
 
@@ -121,11 +150,18 @@ export function ChoresScreen({
         kind: 'chore' as const,
         id: c.choreId,
         key: `chore:${c.choreId}:${personId}`,
+        section: c.timeOfDay,
         title: c.title,
-        sub: c.repeat,
+        // When a chore was ticked on a different day than the one it counts
+        // for, that is the more useful thing to say about it than its rule.
+        sub:
+          c.completedOn && c.completedOn !== board.date
+            ? `Done ${DAY_NAMES[fromYmd(c.completedOn).getDay()]}`
+            : describeRecurrence(c.recurrence),
         description: c.description,
         instructions: c.instructions,
         points: null,
+        pointsLocked: false,
         done: c.done,
       })),
     ...board.claims
@@ -133,12 +169,16 @@ export function ChoresScreen({
       .map((c) => ({
         kind: 'claim' as const,
         id: c.id,
+        // Extra jobs are picked up whenever there is time for them, so they sit
+        // with the unscoped chores rather than claiming a section of their own.
         key: `claim:${c.id}`,
+        section: 'any' as TimeOfDay,
         title: c.title,
         sub: 'Extra job',
         description: c.description,
         instructions: c.instructions,
         points: c.points,
+        pointsLocked: c.done && !c.paid,
         done: c.done,
       })),
   ];
@@ -152,9 +192,15 @@ export function ChoresScreen({
     const optimistic: Board = {
       ...board,
       chores: board.chores.map((c) =>
-        row.kind === 'chore' && c.choreId === row.id && c.personId === person.id ? { ...c, done: next } : c,
+        row.kind === 'chore' && c.choreId === row.id && c.personId === person.id
+          ? { ...c, done: next, completedOn: next ? todayYmd() : null }
+          : c,
       ),
-      claims: board.claims.map((c) => (row.kind === 'claim' && c.id === row.id ? { ...c, done: next } : c)),
+      claims: board.claims.map((c) =>
+        row.kind === 'claim' && c.id === row.id
+          ? { ...c, done: next, paid: next && choresDoneFor(person.id) }
+          : c,
+      ),
     };
     onBoardChange(optimistic);
 
@@ -162,32 +208,41 @@ export function ChoresScreen({
       // Every completed row gets the sweep of light.
       setShimmer(row.key);
       restart('shimmer', 1400, () => setShimmer(null));
-      // Only extra jobs move points, so only they pop the pill.
-      if (row.kind === 'claim') {
-        setCheering(person.id);
-        restart('cheer', 900, () => setCheering(null));
-      }
     }
 
     try {
       const res =
         row.kind === 'chore'
-          ? await api.setChoreDone(row.id, person.id, next)
+          ? await api.setChoreDone(row.id, person.id, next, board.today ? undefined : board.date)
           : await api.setClaimDone(row.id, next);
       onBoardChange({ ...optimistic, points: res.points });
 
+      // What the ledger actually did. Finishing the last chore can pay out
+      // several extra jobs at once, so the number that matters is the change in
+      // the balance rather than the points on the row that was tapped.
+      const before = board.points.find((p) => p.personId === person.id)?.points ?? 0;
+      const after = res.points.find((p) => p.personId === person.id)?.points ?? 0;
+      const gained = after - before;
+
+      if (gained > 0) {
+        setCheering(person.id);
+        restart('cheer', 900, () => setCheering(null));
+      }
+
       if (next) {
         const remaining = rowsFor(person.id).filter((r) => r.key !== row.key && !r.done).length;
-        if (remaining === 0) {
+        if (remaining === 0 && board.today) {
           say(`${person.name} cleared the board!`, person.hue);
           if (settings.choreConfetti) {
             setBursting(person.id);
             restart('burst', 2700, () => setBursting(null));
           }
-        } else if (row.points !== null) {
-          say(`+${row.points} for ${person.name}`, person.hue);
-        } else {
+        } else if (gained > 0) {
+          say(`+${gained} for ${person.name}`, person.hue);
+        } else if (board.today) {
           say(`${row.title} — done`, person.hue);
+        } else {
+          say(`${row.title} — done ahead for ${dayLabel(board.date)}`, person.hue);
         }
       }
     } catch (err) {
@@ -196,6 +251,21 @@ export function ChoresScreen({
     } finally {
       setBusy(null);
     }
+  };
+
+  /**
+   * Rows cut into the sections of the day, empty ones dropped.
+   *
+   * A board where nobody set a time comes back as a single unlabelled section,
+   * which is the board exactly as it was before times existed — headers only
+   * appear once there is more than one group for them to tell apart.
+   */
+  const sectionsFor = (rows: Row[]): Array<{ id: TimeOfDay; label: string | null; rows: Row[] }> => {
+    const groups = TIMES_OF_DAY.map((id) => ({ id, rows: rows.filter((r) => r.section === id) })).filter(
+      (g) => g.rows.length > 0,
+    );
+    const labelled = groups.length > 1;
+    return groups.map((g) => ({ ...g, label: labelled ? TIME_OF_DAY_LABELS[g.id] : null }));
   };
 
   if (boards.length === 0) {
@@ -281,51 +351,76 @@ export function ChoresScreen({
                     night={night}
                     onOpen={() => onOpenCatalog(person)}
                   />
+                  {/*
+                    Two spans, because centring and the pop are both transforms
+                    and an element only has one. Animating this directly makes
+                    `ptsPop` replace the -50% centring — the pill slides half its
+                    own width to the right for the duration, then snaps back the
+                    moment the animation is taken off again. The outer span owns
+                    the position, the inner one owns the motion.
+                  */}
                   <span
                     style={{
                       position: 'absolute',
                       left: '50%',
                       bottom: 0,
                       transform: 'translateX(-50%)',
-                      padding: '3px 11px',
-                      borderRadius: 999,
-                      fontSize: 13.5,
-                      fontWeight: 800,
-                      whiteSpace: 'nowrap',
-                      background: soft(person.hue, night),
-                      color: deep(person.hue, night),
-                      // Lifted off the ring it overlaps, so the arc reads behind it.
-                      boxShadow: `0 0 0 3px var(--card)`,
-                      animation: cheering === person.id ? `ptsPop .6s ${EASE} both` : undefined,
                     }}
                   >
-                    {points} pts
+                    <span
+                      style={{
+                        display: 'block',
+                        padding: '3px 11px',
+                        borderRadius: 999,
+                        fontSize: 13.5,
+                        fontWeight: 800,
+                        whiteSpace: 'nowrap',
+                        background: soft(person.hue, night),
+                        color: deep(person.hue, night),
+                        // Lifted off the ring it overlaps, so the arc reads behind it.
+                        boxShadow: `0 0 0 3px var(--card)`,
+                        animation: cheering === person.id ? `ptsPop .6s ${EASE} both` : undefined,
+                      }}
+                    >
+                      {points} pts
+                    </span>
                   </span>
                 </div>
               )}
             </header>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {rows.map((row) => (
-                <ChoreRow
-                  key={row.key}
-                  title={row.title}
-                  sub={row.sub}
-                  points={isKid ? row.points : null}
-                  done={row.done}
-                  hue={person.hue}
-                  night={night}
-                  busy={busy === row.key}
-                  shimmer={shimmer === row.key}
-                  readOnly={board.readOnly}
-                  onToggle={() => void toggle(person, row)}
-                  onOpen={() => setOpened({ personId: person.id, rowKey: row.key })}
-                  onRemove={
-                    row.kind === 'claim' && !board.readOnly
-                      ? () => onRemoveClaim(row.id, person)
-                      : undefined
-                  }
-                />
+              {sectionsFor(rows).map((section) => (
+                <div key={section.id} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {section.label && <SectionLabel>{section.label}</SectionLabel>}
+                  {section.rows.map((row) => (
+                    <ChoreRow
+                      key={row.key}
+                      title={row.title}
+                      sub={row.sub}
+                      points={isKid ? row.points : null}
+                      pointsLocked={row.pointsLocked}
+                      done={row.done}
+                      hue={person.hue}
+                      night={night}
+                      busy={busy === row.key}
+                      shimmer={shimmer === row.key}
+                      readOnly={board.readOnly}
+                      readOnlyHint={
+                        board.daysAhead > 0
+                          ? 'Too far off — chores can be done up to a week ahead'
+                          : 'This day is a record — it cannot be changed'
+                      }
+                      onToggle={() => void toggle(person, row)}
+                      onOpen={() => setOpened({ personId: person.id, rowKey: row.key })}
+                      onRemove={
+                        row.kind === 'claim' && !board.readOnly
+                          ? () => onRemoveClaim(row.id, person)
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
               ))}
 
               {rows.length === 0 && (
@@ -335,36 +430,32 @@ export function ChoresScreen({
               )}
             </div>
 
-            {isKid && settings.claimExtras && !board.readOnly && (() => {
-              const unlocked = choresDoneFor(person.id);
-              return (
-                <TapButton
-                  onClick={() => unlocked && onPickExtra(person)}
-                  disabled={!unlocked}
-                  title={unlocked ? undefined : 'Finish your chores first'}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    padding: 11,
-                    borderRadius: 16,
-                    border: `1px dashed ${unlocked ? col(62, night) : 'var(--line)'}`,
-                    color: unlocked ? deep(62, night) : 'var(--ink2)',
-                    fontSize: 14.5,
-                    fontWeight: 800,
-                    opacity: unlocked ? 0.85 : 0.45,
-                    transition: `opacity .4s ${EASE}, border-color .4s ${EASE}, color .4s ${EASE}`,
-                    animation: justUnlocked.includes(person.id)
-                      ? `unlockPulse 1.5s ${EASE} both`
-                      : undefined,
-                  }}
-                >
-                  <Icon name={unlocked ? 'star' : 'lock'} size={17} />
-                  {unlocked ? 'Pick an extra job' : 'Finish your chores first'}
-                </TapButton>
-              );
-            })()}
+            {/*
+              Always available. An extra job can be picked up and finished at
+              any hour — what waits on the day's chores is the payment, and the
+              lock on the points pill says so where it is actually true.
+            */}
+            {isKid && settings.claimExtras && !board.readOnly && (
+              <TapButton
+                onClick={() => onPickExtra(person)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: 11,
+                  borderRadius: 16,
+                  border: `1px dashed ${col(68, night)}`,
+                  color: deep(68, night),
+                  fontSize: 14.5,
+                  fontWeight: 800,
+                  opacity: 0.85,
+                }}
+              >
+                <Icon name="star" size={17} />
+                Pick an extra job
+              </TapButton>
+            )}
           </Card>
         );
       })}
