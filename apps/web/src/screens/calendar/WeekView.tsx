@@ -1,4 +1,4 @@
-import type { CalendarEvent, Person, Settings } from '@dashboard/shared';
+import { type CalendarEvent, type Person, type Settings, eventStart } from '@dashboard/shared';
 import { Card, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
 import { eventsOn, fmtTime, rangeFor, sameDay } from './useEvents';
@@ -88,7 +88,7 @@ export function WeekView({ anchor, now, events, byPerson, night, settings, onEdi
                   >
                     {!e.allDay && (
                       <span style={{ display: 'block', fontSize: 12, fontWeight: 800, opacity: 0.72 }}>
-                        {fmtTime(new Date(e.start))}
+                        {fmtTime(eventStart(e))}
                       </span>
                     )}
                     <span style={{ display: 'block', fontSize: 14.5, fontWeight: 800, lineHeight: 1.25 }}>

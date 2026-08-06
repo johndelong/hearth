@@ -1,4 +1,4 @@
-import type { CalendarEvent, Person } from '@dashboard/shared';
+import { type CalendarEvent, type Person, eventEnd, eventStart } from '@dashboard/shared';
 import { EASE, col } from '../theme';
 import { fmtTime } from '../screens/calendar/useEvents';
 
@@ -26,7 +26,7 @@ export function IdleFrame({
   people: Person[];
 }) {
   const upcoming = events
-    .filter((e) => new Date(e.end) > now)
+    .filter((e) => eventEnd(e) > now)
     .sort((a, b) => a.start.localeCompare(b.start))
     .slice(0, 4);
 
@@ -86,7 +86,7 @@ export function IdleFrame({
                   {e.title}
                 </span>
                 <span style={{ flex: 'none', fontSize: 19, fontWeight: 700, color: FRAME_INK2 }}>
-                  {e.allDay ? 'All day' : fmtTime(new Date(e.start))}
+                  {e.allDay ? 'All day' : fmtTime(eventStart(e))}
                 </span>
               </div>
             );

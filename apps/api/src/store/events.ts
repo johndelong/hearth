@@ -22,6 +22,11 @@ interface EventRow {
  * person is shown on the calendar. Birthdays are layered on top when enabled.
  */
 export function listEvents(from: string, to: string): CalendarEvent[] {
+  // All-day rows are stored as `YYYY-MM-DD` and timed ones as full instants, so
+  // this string comparison is only accurate to the day. Widening it by a day at
+  // each end keeps it a cheap prefilter that can never drop an event the client
+  // would have shown; the exact overlap test happens there, in the viewer's own
+  // timezone, which is the only place that can decide the question correctly.
   const rows = db
     .prepare<[string, string], EventRow>(
       `SELECT e.*, c.person_id, c.read_only
@@ -32,7 +37,7 @@ export function listEvents(from: string, to: string): CalendarEvent[] {
           AND e.end_utc > ?
         ORDER BY e.start_utc`,
     )
-    .all(to, from);
+    .all(shiftDays(to, 1), shiftDays(from, -1));
 
   const hidden = new Set(listPeople().filter((p) => !p.onCal).map((p) => p.id));
 
@@ -57,13 +62,34 @@ export function listEvents(from: string, to: string): CalendarEvent[] {
   return events.sort((a, b) => a.start.localeCompare(b.start));
 }
 
+/** Move an ISO instant by whole days, for the coarse window prefilter. */
+function shiftDays(iso: string, days: number): string {
+  const d = new Date(iso);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString();
+}
+
+/**
+ * `YYYY-MM-DD` for a calendar date, built in UTC purely so the arithmetic is
+ * free of local DST — no instant is implied, and none survives the slice.
+ * Impossible dates roll over the way they always did: Feb 29 of a common year
+ * becomes Mar 1.
+ */
+function isoDate(year: number, month: number, day: number): string {
+  return new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
+}
+
 /**
  * Family birthdays as all-day events. They live only in this response — there
  * is no Google event behind them, hence `synthetic`.
+ *
+ * Like every other all-day event these are plain dates, so a birthday falls on
+ * the same square of the calendar no matter where the server is running.
  */
 function birthdayEvents(from: string, to: string): CalendarEvent[] {
-  const start = new Date(from);
-  const end = new Date(to);
+  // Day-granular bounds, deliberately generous — the client re-filters exactly.
+  const fromDate = shiftDays(from, -1).slice(0, 10);
+  const toDate = shiftDays(to, 1).slice(0, 10);
   const out: CalendarEvent[] = [];
 
   for (const person of listPeople()) {
@@ -74,11 +100,12 @@ function birthdayEvents(from: string, to: string): CalendarEvent[] {
     const day = Number(match[2]);
 
     // The window can straddle a year boundary, so check each year it touches.
-    for (let year = start.getFullYear(); year <= end.getFullYear(); year++) {
-      const date = new Date(year, month - 1, day);
-      if (date < start || date >= end) continue;
-      const next = new Date(date);
-      next.setDate(next.getDate() + 1);
+    const firstYear = Number(fromDate.slice(0, 4));
+    const lastYear = Number(toDate.slice(0, 4));
+    for (let year = firstYear; year <= lastYear; year++) {
+      const date = isoDate(year, month, day);
+      const next = isoDate(year, month, day + 1);
+      if (date > toDate || next < fromDate) continue;
       const age = person.byear ? year - person.byear : null;
       out.push({
         id: `bday_${person.id}_${year}`,
@@ -87,8 +114,8 @@ function birthdayEvents(from: string, to: string): CalendarEvent[] {
         title: age !== null ? `${person.name} turns ${age}` : `${person.name}'s birthday`,
         location: null,
         description: null,
-        start: date.toISOString(),
-        end: next.toISOString(),
+        start: date,
+        end: next,
         allDay: true,
         readOnly: true,
         synthetic: true,

@@ -1,4 +1,4 @@
-import type { CalendarEvent, SubscribedCalendar } from '@dashboard/shared';
+import { type CalendarEvent, type SubscribedCalendar, eventEnd, eventStart } from '@dashboard/shared';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
@@ -23,8 +23,8 @@ export function EventEditor({
   say: (text: string, hue?: number) => void;
 }) {
   const [calendars, setCalendars] = useState<SubscribedCalendar[]>([]);
-  const start = event ? new Date(event.start) : roundedNext(defaultDate);
-  const end = event ? new Date(event.end) : new Date(start.getTime() + 60 * 60_000);
+  const start = event ? eventStart(event) : roundedNext(defaultDate);
+  const end = event ? eventEnd(event) : new Date(start.getTime() + 60 * 60_000);
 
   const [calendarId, setCalendarId] = useState(event?.calendarId ?? '');
   const [title, setTitle] = useState(event?.title ?? '');
@@ -52,10 +52,10 @@ export function EventEditor({
   const save = async () => {
     setSaving(true);
     try {
-      const startIso = allDay ? `${date}T00:00:00` : new Date(`${date}T${from}`).toISOString();
-      const endIso = allDay
-        ? `${nextDay(date)}T00:00:00`
-        : new Date(`${date}T${to}`).toISOString();
+      // All-day events go up as plain dates, the same shape they come back in;
+      // a timed one becomes a real instant, offset and all.
+      const startIso = allDay ? date : new Date(`${date}T${from}`).toISOString();
+      const endIso = allDay ? nextDay(date) : new Date(`${date}T${to}`).toISOString();
 
       const body = {
         calendarId,

@@ -201,7 +201,18 @@ export interface CalendarEvent {
   title: string;
   location: string | null;
   description: string | null;
-  /** ISO 8601. For all-day events this is the local midnight boundary. */
+  /**
+   * A timed event carries a full ISO 8601 instant, offset included.
+   *
+   * An all-day event carries a bare `YYYY-MM-DD` instead, because that is what
+   * it actually is: a calendar date, with no time and no timezone. Pinning it to
+   * an instant would mean choosing a zone to pin it in, and whichever zone the
+   * server happened to be running in would then decide which day the panel drew
+   * it on. Resolve these with `eventStart`/`eventEnd` at the point of display.
+   *
+   * `end` is exclusive in both forms — an all-day event on Aug 30 ends
+   * `2026-08-31`, which is exactly the half-open interval the overlap tests want.
+   */
   start: string;
   end: string;
   allDay: boolean;
@@ -220,6 +231,33 @@ export interface EventInput {
   location?: string | null;
   description?: string | null;
 }
+
+/** A bare `YYYY-MM-DD`, the form an all-day boundary takes. */
+export function isDateOnly(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+/**
+ * Turn an event boundary into a `Date` for comparing and drawing.
+ *
+ * Timed boundaries are instants already. A date-only boundary is resolved to
+ * midnight *where the viewer is*, built from its parts rather than parsed —
+ * `new Date('2026-08-30')` is defined to mean UTC midnight, which lands on the
+ * evening of the 29th for anyone west of Greenwich and is the reason all-day
+ * events used to render a day early and across two days.
+ *
+ * Because the zone comes from the browser doing the drawing, no timezone is
+ * assumed or configured anywhere: the panel in the kitchen resolves a date to
+ * its own midnight, and would still be right if the API ran in UTC.
+ */
+export function resolveBoundary(value: string): Date {
+  if (!isDateOnly(value)) return new Date(value);
+  const [year, month, day] = value.split('-').map(Number) as [number, number, number];
+  return new Date(year, month - 1, day);
+}
+
+export const eventStart = (event: Pick<CalendarEvent, 'start'>): Date => resolveBoundary(event.start);
+export const eventEnd = (event: Pick<CalendarEvent, 'end'>): Date => resolveBoundary(event.end);
 
 export interface GoogleAccount {
   id: string;

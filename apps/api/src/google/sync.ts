@@ -102,7 +102,16 @@ export async function syncCalendar(calendarRowId: string): Promise<number> {
   return changed;
 }
 
-/** Writes one Google event into the cache. Cancellations delete the row. */
+/**
+ * Writes one Google event into the cache. Cancellations delete the row.
+ *
+ * Both forms Google sends are stored exactly as they arrive: `dateTime` is an
+ * instant with an offset, and `date` is a bare `YYYY-MM-DD` that stays a date.
+ * Converting an all-day date to an instant here would stamp it with whatever
+ * timezone this process happens to run in — which for a container is UTC — and
+ * that stamp would then decide which day the panel drew it on. The viewer
+ * resolves it instead; see `resolveBoundary` in @dashboard/shared.
+ */
 function applyEvent(calendarRowId: string, ev: calendar_v3.Schema$Event): number {
   if (!ev.id) return 0;
 

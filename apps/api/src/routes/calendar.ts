@@ -180,6 +180,10 @@ function toGoogleEvent(input: Partial<EventInput>) {
   if (input.title !== undefined) body.summary = input.title;
   if (input.location !== undefined) body.location = input.location;
   if (input.description !== undefined) body.description = input.description;
+  // An all-day boundary is already a `YYYY-MM-DD`, so the slice is a no-op kept
+  // only to be strict about what Google accepts. It must not be handed an
+  // instant: pulling the date off one would answer "which day?" in this
+  // process's timezone rather than the household's.
   if (input.start) {
     body.start = input.allDay ? { date: input.start.slice(0, 10) } : { dateTime: input.start };
   }
