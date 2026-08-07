@@ -94,6 +94,19 @@ export interface Board {
   streaks: Streak[];
 }
 
+/**
+ * Whether this machine can install an update from here, and how the last
+ * attempt went. `available` is false unless a host update agent has registered
+ * itself — see scripts/install-updater.sh.
+ */
+export interface UpdaterInfo {
+  available: boolean;
+  state: 'idle' | 'requested' | 'running' | 'ok' | 'failed';
+  tag: string | null;
+  message: string | null;
+  updatedAt: string | null;
+}
+
 export interface VersionInfo {
   current: string;
   available: string | null;
@@ -101,11 +114,13 @@ export interface VersionInfo {
   releaseNotes: string | null;
   checkedAt: string | null;
   error: string | null;
+  updater: UpdaterInfo;
 }
 
 export const api = {
   version: () => call<VersionInfo>('/api/version'),
   checkVersion: () => post<VersionInfo>('/api/version/check'),
+  installUpdate: (tag: string) => post<UpdaterInfo>('/api/version/update', { tag }),
 
   people: () => call<Person[]>('/api/people'),
   createPerson: (body: Record<string, unknown>) => post<Person>('/api/people', body),

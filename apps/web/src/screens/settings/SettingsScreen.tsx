@@ -649,8 +649,40 @@ function AboutPanel({ say }: { say: (text: string, hue?: number) => void }) {
     void api.version().then(setInfo).catch(() => undefined);
   }, []);
 
+  const updater = info?.updater;
+  const installing = updater?.state === 'requested' || updater?.state === 'running';
+
+  /**
+   * While an update runs, keep asking. The server is rebuilt out from under us
+   * partway through, so failed requests are expected and ignored — the version
+   * that answers afterwards is the answer.
+   */
+  useEffect(() => {
+    if (!installing) return undefined;
+    const timer = window.setInterval(() => {
+      void api
+        .version()
+        .then(setInfo)
+        .catch(() => undefined);
+    }, 3_000);
+    return () => window.clearInterval(timer);
+  }, [installing]);
+
   if (!info) return null;
   const behind = info.available && info.available !== info.current;
+
+  const detail = () => {
+    if (installing) return updater?.message ?? 'Updating…';
+    if (updater?.state === 'failed') return `Update failed: ${updater.message ?? 'unknown error'}`;
+    if (info.error) return `Last check failed: ${info.error}`;
+    if (behind) {
+      return updater?.available
+        ? `${info.available} is available`
+        : `${info.available} is available — update from the machine running it`;
+    }
+    if (updater?.state === 'ok' && updater.tag === info.current) return `Updated to ${info.current}`;
+    return info.checkedAt ? 'Up to date' : 'Checking for updates…';
+  };
 
   return (
     <Panel title="This dashboard" sub="Version and updates" delay={60}>
@@ -659,17 +691,28 @@ function AboutPanel({ say }: { say: (text: string, hue?: number) => void }) {
           <div title={info.current} style={{ fontSize: 17, fontWeight: 800 }}>
             {/^v\d/.test(info.current) ? `Version ${info.current}` : displayVersion(info.current)}
           </div>
-          <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
-            {info.error
-              ? `Last check failed: ${info.error}`
-              : behind
-                ? `${info.available} is available — deploy it on the Mac mini`
-                : info.checkedAt
-                  ? 'Up to date'
-                  : 'Checking for updates…'}
-          </div>
+          <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>{detail()}</div>
         </div>
+        {behind && updater?.available && (
+          <Button
+            variant="primary"
+            disabled={installing}
+            onClick={async () => {
+              if (!info.available) return;
+              try {
+                setInfo({ ...info, updater: await api.installUpdate(info.available) });
+                say(`Installing ${info.available}`, 258);
+              } catch (err) {
+                say(err instanceof Error ? err.message : 'Could not start the update', 25);
+              }
+            }}
+            style={{ flex: 'none' }}
+          >
+            {installing ? 'Updating…' : `Update to ${info.available}`}
+          </Button>
+        )}
         <Button
+          disabled={installing}
           onClick={async () => {
             setChecking(true);
             try {

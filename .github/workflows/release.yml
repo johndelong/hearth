@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   # Never publish a release that doesn't build. A bad tag would otherwise cost
-  # a deploy to the Mac mini and an automatic rollback to discover.
+  # a failed update on the machine serving the house to discover.
   check:
     runs-on: ubuntu-latest
     steps:

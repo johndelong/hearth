@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        # deploy.sh sets this from `git describe`; defaults to dev otherwise.
+        # update.sh sets this to the release tag; defaults to dev otherwise.
         APP_VERSION: ${APP_VERSION:-dev}
     image: hearth:latest
     container_name: hearth
@@ -12,6 +12,10 @@ services:
       - '8080:8080'
     volumes:
       - hearth-data:/data
+      # How the dashboard reaches the host's update agent: it writes a request
+      # here, the agent writes back what happened. Harmless when no agent is
+      # installed — the directory is simply empty and the button stays hidden.
+      - ${HEARTH_CONTROL_DIR:-./.hearth-control}:/control
     environment:
       # Timezone drives chore resets and the day view, so it must be local time.
       TZ: America/Detroit

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template. install-updater.sh substitutes __REPO_DIR__, __CONTROL_DIR__ and
+  __PATH__, then writes the result to ~/Library/LaunchAgents/.
+
+  This is a user agent rather than a system daemon on purpose: Docker Desktop
+  runs as the logged-in user, so anything driving it has to run there too.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hearth.updater</string>
+
+  <!-- Runs only when the dashboard asks. No polling, no schedule. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__REPO_DIR__/scripts/update.sh</string>
+    <string>--requested</string>
+  </array>
+
+  <!-- The one trigger: the dashboard writing an update request. -->
+  <key>WatchPaths</key>
+  <array>
+    <string>__CONTROL_DIR__/request.json</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__REPO_DIR__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- Agents get a bare PATH; git and docker have to be findable. -->
+    <key>PATH</key>
+    <string>__PATH__</string>
+    <key>HEARTH_CONTROL_DIR</key>
+    <string>__CONTROL_DIR__</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__CONTROL_DIR__/update.log</string>
+  <key>StandardErrorPath</key>
+  <string>__CONTROL_DIR__/update.log</string>
+</dict>
+</plist>
