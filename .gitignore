@@ -12,3 +12,6 @@ dist/
 
 # build artifacts
 *.tsbuildinfo
+
+# Where the dashboard and the host's update agent pass notes to each other.
+.hearth-control/

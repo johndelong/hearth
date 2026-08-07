@@ -41,7 +41,7 @@ ENV APP_VERSION=${APP_VERSION} \
     PORT=8080 \
     HOST=0.0.0.0 \
     DATABASE_PATH=/data/dashboard.db \
-    TZ=America/Detroit
+    TZ=UTC
 
 RUN apk add --no-cache tzdata tini
 

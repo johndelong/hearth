@@ -1,8 +1,9 @@
 # Hearth
 
 A wall-panel dashboard for the house: the family calendar (synced from Google) and
-the kids' chore boards (kept locally). Built to run in a container on the Mac mini
-and be opened full-screen on wall-mounted touch screens and tablets.
+the kids' chore boards (kept locally). Built to run in a container on a machine
+that stays on at home, and be opened full-screen on wall-mounted touch screens
+and tablets.
 
 Groceries and Home are in the design but not built yet — they need Apple Reminders
 and Home Assistant integrations.
@@ -42,6 +43,13 @@ npm run build
 node apps/api/dist/index.js     # http://localhost:8080
 ```
 
+To exercise the container itself, build it from this checkout rather than
+pulling a published release:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
 ## Connecting Google Calendar
 
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project
@@ -57,18 +65,18 @@ node apps/api/dist/index.js     # http://localhost:8080
    http://localhost:8080/api/google/callback
    ```
 
-   It must be `localhost`, not the mini's hostname. Google requires HTTPS for
+   It must be `localhost`, not the host's own hostname. Google requires HTTPS for
    redirect URIs and exempts only localhost, and `.local` is not a public-suffix
    domain — a hostname URI gets rejected outright. This is also why `PUBLIC_URL`
    defaults to localhost and generally shouldn't be changed; the redirect is the
    only thing it feeds.
 
 4. Put the client ID and secret in `.env` (see `.env.example`) and restart the server.
-5. **Sign in from the mini itself**, since the redirect has to land on localhost.
-   Either use the mini's own browser, or tunnel from your laptop:
+5. **Sign in from the host machine itself**, since the redirect has to land on
+   localhost. Either use that machine's own browser, or tunnel from your laptop:
 
    ```bash
-   ssh -L 8080:localhost:8080 you@your-mini.local
+   ssh -L 8080:localhost:8080 you@your-host.local
    # then browse http://localhost:8080 on the laptop
    ```
 
@@ -132,23 +140,56 @@ Restart the server and it applies. Rules worth knowing:
 - SQLite's `ALTER TABLE` is limited (no dropping or retyping columns). For those, create the
   new table, copy the rows across, drop the old one, and rename — all within the one file.
 
-## Deploying to the Mac mini
+## Running it in the house
 
 ### First time
 
-On the mini, with Docker Desktop installed and running:
+Releases are published as container images, so **the host never needs a
+checkout, git, or a build toolchain** — Docker and curl are the whole
+requirement. On the machine that will host it, with Docker Desktop running:
 
 ```bash
-git clone https://github.com/johndelong/hearth.git ~/hearth
-cd ~/hearth
-cp .env.example .env        # fill in PUBLIC_URL, Google credentials, COOKIE_SECRET
-./scripts/deploy.sh         # builds and starts the newest release tag
+curl -fsSL https://raw.githubusercontent.com/johndelong/hearth/main/scripts/install.sh | bash
 ```
 
-The database lives in the `hearth-data` volume, so it survives every redeploy.
-`TZ` matters — chore resets and the calendar's day boundaries follow it.
+That downloads four files into `~/hearth` and writes a `.env` with a generated
+`COOKIE_SECRET`. Set `TZ` in it — chore resets and the calendar's day boundaries
+follow it, and the image defaults to UTC. Add the Google credentials too if you
+want the calendar; it runs without them and Settings explains what's missing.
+Then:
 
-### Cutting a release and shipping it
+```bash
+cd ~/hearth
+./scripts/update.sh              # pulls and starts the newest release
+./scripts/install-updater.sh     # optional: lets Settings install updates itself
+```
+
+The whole installation is:
+
+```
+~/hearth/
+  docker-compose.yml
+  .env
+  scripts/update.sh
+  scripts/install-updater.sh
+  scripts/updater/com.hearth.updater.plist
+  .hearth-control/        created on first run
+```
+
+The database lives in the `hearth-data` Docker volume, not in that directory, so
+it survives every update — and deleting the directory doesn't touch it.
+
+(`HEARTH_DIR=/opt/hearth` puts it somewhere else. Running `./scripts/install.sh`
+from a clone does the same thing, and never overwrites an existing `.env`.)
+
+For the tablets: open `http://your-host.local:8080` and add it to the home
+screen. The page is marked as a web app, so it opens without browser chrome.
+
+Note that the app loads its two fonts (Outfit and Nunito) from Google Fonts. On a
+panel with no internet they fall back to the system font; self-host them if that
+matters.
+
+### Cutting a release
 
 From your laptop:
 
@@ -157,99 +198,111 @@ git tag v0.2.0 && git push --tags
 ```
 
 That's all — `.github/workflows/release.yml` takes it from there. It typechecks
-and builds the tag first, and only then publishes a GitHub Release.
+and builds the tag, pushes a multi-architecture image (arm64 and amd64) to
+`ghcr.io/johndelong/hearth` as both `:v0.2.0` and `:latest`, and only then
+publishes the GitHub Release. The Release comes last on purpose: the dashboard
+offers an update the moment it appears, so the image has to be there already.
+
+**Once, on a new fork:** the first push creates the GHCR package as private.
+Make it public under the repo's **Packages** settings, or every host needs a
+registry login to pull.
 
 Notes come from GitHub's own generator, which categorises and links merged pull
 requests. That generator works *from* pull requests, though, so commits pushed
 straight to `main` yield nothing but a compare link — when it finds none, the
 workflow falls back to listing commit subjects. Either way the notes are worth
 reading, which is a reason to keep writing commit subjects as statements of what
-changed. The build gate matters: a tag that doesn't compile would otherwise cost you
-a deploy and an automatic rollback to find out. The Release itself matters because
-the dashboard's update notice reads GitHub's *published releases* — a bare tag is
-invisible to that API.
+changed. The build gate matters: a tag that doesn't compile would otherwise cost
+a failed update on the machine serving the house to find out.
 
-Then on the mini:
+### Updating
 
-```bash
-cd ~/hearth && ./scripts/deploy.sh
-```
+The server asks GitHub hourly whether a newer release exists — once for the whole
+house, not once per panel. This repository is public, so that call needs no
+credentials. **Settings › Display › This dashboard** shows what's running,
+what's available, a link to the release notes, and a **Check now** button when
+you don't want to wait out the hour.
 
-That one command snapshots the database, checks out the newest tag, rebuilds,
-waits for the new container to report healthy, and **rolls back to the previous
-tag if it doesn't**. Snapshots land in `~/hearth-backups` (last 20 kept).
+Installing it is one command on the host machine:
 
 ```bash
-./scripts/deploy.sh --check     # what's running vs what's tagged; needs no Docker
-./scripts/deploy.sh v0.1.0      # deploy a specific tag, i.e. roll back on purpose
+cd ~/hearth && ./scripts/update.sh
 ```
 
-The health check goes to this machine by default, which is what you want when the
-script runs on the mini. Point it at a hostname when it doesn't — checking a
-deploy from your laptop, say, or when the app sits behind a proxy:
+It asks GitHub for the newest release, pulls that image, starts it, and waits
+for the container to report that version. Nothing is built and nothing is
+checked out. If the pull fails, the container already running is left alone —
+the house keeps its dashboard and the failure shows up in Settings rather than
+as a dark screen.
 
 ```bash
-BASE_URL=http://mac-mini.local:8080 ./scripts/deploy.sh --check
+./scripts/update.sh --check     # what's running vs what's published
+./scripts/update.sh v0.1.0      # a specific release, i.e. roll back on purpose
 ```
 
-Set `BASE_URL` in `.env` to make that the default. Every message names the URL it
-is checking, so a wrong host shows up immediately instead of as a mystery
-timeout.
+Rolling back is the same operation as updating, because every release is still
+in the registry. Nothing needs to have been kept on the host.
 
-### What the wall panels do after a deploy
+The health check goes to this machine by default. Point it elsewhere when the
+script runs somewhere else, or when the app sits behind a proxy — set `BASE_URL`
+in `.env`, or pass it inline. Every message names the URL it is checking, so a
+wrong host shows up immediately instead of as a mystery timeout.
+
+### The Update button
+
+With the launchd agent installed, nobody has to open a terminal: **Settings ›
+Display › This dashboard** grows an **Update to v0.3.0** button whenever a
+release is out, and shows progress until the new version answers.
+
+```bash
+./scripts/install-updater.sh              # install and start it
+./scripts/install-updater.sh --uninstall  # remove it
+```
+
+The button only appears when the agent is installed. Everywhere else the
+dashboard just links to the release notes, and updating stays a command.
+
+**How it works.** A container cannot replace itself — the process doing the work
+is killed partway through when its own container goes away. So the work runs
+outside Docker, and the two sides pass notes through `.hearth-control/`, a
+directory bind-mounted into the container:
+
+| File | Written by | Means |
+| --- | --- | --- |
+| `agent.json` | `install-updater.sh` | An agent exists. This is what shows the button. |
+| `request.json` | the dashboard | Install this release. |
+| `status.json` | `update.sh` | How it is going: `running`, `ok`, `failed`. |
+| `update.log` | `update.sh` | The full output, for when `status.json` says `failed`. |
+
+launchd watches `request.json` and runs `./scripts/update.sh --requested` when
+it appears. The API never shells out and never talks to Docker; it writes one
+file. Requesting an update needs the parent PIN, like everything else in
+Settings.
+
+macOS only, because launchd is. The agent is a *user* agent rather than a system
+daemon because Docker Desktop runs as the logged-in user. On Linux the same two
+files work behind a systemd path unit — see
+`scripts/updater/com.hearth.updater.plist` for what it has to run; nothing in
+the app changes.
+
+`UPDATE_CHECK_TOKEN` is read if it is set, but it is not needed: it only raises
+GitHub's rate limit, and one call an hour never comes close. Leave it blank.
+
+### What the wall panels do afterwards
 
 Every API response carries the running version in an `x-hearth-version` header,
 and each panel remembers the version it loaded against. There is no polling for
-this — the app is already fetching the board every minute, so a deploy is noticed
-on the next request the panel makes anyway, and instantly on any tap.
+this — the app is already fetching the board every minute, so an update is
+noticed on the next request the panel makes anyway, and instantly on any tap.
 
 - **Idle panels reload themselves.** A screen nobody has touched drops into frame
   mode, notices the mismatch, and refreshes silently. The kitchen display needs no
-  attention after a deploy.
+  attention after an update.
 - **Panels in use ask first.** A tablet someone is holding gets a "Hearth v0.2.0 is
   ready · Refresh" toast rather than reloading under their finger.
 
 This matters because a wall panel can sit on the same page for weeks; without it,
 it keeps running whatever JavaScript it loaded back then.
-
-### Noticing undeployed releases
-
-Two different things keep the panels honest, and only one of them involves GitHub.
-
-**After a deploy**, every API response carries an `x-hearth-version` header. A tab
-that booted against an older build sees the new version come back and offers to
-reload, so a tablet left on the same page for weeks can't keep running last
-month's JavaScript. Nothing to configure.
-
-**Before a deploy**, the server asks GitHub hourly whether a newer release exists
-— once for the whole house, not once per panel. This repository is public, so
-that call needs no credentials. **Settings › Display › This dashboard** shows
-what's running, what's available, a link to the release notes, and a **Check
-now** button when you don't want to wait out the hour.
-
-`UPDATE_CHECK_TOKEN` is still read if it is set, but it is no longer needed: it
-only raises GitHub's rate limit, and one call an hour never comes close. Leave it
-blank.
-
-On the mini, `./scripts/deploy.sh --check` answers the same question from git
-rather than the releases API — it compares tags, where the app compares published
-releases. The two agree unless a tag was pushed and the release workflow failed
-to publish it, in which case the tag is the one to distrust.
-
-The deploy itself is deliberately a command you run, not a button in the app. A
-container can't rebuild itself: the process doing the work gets killed partway
-through when its own container is replaced. (Immich works the same way — it tells
-you a release is out, you run the compose command.) Automating it would mean
-running something outside Docker on the mini — a launchd agent, or Watchtower
-against a registry — which is worth adding later if the manual step gets old.
-Nothing above changes when you do.
-
-For the tablets: open `http://mac-mini.local:8080` and add it to the home screen.
-The page is marked as a web app, so it opens without browser chrome.
-
-Note that the app loads its two fonts (Outfit and Nunito) from Google Fonts. On a
-panel with no internet they fall back to the system font; self-host them if that
-matters.
 
 ## Configuration
 
@@ -265,4 +318,7 @@ matters.
 | `TZ` | system | Local time for resets and day boundaries |
 | `APP_VERSION` | `dev` | Stamped in at build time; reported at `/api/version` |
 | `UPDATE_CHECK_TOKEN` | — | Not needed. Only raises GitHub's rate limit for the release check |
-| `UPDATE_REPO` | `johndelong/hearth` | Repo to check for releases |
+| `UPDATE_REPO` | `johndelong/hearth` | Repo whose releases the app and `update.sh` follow |
+| `HEARTH_IMAGE` | `ghcr.io/johndelong/hearth` | Image the host pulls; change it with `UPDATE_REPO` for a fork |
+| `UPDATE_CONTROL_DIR` | `/control` | Where the container and the host's update agent pass notes |
+| `HEARTH_CONTROL_DIR` | `./.hearth-control` | The host side of that directory, used by the scripts and compose |
