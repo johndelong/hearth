@@ -14,8 +14,21 @@ const HOUR_H = 84;
 /** Width of the hour-label gutter: the 74px label plus the 18px row gap. */
 const GUTTER = 92;
 
-/** Breathing room between a block and the one in the next lane. */
-const LANE_GAP = 7;
+/**
+ * How far a block reaches under the lane to its right. Overlapping events are
+ * drawn overlapping, cascading to the right and stacking in start order, rather
+ * than each shrinking into a tidy column — a 9am that runs all morning stays
+ * legible behind the two things booked across it.
+ */
+const LANE_OVERLAP = 0.34;
+
+/**
+ * Blocks lay out inside a track this wide rather than the whole panel. A lone
+ * event stretched across a wall-mounted display reads as a banner rather than
+ * an appointment; capping it keeps a one-event morning looking like the same
+ * kind of object as a busy one.
+ */
+const TRACK_MAX = 640;
 
 interface Props {
   day: Date;
@@ -123,57 +136,67 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
 
           {/* Blocks float above the grid; the layer itself must not eat taps. */}
           <div style={{ position: 'absolute', inset: 0, left: GUTTER, pointerEvents: 'none' }}>
-            {boxes.map((box, i) => {
-              const e = box.event;
-              const p = person(e);
-              const height = ((box.endMin - box.startMin) / 60) * HOUR_H - 4;
-              const width = 100 / box.columns;
-              // Below roughly two lines of type there is only room for one.
-              const tight = height < 58;
+            <div style={{ position: 'relative', height: '100%', maxWidth: TRACK_MAX }}>
+              {boxes.map((box, i) => {
+                const e = box.event;
+                const p = person(e);
+                const height = ((box.endMin - box.startMin) / 60) * HOUR_H - 4;
+                const lane = 100 / box.columns;
+                const left = box.column * lane;
+                // Reach under the neighbour, but never past the track's edge.
+                const width = Math.min(lane * (1 + LANE_OVERLAP), 100 - left);
+                // Below roughly two lines of type there is only room for one.
+                const tight = height < 58;
 
-              return (
-                <TapButton
-                  key={e.id}
-                  onClick={() => !e.synthetic && onEditEvent(e)}
-                  style={{
-                    position: 'absolute',
-                    pointerEvents: 'auto',
-                    top: (box.startMin / 60) * HOUR_H,
-                    height,
-                    left: `${box.column * width}%`,
-                    width: `calc(${width}% - ${LANE_GAP}px)`,
-                    display: 'flex',
-                    alignItems: tight ? 'center' : 'flex-start',
-                    gap: 10,
-                    overflow: 'hidden',
-                    padding: tight ? '6px 12px' : '9px 13px',
-                    borderRadius: 14,
-                    borderLeft: `3px solid ${col(p.hue, night)}`,
-                    background: soft(p.hue, night),
-                    color: deep(p.hue, night),
-                    textAlign: 'left',
-                    animation: `riseIn .45s ${EASE} ${i * 26}ms both`,
-                  }}
-                >
-                  {!tight && (
-                    <Avatar name={p.name} hue={p.hue} night={night} size={27} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
-                  )}
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, opacity: 0.75 }}>
-                      {fmtRange(eventStart(e), eventEnd(e))}
-                    </span>
-                    <span style={{ display: 'block', fontSize: tight ? 14.5 : 16.5, fontWeight: 800 }}>
-                      {e.title}
-                    </span>
-                    {e.location && height >= 84 && (
-                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, opacity: 0.7 }}>
-                        {e.location}
-                      </span>
+                return (
+                  <TapButton
+                    key={e.id}
+                    onClick={() => !e.synthetic && onEditEvent(e)}
+                    style={{
+                      position: 'absolute',
+                      pointerEvents: 'auto',
+                      top: (box.startMin / 60) * HOUR_H,
+                      height,
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      // Later lanes sit on top, so the pile reads left to right.
+                      zIndex: box.column + 1,
+                      display: 'flex',
+                      alignItems: tight ? 'center' : 'flex-start',
+                      gap: 10,
+                      overflow: 'hidden',
+                      padding: tight ? '6px 12px' : '9px 13px',
+                      borderRadius: 14,
+                      borderLeft: `3px solid ${col(p.hue, night)}`,
+                      background: soft(p.hue, night),
+                      color: deep(p.hue, night),
+                      // A ring in the card colour keeps overlapping blocks from
+                      // bleeding into one another where they cross.
+                      boxShadow: box.columns > 1 ? '0 0 0 2px var(--card)' : undefined,
+                      textAlign: 'left',
+                      animation: `riseIn .45s ${EASE} ${i * 26}ms both`,
+                    }}
+                  >
+                    {!tight && (
+                      <Avatar name={p.name} hue={p.hue} night={night} size={27} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
                     )}
-                  </span>
-                </TapButton>
-              );
-            })}
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, opacity: 0.75 }}>
+                        {fmtRange(eventStart(e), eventEnd(e))}
+                      </span>
+                      <span style={{ display: 'block', fontSize: tight ? 14.5 : 16.5, fontWeight: 800 }}>
+                        {e.title}
+                      </span>
+                      {e.location && height >= 84 && (
+                        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, opacity: 0.7 }}>
+                          {e.location}
+                        </span>
+                      )}
+                    </span>
+                  </TapButton>
+                );
+              })}
+            </div>
 
             {showNowLine && (
               <div
