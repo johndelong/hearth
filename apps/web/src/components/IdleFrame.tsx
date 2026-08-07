@@ -16,6 +16,38 @@ import { fmtTime } from '../screens/calendar/useEvents';
 const FRAME_INK = '#e4e7ee';
 const FRAME_INK2 = '#767c88';
 
+/** Which calendar square a date falls on locally, as a sortable number. */
+const dayKey = (d: Date): number => d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate();
+
+/**
+ * Chronological, but grouped by day so that a day's all-day events sit above
+ * its timed ones — the same order the day view uses, and the reason a birthday
+ * reads as belonging to the day rather than to a moment in it.
+ *
+ * Sorting on the raw strings cannot do this: an all-day event is a plain date
+ * and a timed one is a UTC instant, so a 9pm tonight (stored as tomorrow's
+ * date in UTC) sorted below tomorrow's all-day events.
+ *
+ * Anything already under way is pulled up to today, since a trip that started
+ * on Tuesday is happening now and shouldn't sort above what's left of today.
+ */
+const byWhen =
+  (now: Date) =>
+  (a: CalendarEvent, b: CalendarEvent): number => {
+    const today = dayKey(now);
+    const dayOf = (e: CalendarEvent) => Math.max(today, dayKey(eventStart(e)));
+
+    const byDay = dayOf(a) - dayOf(b);
+    if (byDay !== 0) return byDay;
+    if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+
+    const byStart = eventStart(a).getTime() - eventStart(b).getTime();
+    if (byStart !== 0) return byStart;
+
+    // Same start: longest first, which is the order the day view stacks them in.
+    return eventEnd(b).getTime() - eventEnd(a).getTime();
+  };
+
 export function IdleFrame({
   now,
   events,
@@ -25,9 +57,13 @@ export function IdleFrame({
   events: CalendarEvent[];
   people: Person[];
 }) {
+  // What is left of today, plus anything already under way. The events query is
+  // a deliberately coarse prefilter that reaches into the neighbouring days, so
+  // without the day bound tomorrow's 7pm could appear here showing only "7 PM"
+  // — under an empty state that promises this is today.
   const upcoming = events
-    .filter((e) => eventEnd(e) > now)
-    .sort((a, b) => a.start.localeCompare(b.start))
+    .filter((e) => eventEnd(e) > now && dayKey(eventStart(e)) <= dayKey(now))
+    .sort(byWhen(now))
     .slice(0, 4);
 
   const byPerson = new Map(people.map((p) => [p.id, p]));
