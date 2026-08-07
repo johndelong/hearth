@@ -2,10 +2,14 @@
 #
 # Move Hearth to a release.
 #
-#   ./scripts/update.sh              # the newest release tag
-#   ./scripts/update.sh v0.3.0       # a specific tag, i.e. roll back on purpose
-#   ./scripts/update.sh --check      # what is running vs what is available
+#   ./scripts/update.sh              # the newest release
+#   ./scripts/update.sh v0.3.0       # a specific release, i.e. roll back on purpose
+#   ./scripts/update.sh --check      # what is running vs what is published
 #   ./scripts/update.sh --requested  # whatever the dashboard asked for
+#
+# Releases are published as container images, so this pulls — there is no
+# checkout to update and nothing to build. Docker, curl and this file are the
+# whole requirement.
 #
 # `--requested` is how the launchd agent calls this: the dashboard writes
 # .hearth-control/request.json, launchd notices, and this runs. Every other
@@ -16,16 +20,26 @@
 
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_DIR"
+# The install directory: this file lives in scripts/ beside docker-compose.yml.
+HEARTH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$HEARTH_DIR"
 
-CONTROL_DIR="${HEARTH_CONTROL_DIR:-$REPO_DIR/.hearth-control}"
+[ -f docker-compose.yml ] || {
+  printf 'No docker-compose.yml beside %s\n' "$HEARTH_DIR" >&2
+  exit 1
+}
 
-# The launchd agent has almost no environment, so .env is where it learns where
-# the app answers. Same file compose reads; only this one key is wanted here.
-if [ -z "${BASE_URL:-}" ] && [ -f "$REPO_DIR/.env" ]; then
-  BASE_URL="$(sed -n 's/^[[:space:]]*BASE_URL=//p' "$REPO_DIR/.env" | tail -n1 | tr -d '"'"'"'\r')"
-fi
+# .env is where the agent learns everything: it inherits almost no environment.
+# Read only the keys wanted here; compose reads the same file for the rest.
+env_value() {
+  [ -f "$HEARTH_DIR/.env" ] || return 0
+  sed -n "s/^[[:space:]]*$1=//p" "$HEARTH_DIR/.env" | tail -n1 | tr -d '"'"'"'\r'
+}
+
+CONTROL_DIR="${HEARTH_CONTROL_DIR:-$HEARTH_DIR/.hearth-control}"
+REPO="${UPDATE_REPO:-$(env_value UPDATE_REPO)}"
+REPO="${REPO:-johndelong/hearth}"
+BASE_URL="${BASE_URL:-$(env_value BASE_URL)}"
 BASE_URL="${BASE_URL:-http://localhost:${PORT:-8080}}"
 BASE_URL="${BASE_URL%/}"
 HEALTH_URL="${BASE_URL}/api/health"
@@ -59,8 +73,13 @@ running_version() {
   curl -fsS --max-time 3 "$HEALTH_URL" 2>/dev/null | sed -n 's/.*"version":"\([^"]*\)".*/\1/p'
 }
 
-newest_tag() {
-  git tag --list 'v*' --sort=-v:refname | head -n1
+# The newest published release, straight from GitHub. Same source the dashboard
+# reads, so the two never disagree about what "newest" means.
+latest_release() {
+  curl -fsS --max-time 10 \
+    -H 'accept: application/vnd.github+json' \
+    "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null |
+    sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1
 }
 
 # --- what are we being asked to do? -------------------------------------------
@@ -68,10 +87,9 @@ newest_tag() {
 TARGET=""
 case "${1:-}" in
   --check)
-    git fetch --tags --quiet
     printf 'checking:  %s\n' "$BASE_URL"
     printf 'running:   %s\n' "$(running_version || true)"
-    printf 'newest:    %s\n' "$(newest_tag || true)"
+    printf 'published: %s\n' "$(latest_release || true)"
     exit 0
     ;;
   --requested)
@@ -90,13 +108,11 @@ esac
 command -v docker >/dev/null || fail "docker not found — install Docker Desktop"
 docker info >/dev/null 2>&1 || fail "Docker is not running — start Docker Desktop"
 
-status running "Fetching releases" "$TARGET"
-info "Fetching tags"
-git fetch --tags --prune --quiet || fail "Could not reach GitHub to fetch tags"
-
-[ -n "$TARGET" ] || TARGET="$(newest_tag)"
-[ -n "$TARGET" ] || fail "No release tags found. Cut one with: git tag v0.1.0 && git push --tags"
-git rev-parse --verify "refs/tags/${TARGET}" >/dev/null 2>&1 || fail "Unknown release: ${TARGET}"
+if [ -z "$TARGET" ]; then
+  status running "Looking for the newest release" ""
+  TARGET="$(latest_release)"
+  [ -n "$TARGET" ] || fail "Could not reach GitHub to find the newest release of ${REPO}"
+fi
 
 if [ "$(running_version || true)" = "$TARGET" ]; then
   info "${TARGET} is already running."
@@ -106,17 +122,20 @@ fi
 
 # --- do it --------------------------------------------------------------------
 #
-# A failed build leaves the container that is already running untouched, which
-# is the rollback: the house keeps its dashboard and the failure shows up in
+# A failed pull leaves the container that is already running untouched, which is
+# the rollback: the house keeps its dashboard and the failure shows up in
 # Settings instead of as a dark screen.
 
-status running "Building ${TARGET}" "$TARGET"
-info "Checking out ${TARGET}"
-git checkout --quiet --detach "refs/tags/${TARGET}"
+export APP_VERSION="$TARGET"
 
-info "Building and starting — this takes a minute or two"
-APP_VERSION="$TARGET" docker compose up -d --build \
-  || fail "Build failed — still running the previous version"
+status running "Downloading ${TARGET}" "$TARGET"
+info "Pulling ${TARGET}"
+docker compose pull --quiet hearth \
+  || fail "Could not pull ${TARGET} — still running the previous version"
+
+status running "Starting ${TARGET}" "$TARGET"
+info "Starting ${TARGET}"
+docker compose up -d || fail "Could not start ${TARGET} — check: docker compose logs hearth"
 
 status running "Waiting for ${TARGET} to come up" "$TARGET"
 info "Waiting for ${BASE_URL}"

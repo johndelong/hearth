@@ -5,7 +5,7 @@
 #   ./scripts/install-updater.sh              # install and start the agent
 #   ./scripts/install-updater.sh --uninstall  # remove it
 #
-# Installs a launchd user agent that watches this repo's control directory and
+# Installs a launchd user agent that watches the control directory and
 # runs scripts/update.sh when the dashboard drops an update request there. The
 # agent is what makes the Update button appear in Settings; without it the
 # dashboard still notices new releases, it just links to them.
@@ -15,8 +15,8 @@
 
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONTROL_DIR="${HEARTH_CONTROL_DIR:-$REPO_DIR/.hearth-control}"
+HEARTH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONTROL_DIR="${HEARTH_CONTROL_DIR:-$HEARTH_DIR/.hearth-control}"
 LABEL="com.hearth.updater"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 DOMAIN="gui/$(id -u)"
@@ -47,18 +47,18 @@ mkdir -p "$CONTROL_DIR" "$HOME/Library/LaunchAgents"
 chmod 777 "$CONTROL_DIR"
 
 # A launchd agent inherits almost no environment, so the PATH that finds docker
-# and git here is the PATH it has to be told about.
+# here is the PATH it has to be told about.
 AGENT_PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 DOCKER_DIR="$(dirname "$(command -v docker)")"
 case ":$AGENT_PATH:" in *":$DOCKER_DIR:"*) ;; *) AGENT_PATH="$DOCKER_DIR:$AGENT_PATH" ;; esac
 
 info "Writing $PLIST"
-sed -e "s|__REPO_DIR__|$REPO_DIR|g" \
+sed -e "s|__HEARTH_DIR__|$HEARTH_DIR|g" \
     -e "s|__CONTROL_DIR__|$CONTROL_DIR|g" \
     -e "s|__PATH__|$AGENT_PATH|g" \
-    "$REPO_DIR/scripts/updater/${LABEL}.plist" > "$PLIST"
+    "$HEARTH_DIR/scripts/updater/${LABEL}.plist" > "$PLIST"
 
-# bootout first so re-running this picks up a moved repo or a changed PATH.
+# bootout first so re-running this picks up a moved install or a changed PATH.
 launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
 launchctl bootstrap "$DOMAIN" "$PLIST" || fail "launchctl refused to load $PLIST"
 
@@ -67,7 +67,7 @@ launchctl bootstrap "$DOMAIN" "$PLIST" || fail "launchctl refused to load $PLIST
 cat > "$CONTROL_DIR/agent.json" <<JSON
 {
   "label": "${LABEL}",
-  "repoDir": "${REPO_DIR}",
+  "hearthDir": "${HEARTH_DIR}",
   "installedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 JSON

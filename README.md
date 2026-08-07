@@ -43,6 +43,13 @@ npm run build
 node apps/api/dist/index.js     # http://localhost:8080
 ```
 
+To exercise the container itself, build it from this checkout rather than
+pulling a published release:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
 ## Connecting Google Calendar
 
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project
@@ -137,18 +144,43 @@ Restart the server and it applies. Rules worth knowing:
 
 ### First time
 
-On the machine that will host it, with Docker Desktop installed and running:
+Releases are published as container images, so **the host never needs a
+checkout, git, or a build toolchain** — Docker and curl are the whole
+requirement. On the machine that will host it, with Docker Desktop running:
 
 ```bash
-git clone https://github.com/johndelong/hearth.git ~/hearth
+curl -fsSL https://raw.githubusercontent.com/johndelong/hearth/main/scripts/install.sh | bash
+```
+
+That downloads four files into `~/hearth` and writes a `.env` with a generated
+`COOKIE_SECRET`. Set `TZ` in it — chore resets and the calendar's day boundaries
+follow it, and the image defaults to UTC. Add the Google credentials too if you
+want the calendar; it runs without them and Settings explains what's missing.
+Then:
+
+```bash
 cd ~/hearth
-cp .env.example .env             # PUBLIC_URL, Google credentials, COOKIE_SECRET
-./scripts/update.sh              # builds and starts the newest release tag
+./scripts/update.sh              # pulls and starts the newest release
 ./scripts/install-updater.sh     # optional: lets Settings install updates itself
 ```
 
-The database lives in the `hearth-data` volume, so it survives every update.
-`TZ` matters — chore resets and the calendar's day boundaries follow it.
+The whole installation is:
+
+```
+~/hearth/
+  docker-compose.yml
+  .env
+  scripts/update.sh
+  scripts/install-updater.sh
+  scripts/updater/com.hearth.updater.plist
+  .hearth-control/        created on first run
+```
+
+The database lives in the `hearth-data` Docker volume, not in that directory, so
+it survives every update — and deleting the directory doesn't touch it.
+
+(`HEARTH_DIR=/opt/hearth` puts it somewhere else. Running `./scripts/install.sh`
+from a clone does the same thing, and never overwrites an existing `.env`.)
 
 For the tablets: open `http://your-host.local:8080` and add it to the home
 screen. The page is marked as a web app, so it opens without browser chrome.
@@ -166,7 +198,14 @@ git tag v0.2.0 && git push --tags
 ```
 
 That's all — `.github/workflows/release.yml` takes it from there. It typechecks
-and builds the tag first, and only then publishes a GitHub Release.
+and builds the tag, pushes a multi-architecture image (arm64 and amd64) to
+`ghcr.io/johndelong/hearth` as both `:v0.2.0` and `:latest`, and only then
+publishes the GitHub Release. The Release comes last on purpose: the dashboard
+offers an update the moment it appears, so the image has to be there already.
+
+**Once, on a new fork:** the first push creates the GHCR package as private.
+Make it public under the repo's **Packages** settings, or every host needs a
+registry login to pull.
 
 Notes come from GitHub's own generator, which categorises and links merged pull
 requests. That generator works *from* pull requests, though, so commits pushed
@@ -174,9 +213,7 @@ straight to `main` yield nothing but a compare link — when it finds none, the
 workflow falls back to listing commit subjects. Either way the notes are worth
 reading, which is a reason to keep writing commit subjects as statements of what
 changed. The build gate matters: a tag that doesn't compile would otherwise cost
-a failed update on the machine serving the house to find out. The Release itself
-matters because the dashboard's update notice reads GitHub's *published
-releases* — a bare tag is invisible to that API.
+a failed update on the machine serving the house to find out.
 
 ### Updating
 
@@ -192,15 +229,19 @@ Installing it is one command on the host machine:
 cd ~/hearth && ./scripts/update.sh
 ```
 
-It fetches tags, checks out the newest one, rebuilds, and waits for the new
-container to report that version. If the build fails, the container that is
-already running is left alone — the house keeps its dashboard and the failure
-shows up in Settings rather than as a dark screen.
+It asks GitHub for the newest release, pulls that image, starts it, and waits
+for the container to report that version. Nothing is built and nothing is
+checked out. If the pull fails, the container already running is left alone —
+the house keeps its dashboard and the failure shows up in Settings rather than
+as a dark screen.
 
 ```bash
-./scripts/update.sh --check     # what's running vs what's tagged; needs no Docker
-./scripts/update.sh v0.1.0      # a specific tag, i.e. roll back on purpose
+./scripts/update.sh --check     # what's running vs what's published
+./scripts/update.sh v0.1.0      # a specific release, i.e. roll back on purpose
 ```
+
+Rolling back is the same operation as updating, because every release is still
+in the registry. Nothing needs to have been kept on the host.
 
 The health check goes to this machine by default. Point it elsewhere when the
 script runs somewhere else, or when the app sits behind a proxy — set `BASE_URL`
@@ -221,8 +262,8 @@ release is out, and shows progress until the new version answers.
 The button only appears when the agent is installed. Everywhere else the
 dashboard just links to the release notes, and updating stays a command.
 
-**How it works.** A container cannot rebuild itself — the process doing the work
-is killed partway through when its own container is replaced. So the work runs
+**How it works.** A container cannot replace itself — the process doing the work
+is killed partway through when its own container goes away. So the work runs
 outside Docker, and the two sides pass notes through `.hearth-control/`, a
 directory bind-mounted into the container:
 
@@ -277,6 +318,7 @@ it keeps running whatever JavaScript it loaded back then.
 | `TZ` | system | Local time for resets and day boundaries |
 | `APP_VERSION` | `dev` | Stamped in at build time; reported at `/api/version` |
 | `UPDATE_CHECK_TOKEN` | — | Not needed. Only raises GitHub's rate limit for the release check |
-| `UPDATE_REPO` | `johndelong/hearth` | Repo to check for releases |
+| `UPDATE_REPO` | `johndelong/hearth` | Repo whose releases the app and `update.sh` follow |
+| `HEARTH_IMAGE` | `ghcr.io/johndelong/hearth` | Image the host pulls; change it with `UPDATE_REPO` for a fork |
 | `UPDATE_CONTROL_DIR` | `/control` | Where the container and the host's update agent pass notes |
 | `HEARTH_CONTROL_DIR` | `./.hearth-control` | The host side of that directory, used by the scripts and compose |

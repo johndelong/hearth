@@ -1,11 +1,13 @@
+# The host runs a published image — no source checkout, no build toolchain, no
+# git. This file plus a .env is the whole installation.
+#
+# To build from source instead (developing, or a change you haven't tagged):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 services:
   hearth:
-    build:
-      context: .
-      args:
-        # update.sh sets this to the release tag; defaults to dev otherwise.
-        APP_VERSION: ${APP_VERSION:-dev}
-    image: hearth:latest
+    # update.sh sets APP_VERSION to the release tag it is installing.
+    image: ${HEARTH_IMAGE:-ghcr.io/johndelong/hearth}:${APP_VERSION:-latest}
     container_name: hearth
     restart: unless-stopped
     ports:
@@ -17,16 +19,15 @@ services:
       # installed — the directory is simply empty and the button stays hidden.
       - ${HEARTH_CONTROL_DIR:-./.hearth-control}:/control
     environment:
-      # Timezone drives chore resets and the day view, so it must be local time.
-      TZ: America/Detroit
+      # Timezone drives chore resets and the day view, so set it to local time.
+      TZ: ${TZ:-UTC}
       # The address tablets use. Google redirects back here after sign-in, so it
       # must match the redirect URI registered in the Google Cloud console.
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       COOKIE_SECRET: ${COOKIE_SECRET:-change-me}
-      # Optional: a read-only token lets the dashboard notice new releases.
-      # Without it the app still detects stale tabs after a deploy.
+      # Optional: only raises GitHub's rate limit for the release check.
       UPDATE_CHECK_TOKEN: ${UPDATE_CHECK_TOKEN:-}
       UPDATE_REPO: ${UPDATE_REPO:-johndelong/hearth}
 

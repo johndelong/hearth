@@ -1,11 +1,12 @@
 /**
  * Asking the host to update us.
  *
- * A container cannot rebuild itself: the process doing the work is killed
- * partway through when its own container is replaced. So the work happens
- * outside Docker, in a launchd agent watching a directory that is bind-mounted
- * into this container. We drop a request in it; the agent picks it up, runs
- * `scripts/update.sh`, and writes back what happened.
+ * A container cannot replace itself: the process doing the work is killed
+ * partway through when its own container goes away. So the work happens outside
+ * Docker, in a launchd agent watching a directory that is bind-mounted into this
+ * container. We drop a request in it; the agent picks it up, runs
+ * `scripts/update.sh` — which pulls the released image and restarts — and writes
+ * back what happened.
  *
  * Nothing here shells out or talks to Docker — the whole interface is four
  * files in one directory:

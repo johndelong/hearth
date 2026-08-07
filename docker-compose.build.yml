@@ -1,0 +1,12 @@
+# Build the image from this checkout instead of pulling a published one.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# Only useful in a source checkout — the machine serving the house pulls.
+services:
+  hearth:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: hearth:${APP_VERSION:-dev}
