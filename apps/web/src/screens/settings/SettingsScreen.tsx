@@ -158,11 +158,28 @@ function bdayLabel(bday: string): string {
 
 // ---------- calendar ----------
 
+/**
+ * What an empty panel should say. `absent` — the real "there is nothing here" —
+ * is only ever shown once a request has actually come back saying so.
+ */
+function emptyNote(status: 'loading' | 'ready' | 'error', absent: string): string {
+  if (status === 'loading') return 'Checking…';
+  if (status === 'error') return 'Could not reach the dashboard service, so this may be out of date.';
+  return absent;
+}
+
 function CalendarSection({ settings, people, night, say, onSettingsChange }: Props) {
   const [accounts, setAccounts] = useState<GoogleAccount[]>([]);
   const [calendars, setCalendars] = useState<SubscribedCalendar[]>([]);
   const [configured, setConfigured] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  /**
+   * An empty list is not the same claim as an unanswered one. Until the fetch
+   * lands we know nothing, and saying "no account connected" would be inventing
+   * an answer — the reading that sends someone to Settings to reconnect an
+   * account that was there the whole time.
+   */
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
   const load = useCallback(async () => {
     try {
@@ -170,8 +187,9 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
       setAccounts(data.accounts);
       setCalendars(data.calendars);
       setConfigured(data.configured);
+      setStatus('ready');
     } catch {
-      /* the panel below shows the unconfigured state */
+      setStatus('error');
     }
   }, []);
 
@@ -232,7 +250,7 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
             : 'Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the server, then restart it'
         }
         addLabel={configured ? '+ Add a Google account' : undefined}
-        onAdd={configured ? () => void connect() : undefined}
+        onAdd={status === 'ready' && configured ? () => void connect() : undefined}
       >
         {accounts.map((account) => (
           <div key={account.id} style={rowStyle}>
@@ -271,7 +289,7 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
         ))}
         {accounts.length === 0 && (
           <div style={{ padding: '6px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
-            No Google account connected yet.
+            {emptyNote(status, 'No Google account connected yet.')}
           </div>
         )}
         {accounts.length > 0 && (
@@ -326,7 +344,7 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
         ))}
         {calendars.length === 0 && (
           <div style={{ padding: '6px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
-            Connect an account to see its calendars.
+            {emptyNote(status, 'Connect an account to see its calendars.')}
           </div>
         )}
       </Panel>

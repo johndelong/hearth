@@ -1,6 +1,7 @@
 import { type CalendarEvent, type Settings, eventEnd, eventStart } from '@dashboard/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api';
+import { useOnWake } from '../../state';
 
 export type CalView = 'day' | 'week' | 'month';
 
@@ -65,6 +66,10 @@ export function useEvents(view: CalView, anchor: Date, weekStart: Settings['week
     const timer = window.setInterval(() => void load(), 5 * 60_000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  // The server keeps syncing Google while a tablet sleeps, so a panel waking up
+  // only has to ask again — the events it wants are already in the cache.
+  useOnWake(() => void load());
 
   return { events, loading, error, reload: load, from: new Date(fromKey), to: new Date(toKey) };
 }

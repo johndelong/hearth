@@ -52,6 +52,37 @@ export function useIdle(idleMin: number): [boolean, () => void] {
   return [idle, poke];
 }
 
+/**
+ * Runs `fn` when the panel comes back to life.
+ *
+ * A tablet left on the wall sleeps its tab, and a sleeping tab's timers sleep
+ * with it — so a poll that should have run at 3am runs whenever the screen wakes
+ * instead, and until it does the panel is showing yesterday. Waking is spelled
+ * three different ways depending on how the tab was put away: `visibilitychange`
+ * for a backgrounded tab, `pageshow` for one restored from the back/forward
+ * cache, and `online` for a panel whose wifi dropped and returned.
+ */
+export function useOnWake(fn: () => void): void {
+  const latest = useRef(fn);
+  useEffect(() => {
+    latest.current = fn;
+  }, [fn]);
+
+  useEffect(() => {
+    const wake = () => {
+      if (document.visibilityState === 'visible') latest.current();
+    };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('pageshow', wake);
+    window.addEventListener('online', wake);
+    return () => {
+      document.removeEventListener('visibilitychange', wake);
+      window.removeEventListener('pageshow', wake);
+      window.removeEventListener('online', wake);
+    };
+  }, []);
+}
+
 /** Ticks once a minute so clocks and the "now" line stay honest. */
 export function useClock(): Date {
   const [now, setNow] = useState(() => new Date());
@@ -165,6 +196,12 @@ export function useAppData(): AppData {
     }, 60_000);
     return () => window.clearInterval(timer);
   }, [boardDate]);
+
+  // A slept tab's poll never ran, so waking is its own reason to refetch.
+  useOnWake(() => {
+    void api.board(boardDate ?? undefined).then(setBoard).catch(() => undefined);
+    void api.people().then(setPeople).catch(() => undefined);
+  });
 
   // Stepping to another day refetches immediately rather than waiting on the poll.
   const firstLoad = useRef(true);
