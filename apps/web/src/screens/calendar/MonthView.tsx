@@ -94,7 +94,7 @@ export function MonthView({
             >
               <div
                 style={{
-                  fontFamily: 'Outfit',
+                  fontFamily: 'var(--font-display)',
                   fontSize: 17,
                   fontWeight: 600,
                   color: today ? 'var(--ink)' : 'var(--ink2)',

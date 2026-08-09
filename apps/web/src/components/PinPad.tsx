@@ -34,7 +34,7 @@ export function PinPad({ onUnlocked, onCancel }: { onUnlocked: () => void; onCan
     }
     const next = code + key;
     setCode(next);
-    if (next.length >= 4) void submit(next);
+    if (next.length > 8) return;
   };
 
   return (
@@ -81,13 +81,13 @@ export function PinPad({ onUnlocked, onCancel }: { onUnlocked: () => void; onCan
           >
             <Icon name="lock" size={24} />
           </span>
-          <div style={{ fontFamily: 'Outfit', fontSize: 21, fontWeight: 600 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 21, fontWeight: 600 }}>
             {error ? 'That PIN did not match' : 'Enter the parent PIN'}
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12 }}>
-          {Array.from({ length: Math.max(4, code.length) }, (_, i) => (
+          {Array.from({ length: 8 }, (_, i) => (
             <span
               key={i}
               style={{
@@ -124,6 +124,13 @@ export function PinPad({ onUnlocked, onCancel }: { onUnlocked: () => void; onCan
             );
           })}
         </div>
+        <TapButton
+          disabled={checking || code.length < 4}
+          onClick={() => void submit(code)}
+          style={{ ...keyStyle, width: '100%', minHeight: 54, background: 'var(--ink)', color: 'var(--card)' }}
+        >
+          {checking ? 'Checking…' : 'Unlock'}
+        </TapButton>
       </div>
     </div>
   );
@@ -136,7 +143,7 @@ const keyStyle: React.CSSProperties = {
   borderRadius: 20,
   background: 'var(--chip)',
   color: 'var(--ink)',
-  fontFamily: 'Outfit',
+  fontFamily: 'var(--font-display)',
   fontSize: 24,
   fontWeight: 600,
 };

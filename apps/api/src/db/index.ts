@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { migrate } from './migrate.js';
 import { Db } from './sqlite.js';
 
-const DB_PATH = process.env.DATABASE_PATH ?? join(process.cwd(), 'data', 'dashboard.db');
+export const DB_PATH = process.env.DATABASE_PATH ?? join(process.cwd(), 'data', 'dashboard.db');
 
 mkdirSync(dirname(DB_PATH), { recursive: true });
 

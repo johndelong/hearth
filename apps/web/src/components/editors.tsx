@@ -129,7 +129,7 @@ export function PersonEditor({
           ring
         />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: 'Outfit', fontSize: 22, fontWeight: 600 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600 }}>
             {name.trim() || 'Someone'}
           </div>
           <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink2)' }}>

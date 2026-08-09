@@ -4,32 +4,31 @@ body,
   margin: 0;
   padding: 0;
   height: 100%;
+  min-height: 100dvh;
 }
 
 body {
   background: #f4f5f8;
-  font-family: Nunito, system-ui, sans-serif;
+  font-family: Nunito, ui-rounded, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden; /* the shell scrolls its own panes; the page never does */
 }
 
 * {
   box-sizing: border-box;
-  scrollbar-width: none;
   -webkit-tap-highlight-color: transparent;
-}
-
-::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
 }
 
 input,
 textarea,
 button,
 select {
-  font-family: Nunito;
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus, #557ee8);
+  outline-offset: 3px;
 }
 
 button {
@@ -139,5 +138,26 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-layout {
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    width: 100% !important;
+    flex-direction: row !important;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .settings-nav > button {
+    min-width: 176px;
+  }
+
+  .settings-content {
+    min-height: 0;
   }
 }

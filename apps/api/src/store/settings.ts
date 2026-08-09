@@ -5,6 +5,7 @@ const getRow = db.prepare<[string], { value: string }>('SELECT value FROM settin
 const putRow = db.prepare(
   'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
 );
+const deleteRow = db.prepare('DELETE FROM settings WHERE key = ?');
 const allRows = db.prepare<[], { key: string; value: string }>('SELECT key, value FROM settings');
 
 /** Raw single-key access, used for secrets that never reach the client. */
@@ -14,6 +15,10 @@ export function getRaw(key: string): string | null {
 
 export function setRaw(key: string, value: string): void {
   putRow.run(key, value);
+}
+
+export function deleteRaw(key: string): void {
+  deleteRow.run(key);
 }
 
 export function getSettings(): Settings {
@@ -29,14 +34,15 @@ export function getSettings(): Settings {
   return {
     ...DEFAULT_SETTINGS,
     ...stored,
-    pinSet: getRaw('_pinHash') !== null,
+    pinSet: Boolean(getRaw('_pinHash')),
   } as Settings;
 }
 
 export function updateSettings(patch: Partial<Settings>): Settings {
+  const allowed = new Set(Object.keys(DEFAULT_SETTINGS));
   const write = db.transaction((entries: [string, unknown][]) => {
     for (const [key, value] of entries) {
-      if (key === 'pinSet' || key.startsWith('_')) continue; // derived / protected
+      if (key === 'pinSet' || key.startsWith('_') || !allowed.has(key)) continue;
       putRow.run(key, JSON.stringify(value));
     }
   });

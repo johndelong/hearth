@@ -65,7 +65,7 @@ export function WeekView({
               <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--ink2)', letterSpacing: 0.4 }}>
                 {day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
               </div>
-              <div style={{ fontFamily: 'Outfit', fontSize: 27, fontWeight: 600, lineHeight: 1.1 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 600, lineHeight: 1.1 }}>
                 {day.getDate()}
               </div>
             </div>

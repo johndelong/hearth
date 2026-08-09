@@ -1,6 +1,6 @@
 import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { AVATAR_LIFT, CARD, EASE, ICONS, type IconName, col } from '../theme';
+import { AVATAR_LIFT, CARD_SHADOW, EASE, ICONS, type IconName, col } from '../theme';
 import { AvatarArt, isAvatarKey } from './AvatarArt';
 
 export function Icon({
@@ -127,6 +127,7 @@ export function TapButton({
     <button
       type="button"
       title={title}
+      aria-label={title}
       disabled={disabled}
       onPointerDown={startHold}
       onPointerUp={endHold}
@@ -160,11 +161,13 @@ export function TapButton({
   );
 }
 
-export function Toast({ toast }: { toast: { text: string; hue: number } | null }) {
+export function Toast({ toast, night = false }: { toast: { text: string; hue: number } | null; night?: boolean }) {
   if (!toast) return null;
   return (
     <div
       key={toast.text + String(Date.now())}
+      role="status"
+      aria-live="polite"
       style={{
         position: 'fixed',
         left: '50%',
@@ -177,7 +180,7 @@ export function Toast({ toast }: { toast: { text: string; hue: number } | null }
         fontSize: 17,
         fontWeight: 800,
         boxShadow: '0 8px 30px -10px rgba(20,24,40,.45)',
-        borderLeft: `4px solid ${col(toast.hue, false)}`,
+        borderLeft: `4px solid ${col(toast.hue, night)}`,
         animation: `toastIn 2.6s ${EASE} both`,
         pointerEvents: 'none',
       }}
@@ -268,13 +271,11 @@ export const Card = forwardRef<
 });
 
 /** Parsed from the CARD token so the two can never drift apart. */
-const cardSurface: CSSProperties = Object.fromEntries(
-  CARD.split(';').map((rule) => {
-    const [prop, ...rest] = rule.split(':');
-    const name = prop!.trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-    return [name, rest.join(':').trim()];
-  }),
-) as CSSProperties;
+const cardSurface: CSSProperties = {
+  background: 'var(--card)',
+  borderRadius: 'var(--radius-card)',
+  boxShadow: CARD_SHADOW,
+};
 
 export type ButtonVariant = 'primary' | 'ghost' | 'quiet';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -443,7 +444,7 @@ export function Tag({
         flex: 'none',
         padding: '6px 13px',
         borderRadius: 999,
-        fontFamily: 'Outfit',
+        fontFamily: 'var(--font-display)',
         fontWeight: 600,
         fontSize: 16,
         background: background ?? 'var(--chip)',

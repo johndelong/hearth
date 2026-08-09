@@ -320,7 +320,7 @@ export function ChoresScreen({
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div
                   style={{
-                    fontFamily: 'Outfit',
+                    fontFamily: 'var(--font-display)',
                     fontSize: 21,
                     fontWeight: 600,
                     letterSpacing: '-.01em',

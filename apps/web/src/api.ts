@@ -117,6 +117,14 @@ export interface VersionInfo {
   updater: UpdaterInfo;
 }
 
+export interface ActivityEntry {
+  id: string;
+  action: string;
+  subject: string | null;
+  detail: string | null;
+  createdAt: string;
+}
+
 export const api = {
   version: () => call<VersionInfo>('/api/version'),
   checkVersion: () => post<VersionInfo>('/api/version/check'),
@@ -181,4 +189,5 @@ export const api = {
   lock: () => del<{ unlocked: false }>('/api/session'),
   setPin: (pin: string, currentPin?: string) => post<{ pinSet: boolean }>('/api/settings/pin', { pin, currentPin }),
   clearPin: () => del<{ pinSet: false }>('/api/settings/pin'),
+  activity: () => call<ActivityEntry[]>('/api/activity?limit=20'),
 };

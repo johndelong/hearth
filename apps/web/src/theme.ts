@@ -49,8 +49,7 @@ export function deep(hue: number, night: boolean): string {
   return night ? `oklch(0.88 0.08 ${hue})` : `oklch(0.4 0.09 ${hue})`;
 }
 
-export const CARD =
-  'background:var(--card);border-radius:26px;box-shadow:0 1px 2px rgba(20,24,40,.05),0 16px 34px -22px rgba(20,24,40,.26)';
+export const CARD_SHADOW = '0 1px 2px rgba(20,24,40,.05),0 16px 34px -22px rgba(20,24,40,.26)';
 
 /** CSS custom properties for the whole app, day or night. */
 export function rootVars(night: boolean): Record<string, string> {
@@ -61,6 +60,14 @@ export function rootVars(night: boolean): Record<string, string> {
     '--ink2': night ? 'rgba(238,240,246,.6)' : 'rgba(30,34,48,.58)',
     '--line': night ? 'rgba(255,255,255,.09)' : 'rgba(30,34,48,.09)',
     '--chip': night ? 'rgba(255,255,255,.06)' : 'rgba(30,34,48,.05)',
+    '--danger': night ? 'oklch(0.72 0.16 25)' : 'oklch(0.56 0.19 25)',
+    '--success': night ? 'oklch(0.78 0.13 148)' : 'oklch(0.55 0.14 148)',
+    '--focus': night ? 'oklch(0.78 0.13 258)' : 'oklch(0.58 0.16 258)',
+    '--radius-card': '26px',
+    '--radius-control': '16px',
+    '--space-page': 'clamp(14px, 3vw, 30px)',
+    '--shadow-card': CARD_SHADOW,
+    '--font-display': 'ui-rounded, system-ui, -apple-system, sans-serif',
   };
 }
 

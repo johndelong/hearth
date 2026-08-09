@@ -37,6 +37,10 @@ export default function App() {
   // Reloads itself when idle; prompts when someone is using the panel.
   const version = useVersionWatch(idle);
 
+  useEffect(() => {
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', night ? '#12141a' : '#f4f5f8');
+  }, [night]);
+
   const [tab, setTab] = useState<Tab>('today');
   const [calView, setCalView] = useState<CalView>('day');
   const [anchor, setAnchor] = useState<Date>(() => new Date());
@@ -140,7 +144,7 @@ export default function App() {
         ...rootVars(night),
         background: 'var(--bg)',
         color: 'var(--ink)',
-        height: '100vh',
+        height: '100dvh',
         width: '100%',
         display: 'flex',
         flexDirection: isSidebar ? 'row' : 'column',
@@ -181,7 +185,7 @@ export default function App() {
             alignItems: 'center',
             gap: 18,
             flexWrap: 'wrap',
-            padding: '22px 30px 14px',
+            padding: '22px var(--space-page) 14px',
           }}
         >
           {/*
@@ -191,7 +195,7 @@ export default function App() {
             what that glance is usually for.
           */}
           <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-            <h1 style={{ margin: 0, fontFamily: 'Outfit', fontSize: 34, fontWeight: 600, lineHeight: 1.1 }}>
+            <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 600, lineHeight: 1.1 }}>
               {heading.title}
             </h1>
             <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>
@@ -286,7 +290,7 @@ export default function App() {
           )}
         </header>
 
-        <div style={{ flex: 1, minHeight: 0, padding: '6px 30px 24px' }}>
+        <div style={{ flex: 1, minHeight: 0, padding: '6px var(--space-page) 24px' }}>
           {tab === 'today' && (
             <CalendarScreen
               key={calendarNonce}
@@ -389,7 +393,7 @@ export default function App() {
       {version.stale && !idle ? (
         <UpdateToast version={version.current} onReload={() => window.location.reload()} />
       ) : (
-        <Toast toast={toast} />
+        <Toast toast={toast} night={night} />
       )}
 
       {pinPrompt && (

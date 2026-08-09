@@ -45,8 +45,9 @@ export function SettingsScreen(props: Props) {
   const { section, onSection, night } = props;
 
   return (
-    <div style={{ display: 'flex', gap: 20, height: '100%', minHeight: 0 }}>
+    <div className="settings-layout" style={{ display: 'flex', gap: 20, height: '100%', minHeight: 0 }}>
       <nav
+        className="settings-nav"
         style={{
           flex: 'none',
           width: 268,
@@ -100,6 +101,7 @@ export function SettingsScreen(props: Props) {
       </nav>
 
       <div
+        className="settings-content"
         style={{
           flex: 1,
           minWidth: 0,
@@ -236,6 +238,7 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
     try {
       onSettingsChange(await api.updateSettings(patch));
     } catch (err) {
+      onSettingsChange(settings);
       say(err instanceof Error ? err.message : 'Could not save', 25);
     }
   };
@@ -409,6 +412,7 @@ function ChoresSection({
     try {
       onSettingsChange(await api.updateSettings(patch));
     } catch (err) {
+      onSettingsChange(settings);
       say(err instanceof Error ? err.message : 'Could not save', 25);
     }
   };
@@ -779,6 +783,7 @@ function DisplaySection({ settings, night, say, onSettingsChange }: Props) {
     try {
       onSettingsChange(await api.updateSettings(patch));
     } catch (err) {
+      onSettingsChange(settings);
       say(err instanceof Error ? err.message : 'Could not save', 25);
     }
   };
@@ -890,7 +895,31 @@ function SecuritySection({ settings, say, onSettingsChange, onLock }: Props) {
           </Button>
         </Panel>
       )}
+      <Panel title="Backup" sub="Download a consistent copy of household data" delay={90}>
+        <Button onClick={() => { window.location.href = '/api/backup'; }} style={{ alignSelf: 'flex-start' }}>
+          Download SQLite backup
+        </Button>
+      </Panel>
+      <ActivityPanel />
     </>
+  );
+}
+
+function ActivityPanel() {
+  const [entries, setEntries] = useState<Awaited<ReturnType<typeof api.activity>>>([]);
+  useEffect(() => { void api.activity().then(setEntries).catch(() => undefined); }, []);
+  return (
+    <Panel title="Recent parent activity" sub="Configuration, calendar, and point changes" delay={120}>
+      {entries.length === 0 && <div style={{ color: 'var(--ink2)', fontWeight: 700 }}>No activity recorded yet.</div>}
+      {entries.map((entry) => (
+        <div key={entry.id} style={rowStyle}>
+          <div style={{ flex: 1, fontWeight: 800 }}>{entry.action.replaceAll('.', ' ')}</div>
+          <time style={{ color: 'var(--ink2)', fontSize: 14 }} dateTime={entry.createdAt}>
+            {new Date(entry.createdAt).toLocaleString()}
+          </time>
+        </div>
+      ))}
+    </Panel>
   );
 }
 

@@ -23,7 +23,7 @@ export function Panel({
       style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
     >
       <div>
-        <div style={{ fontFamily: 'Outfit', fontSize: 21, fontWeight: 600 }}>{title}</div>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 21, fontWeight: 600 }}>{title}</div>
         {sub && <div style={{ marginTop: 3, fontSize: 15, color: 'var(--ink2)', fontWeight: 600 }}>{sub}</div>}
       </div>
       {children}

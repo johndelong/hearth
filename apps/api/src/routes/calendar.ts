@@ -18,6 +18,8 @@ import {
   upsertAccount,
 } from '../store/calendars.js';
 import { listEvents } from '../store/events.js';
+import { eventBody } from '../schemas.js';
+import { recordActivity } from '../store/activity.js';
 
 /** Pending OAuth states, valid for one round trip. */
 const pendingStates = new Map<string, number>();
@@ -68,17 +70,21 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         if (enabled) void syncCalendar(request.params.id).catch(() => undefined);
 
         const updated = listCalendars().find((c) => c.id === request.params.id);
+        if (updated) recordActivity('calendar.updated', updated.id, { personId, enabled });
         return updated ?? reply.code(404).send({ error: 'Unknown calendar' });
       },
     );
 
     guarded.delete<{ Params: { id: string } }>('/api/google/accounts/:id', async (request) => {
       deleteAccount(request.params.id);
+      recordActivity('calendar-account.disconnected', request.params.id);
       return { ok: true };
     });
 
-    guarded.post<{ Body: EventInput }>('/api/events', async (request, reply) => {
+    guarded.post<{ Body: EventInput }>('/api/events', { schema: { body: { ...eventBody, required: ['calendarId', 'title', 'start', 'end'] } } }, async (request, reply) => {
       const body = request.body;
+      const invalid = validateEvent(body);
+      if (invalid) return reply.code(400).send({ error: invalid });
       const cal = getCalendar(body?.calendarId ?? '');
       if (!cal) return reply.code(404).send({ error: 'Unknown calendar' });
       if (cal.readOnly) return reply.code(403).send({ error: 'That calendar is read-only' });
@@ -88,12 +94,15 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         requestBody: toGoogleEvent(body),
       });
       await syncCalendar(cal.id);
+      recordActivity('event.created', cal.id, body.title);
       return { googleId: res.data.id };
     });
 
     guarded.patch<{ Params: { id: string }; Body: Partial<EventInput> }>(
-      '/api/events/:id',
+      '/api/events/:id', { schema: { body: eventBody } },
       async (request, reply) => {
+        const invalid = validateEvent(request.body, true);
+        if (invalid) return reply.code(400).send({ error: invalid });
         const cached = getCachedEvent(request.params.id);
         if (!cached) return reply.code(404).send({ error: 'Unknown event' });
         const cal = getCalendar(cached.calendarRowId);
@@ -106,6 +115,7 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
           requestBody: toGoogleEvent(request.body),
         });
         await syncCalendar(cal.id);
+        recordActivity('event.updated', request.params.id, Object.keys(request.body ?? {}));
         return { ok: true };
       },
     );
@@ -122,6 +132,7 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         eventId: cached.googleId,
       });
       deleteEvent(request.params.id);
+      recordActivity('event.deleted', request.params.id);
       return { ok: true };
     });
   });
@@ -193,12 +204,36 @@ function toGoogleEvent(input: Partial<EventInput>) {
   return body;
 }
 
+function validateEvent(input: Partial<EventInput>, partial = false): string | null {
+  if (!partial && !input.title?.trim()) return 'title is required';
+  if (input.allDay && ((input.start && !/^\d{4}-\d{2}-\d{2}$/.test(input.start)) || (input.end && !/^\d{4}-\d{2}-\d{2}$/.test(input.end)))) {
+    return 'all-day boundaries must be YYYY-MM-DD';
+  }
+  for (const value of [input.start, input.end]) {
+    if (value !== undefined && Number.isNaN(Date.parse(value))) return 'event boundaries must be valid dates';
+  }
+  if (input.start && input.end && Date.parse(input.end) <= Date.parse(input.start)) {
+    return 'event end must be after its start';
+  }
+  return null;
+}
+
 function closingPage(message: string): string {
   return `<!doctype html><meta charset="utf-8"><title>Hearth</title>
 <body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#f4f5f8;color:#1e2230">
 <div style="text-align:center;max-width:30rem;padding:2rem">
-  <p style="font-size:1.1rem">${message}</p>
+  <p style="font-size:1.1rem">${escapeHtml(message)}</p>
   <button onclick="window.close()" style="margin-top:1rem;padding:.7rem 1.4rem;border:0;border-radius:999px;background:#1e2230;color:#fff;font-size:1rem;cursor:pointer">Close</button>
 </div>
 <script>setTimeout(function(){window.close()},2500)</script>`;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[char]!);
 }

@@ -130,7 +130,7 @@ export function IdleFrame({
         <div>
           <div
             style={{
-              fontFamily: 'Outfit',
+              fontFamily: 'var(--font-display)',
               fontSize: 'clamp(90px, 15vw, 190px)',
               fontWeight: 300,
               lineHeight: 0.92,

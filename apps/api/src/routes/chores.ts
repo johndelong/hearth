@@ -30,6 +30,8 @@ import { listPeople } from '../store/people.js';
 import { MAX_DAYS_AHEAD, daysAhead, localDate, periodKey } from '../store/period.js';
 import { getSettings } from '../store/settings.js';
 import { listStreaks, pauseStreak, resumeStreak } from '../store/streaks.js';
+import { choreBody, extraBody, rewardBody } from '../schemas.js';
+import { recordActivity } from '../store/activity.js';
 
 export async function choreRoutes(app: FastifyInstance): Promise<void> {
   // One call backs the whole Chores screen, so the boards never render half-updated.
@@ -142,48 +144,54 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
     // The management list, behind the PIN with the rest of the rule-changing.
     guarded.get('/api/chores', async () => listAllChores());
 
-    guarded.post<{ Body: Parameters<typeof createChore>[0] }>('/api/chores', async (request) =>
-      createChore(request.body),
-    );
+    guarded.post<{ Body: Parameters<typeof createChore>[0] }>('/api/chores', { schema: { body: { ...choreBody, required: ['title', 'personIds'] } } }, async (request) => {
+      const chore = createChore(request.body); recordActivity('chore.created', chore.id, chore.title); return chore;
+    });
     guarded.patch<{ Params: { id: string }; Body: Parameters<typeof updateChore>[1] }>(
-      '/api/chores/:id',
+      '/api/chores/:id', { schema: { body: choreBody } },
       async (request, reply) => {
         const chore = updateChore(request.params.id, request.body ?? {});
+        if (chore) recordActivity('chore.updated', chore.id, Object.keys(request.body ?? {}));
         return chore ?? reply.code(404).send({ error: 'Unknown chore' });
       },
     );
     guarded.delete<{ Params: { id: string } }>('/api/chores/:id', async (request) => {
       deleteChore(request.params.id);
+      recordActivity('chore.deleted', request.params.id);
       return { ok: true };
     });
 
-    guarded.post<{ Body: Parameters<typeof createExtra>[0] }>('/api/extras', async (request) =>
-      createExtra(request.body),
-    );
+    guarded.post<{ Body: Parameters<typeof createExtra>[0] }>('/api/extras', { schema: { body: { ...extraBody, required: ['title'] } } }, async (request) => {
+      const extra = createExtra(request.body); recordActivity('extra.created', extra.id, extra.title); return extra;
+    });
     guarded.patch<{ Params: { id: string }; Body: Parameters<typeof updateExtra>[1] }>(
-      '/api/extras/:id',
+      '/api/extras/:id', { schema: { body: extraBody } },
       async (request, reply) => {
         const extra = updateExtra(request.params.id, request.body ?? {});
+        if (extra) recordActivity('extra.updated', extra.id, Object.keys(request.body ?? {}));
         return extra ?? reply.code(404).send({ error: 'Unknown extra job' });
       },
     );
     guarded.delete<{ Params: { id: string } }>('/api/extras/:id', async (request) => {
       deleteExtra(request.params.id);
+      recordActivity('extra.deleted', request.params.id);
       return { ok: true };
     });
 
-    guarded.post<{ Body: Parameters<typeof createReward>[0] }>('/api/rewards', async (request) =>
-      createReward(request.body),
-    );
+    guarded.post<{ Body: Parameters<typeof createReward>[0] }>('/api/rewards', { schema: { body: { ...rewardBody, required: ['label'] } } }, async (request) => {
+      const reward = createReward(request.body); recordActivity('reward.created', reward.id, reward.label); return reward;
+    });
     guarded.patch<{ Params: { id: string }; Body: Parameters<typeof updateReward>[1] }>(
-      '/api/rewards/:id',
+      '/api/rewards/:id', { schema: { body: rewardBody } },
       async (request, reply) => {
         const reward = updateReward(request.params.id, request.body ?? {});
+        if (reward) recordActivity('reward.updated', reward.id, Object.keys(request.body ?? {}));
         return reward ?? reply.code(404).send({ error: 'Unknown reward' });
       },
     );
     guarded.delete<{ Params: { id: string } }>('/api/rewards/:id', async (request) => {
       deleteReward(request.params.id);
+      recordActivity('reward.deleted', request.params.id);
       return { ok: true };
     });
 
@@ -193,6 +201,7 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
       async (request) => {
         if (request.body?.paused === false) resumeStreak(request.params.id);
         else pauseStreak(request.params.id);
+        recordActivity(request.body?.paused === false ? 'streak.resumed' : 'streak.paused', request.params.id);
         return listStreaks([request.params.id])[0];
       },
     );
@@ -204,7 +213,9 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
         if (!personId || typeof delta !== 'number') {
           return reply.code(400).send({ error: 'personId and numeric delta are required' });
         }
-        return { personId, points: adjustPoints(personId, delta, reason ?? 'Adjustment') };
+        const points = adjustPoints(personId, delta, reason ?? 'Adjustment');
+        recordActivity('points.adjusted', personId, { delta, reason: reason ?? 'Adjustment' });
+        return { personId, points };
       },
     );
   });

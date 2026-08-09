@@ -81,7 +81,7 @@ export function PrizeCatalog({
         <header style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <Avatar name={person.name} hue={person.hue} night={night} size={56} avatarUrl={person.avatarUrl} avatarKey={person.avatarKey} ring />
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontFamily: 'Outfit', fontSize: 27, fontWeight: 600, letterSpacing: '-.01em' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 600, letterSpacing: '-.01em' }}>
               {person.name}'s prizes
             </div>
             <div style={{ marginTop: 2, fontSize: 14, fontWeight: 800, color: 'var(--ink2)' }}>

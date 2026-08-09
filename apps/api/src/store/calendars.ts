@@ -1,5 +1,6 @@
 import type { GoogleAccount, SubscribedCalendar } from '@dashboard/shared';
 import { db, fromBool, id, nowIso, toBool } from '../db/index.js';
+import { protect, unprotect } from '../crypto.js';
 
 /**
  * Every query touching Google accounts, calendars, and the cached event rows.
@@ -43,11 +44,17 @@ export function accountCredentials(accountId: string): AccountCredentials | null
     )
     .get(accountId);
   if (!row) return null;
+  const refreshToken = unprotect(row.refresh_token)!;
+  const accessToken = unprotect(row.access_token);
+  if (!row.refresh_token.startsWith('enc:v1:') || (row.access_token && !row.access_token.startsWith('enc:v1:'))) {
+    db.prepare('UPDATE google_accounts SET refresh_token = ?, access_token = ? WHERE id = ?')
+      .run(protect(refreshToken), protect(accessToken), row.id);
+  }
   return {
     id: row.id,
     email: row.email,
-    refreshToken: row.refresh_token,
-    accessToken: row.access_token,
+    refreshToken,
+    accessToken,
     expiry: row.expiry,
   };
 }
@@ -61,7 +68,7 @@ export function accountIdForEmail(email: string): string | null {
 /** Stores refreshed access tokens so a restart need not round-trip to Google. */
 export function saveAccessToken(accountId: string, accessToken: string | null, expiry: number | null): void {
   db.prepare('UPDATE google_accounts SET access_token = ?, expiry = ?, error = NULL WHERE id = ?').run(
-    accessToken,
+    protect(accessToken),
     expiry,
     accountId,
   );
@@ -82,7 +89,7 @@ export function upsertAccount(params: {
        access_token = excluded.access_token,
        expiry = excluded.expiry,
        error = NULL`,
-  ).run(params.accountId, params.email, params.refreshToken, params.accessToken, params.expiry, nowIso());
+  ).run(params.accountId, params.email, protect(params.refreshToken), protect(params.accessToken), params.expiry, nowIso());
 }
 
 export function deleteAccount(accountId: string): void {

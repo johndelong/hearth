@@ -225,8 +225,30 @@ function applyEvent(calendarRowId: string, ev: calendar_v3.Schema$Event): number
   return 1;
 }
 
-/** Sync every enabled calendar on every connected account. */
-export async function syncAll(): Promise<{ calendars: number; changed: number }> {
+export interface SyncResult { calendars: number; changed: number }
+
+let syncInFlight: Promise<SyncResult> | null = null;
+let lastSync: { at: number; result: SyncResult } | null = null;
+const SYNC_COOLDOWN_MS = 15_000;
+
+/**
+ * Sync every enabled calendar. All callers share one in-flight operation, and
+ * wake/reconnect bursts reuse a very recent result instead of hitting Google
+ * once per panel.
+ */
+export function syncAll(): Promise<SyncResult> {
+  if (syncInFlight) return syncInFlight;
+  if (lastSync && Date.now() - lastSync.at < SYNC_COOLDOWN_MS) return Promise.resolve(lastSync.result);
+  syncInFlight = runSyncAll().then((result) => {
+    lastSync = { at: Date.now(), result };
+    return result;
+  }).finally(() => {
+    syncInFlight = null;
+  });
+  return syncInFlight;
+}
+
+async function runSyncAll(): Promise<SyncResult> {
   let calendars = 0;
   let changed = 0;
 

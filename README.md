@@ -1,324 +1,114 @@
 # Hearth
 
-A wall-panel dashboard for the house: the family calendar (synced from Google) and
-the kids' chore boards (kept locally). Built to run in a container on a machine
-that stays on at home, and be opened full-screen on wall-mounted touch screens
-and tablets.
+Hearth is a private, wall-mounted family dashboard for shared calendars and
+kids' chore boards. It syncs Google Calendar into a local cache, keeps chore and
+reward data in SQLite, and is designed for full-screen touch displays and
+tablets on a home network.
 
-Groceries and Home are in the design but not built yet — they need Apple Reminders
-and Home Assistant integrations.
+Calendar events remain available when Google is unreachable. Chore boards can
+reset nightly or weekly without a scheduled reset job, and extra jobs feed a
+points-and-rewards system. Kids can claim jobs and redeem earned rewards;
+parents configure the catalog and household rules. Configuration and parent
+controls can be protected with a PIN.
 
-## Layout
+## Install at home
 
-```
-apps/api          Fastify + TypeScript. Serves the API and, in production, the built web client.
-apps/web          Vite + React + TypeScript. The dashboard itself.
-packages/shared   Types shared by both.
-data/             SQLite database (git-ignored; a Docker volume in production).
-Family Dashboard.dc.html   The original design prototype, kept for reference.
-```
-
-Data lives in SQLite through Node's built-in `node:sqlite` module, so there is no
-native dependency to compile and no database server to run.
-
-## Running it locally
-
-Requires Node 24 or newer (this repo pins 26.5.0 via `.node-version`).
-
-```bash
-npm install
-npm run build --workspace=@dashboard/shared   # the other packages import its types
-npm run dev                                   # api on :8080, web on :5173
-```
-
-Open http://localhost:5173. The web dev server proxies `/api` to the API, and the
-API seeds a starter set of extra jobs and rewards on first boot. Add your own
-household in **Settings › Family** — nothing about a specific family ships in the
-repo.
-
-To run the way production does — one process serving both:
-
-```bash
-npm run build
-node apps/api/dist/index.js     # http://localhost:8080
-```
-
-To exercise the container itself, build it from this checkout rather than
-pulling a published release:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
-```
-
-## Connecting Google Calendar
-
-1. In the [Google Cloud console](https://console.cloud.google.com/), create a project
-   and enable the **Google Calendar API**.
-2. Configure the OAuth consent screen as **External**, and add every adult whose
-   calendar you want on the dashboard as a test user. (Test-user refresh tokens expire after 7 days while the app is in
-   "Testing"; publishing the app stops that. It stays private either way — nobody can
-   use it without being added.)
-3. Create an **OAuth client ID** of type *Web application* and add this authorized
-   redirect URI:
-
-   ```
-   http://localhost:8080/api/google/callback
-   ```
-
-   It must be `localhost`, not the host's own hostname. Google requires HTTPS for
-   redirect URIs and exempts only localhost, and `.local` is not a public-suffix
-   domain — a hostname URI gets rejected outright. This is also why `PUBLIC_URL`
-   defaults to localhost and generally shouldn't be changed; the redirect is the
-   only thing it feeds.
-
-4. Put the client ID and secret in `.env` (see `.env.example`) and restart the server.
-5. **Sign in from the host machine itself**, since the redirect has to land on
-   localhost. Either use that machine's own browser, or tunnel from your laptop:
-
-   ```bash
-   ssh -L 8080:localhost:8080 you@your-host.local
-   # then browse http://localhost:8080 on the laptop
-   ```
-
-   Open **Settings › Calendar › Add a Google account** and sign in. Repeat for each
-   account you want. This is one-time: the refresh token is stored, and afterwards
-   the tablets reach the dashboard by hostname as usual.
-6. Assign each calendar to a family member. That mapping is what gives events their
-   color everywhere in the app; unassigned calendars show in neutral slate.
-
-The server pulls changes every 5 minutes using Google's sync tokens, and caches
-events locally — so the panel keeps rendering if the network or Google is down.
-Events you add from the dashboard are written back to Google. Calendars you only
-subscribe to (school, sports, holidays) come through read-only, and the app will
-say so rather than failing on save.
-
-## The parent PIN
-
-Kids can always check chores off and claim extra jobs — that is the point of the
-board. Everything in Settings (people, calendars, points, rewards, and the PIN
-itself) is gated.
-
-Set the PIN in **Settings › Parent PIN**. Until one is set, Settings is open to
-anyone. The unlock lasts 30 minutes of continued use and resets when the server
-restarts. The PIN is stored scrypt-hashed, never in plain text.
-
-## Chore boards
-
-Each chore has a repeat rule (Daily, Weekdays, Weekends, Weekly). Chores earn no
-points — they are the everyday expectation. Points come from **extra jobs**, which
-stay locked until that person's chores for the day are done.
-
-Points are an append-only ledger rather than a running total, so unchecking an
-extra job reverses exactly what it added, and a double-tap can never pay twice.
-
-Boards "reset" by filing completions under a period key — nightly, or weekly from
-Sunday or Monday per the setting. Nothing is deleted and no scheduled job runs, so a
-reboot at 3 a.m. cannot miss a reset.
-
-## Changing the database schema
-
-Migrations are plain SQL files in `apps/api/src/db/migrations`, named `NNN_description.sql`.
-On boot the server compares SQLite's `user_version` against the files on disk and applies
-whatever is pending, in order, each inside a transaction.
-
-To add a column:
-
-```bash
-# next number in sequence — 001 is the initial schema
-cat > apps/api/src/db/migrations/002_add_chore_notes.sql <<'SQL'
-ALTER TABLE chores ADD COLUMN notes TEXT;
-SQL
-```
-
-Restart the server and it applies. Rules worth knowing:
-
-- **Forward-only.** There are no down migrations; to undo something, write the next migration.
-- **Never edit a migration that has already run** — the database records that it applied and
-  will skip it. Add a new file instead.
-- **A failed migration rolls back completely and the server refuses to start.** That is
-  deliberate: it fails loudly on boot rather than serving requests against a half-changed schema.
-- SQLite's `ALTER TABLE` is limited (no dropping or retyping columns). For those, create the
-  new table, copy the rows across, drop the old one, and rename — all within the one file.
-
-## Running it in the house
-
-### First time
-
-Releases are published as container images, so **the host never needs a
-checkout, git, or a build toolchain** — Docker and curl are the whole
-requirement. On the machine that will host it, with Docker Desktop running:
+Hearth is distributed as a container image. The host needs Docker and curl:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johndelong/hearth/main/scripts/install.sh | bash
-```
-
-That downloads four files into `~/hearth` and writes a `.env` with a generated
-`COOKIE_SECRET`. Set `TZ` in it — chore resets and the calendar's day boundaries
-follow it, and the image defaults to UTC. Add the Google credentials too if you
-want the calendar; it runs without them and Settings explains what's missing.
-Then:
-
-```bash
 cd ~/hearth
-./scripts/update.sh              # pulls and starts the newest release
-./scripts/install-updater.sh     # optional: lets Settings install updates itself
 ```
 
-The whole installation is:
+Edit `~/hearth/.env` and set at least:
 
-```
-~/hearth/
-  docker-compose.yml
-  .env
-  scripts/update.sh
-  scripts/install-updater.sh
-  scripts/updater/com.hearth.updater.plist
-  .hearth-control/        created on first run
+```dotenv
+TZ=America/Detroit
+COOKIE_SECRET=replace-with-a-long-random-value
 ```
 
-The database lives in the `hearth-data` Docker volume, not in that directory, so
-it survives every update — and deleting the directory doesn't touch it.
-
-(`HEARTH_DIR=/opt/hearth` puts it somewhere else. Running `./scripts/install.sh`
-from a clone does the same thing, and never overwrites an existing `.env`.)
-
-For the tablets: open `http://your-host.local:8080` and add it to the home
-screen. The page is marked as a web app, so it opens without browser chrome.
-
-Note that the app loads its two fonts (Outfit and Nunito) from Google Fonts. On a
-panel with no internet they fall back to the system font; self-host them if that
-matters.
-
-### Cutting a release
-
-From your laptop:
+Then start Hearth:
 
 ```bash
-git tag v0.2.0 && git push --tags
+./scripts/update.sh
 ```
 
-That's all — `.github/workflows/release.yml` takes it from there. It typechecks
-and builds the tag, pushes a multi-architecture image (arm64 and amd64) to
-`ghcr.io/johndelong/hearth` as both `:v0.2.0` and `:latest`, and only then
-publishes the GitHub Release. The Release comes last on purpose: the dashboard
-offers an update the moment it appears, so the image has to be there already.
+Open `http://your-host.local:8080` on each tablet or wall display and add it to
+the home screen. Household data is stored in the `hearth-data` Docker volume and
+survives application updates.
 
-**Once, on a new fork:** the first push creates the GHCR package as private.
-Make it public under the repo's **Packages** settings, or every host needs a
-registry login to pull.
-
-Notes come from GitHub's own generator, which categorises and links merged pull
-requests. That generator works *from* pull requests, though, so commits pushed
-straight to `main` yield nothing but a compare link — when it finds none, the
-workflow falls back to listing commit subjects. Either way the notes are worth
-reading, which is a reason to keep writing commit subjects as statements of what
-changed. The build gate matters: a tag that doesn't compile would otherwise cost
-a failed update on the machine serving the house to find out.
-
-### Updating
-
-The server asks GitHub hourly whether a newer release exists — once for the whole
-house, not once per panel. This repository is public, so that call needs no
-credentials. **Settings › Display › This dashboard** shows what's running,
-what's available, a link to the release notes, and a **Check now** button when
-you don't want to wait out the hour.
-
-Installing it is one command on the host machine:
+The optional macOS update agent enables the update button inside Settings:
 
 ```bash
-cd ~/hearth && ./scripts/update.sh
+./scripts/install-updater.sh
 ```
 
-It asks GitHub for the newest release, pulls that image, starts it, and waits
-for the container to report that version. Nothing is built and nothing is
-checked out. If the pull fails, the container already running is left alone —
-the house keeps its dashboard and the failure shows up in Settings rather than
-as a dark screen.
+## Google Calendar
+
+1. Enable the Google Calendar API in a Google Cloud project.
+2. Configure an External OAuth consent screen and add the participating adults
+   as test users. Publish the app if refresh tokens should not expire after the
+   testing period.
+3. Create a Web application OAuth client with this redirect URI:
+
+   ```text
+   http://localhost:8080/api/google/callback
+   ```
+
+4. Add the credentials to `~/hearth/.env`:
+
+   ```dotenv
+   GOOGLE_CLIENT_ID=your-client-id
+   GOOGLE_CLIENT_SECRET=your-client-secret
+   ```
+
+5. Restart Hearth, open it through `http://localhost:8080` on the host, and use
+   **Settings › Calendar › Add a Google account**. If the host has no browser,
+   forward the port from another computer:
+
+   ```bash
+   ssh -L 8080:localhost:8080 you@your-host.local
+   ```
+
+6. Assign each imported calendar to a family member in Settings.
+
+## Local development
+
+Requires Node 24 or newer.
 
 ```bash
-./scripts/update.sh --check     # what's running vs what's published
-./scripts/update.sh v0.1.0      # a specific release, i.e. roll back on purpose
+npm install
+npm run dev
 ```
 
-Rolling back is the same operation as updating, because every release is still
-in the registry. Nothing needs to have been kept on the host.
-
-The health check goes to this machine by default. Point it elsewhere when the
-script runs somewhere else, or when the app sits behind a proxy — set `BASE_URL`
-in `.env`, or pass it inline. Every message names the URL it is checking, so a
-wrong host shows up immediately instead of as a mystery timeout.
-
-### The Update button
-
-With the launchd agent installed, nobody has to open a terminal: **Settings ›
-Display › This dashboard** grows an **Update to v0.3.0** button whenever a
-release is out, and shows progress until the new version answers.
+The web client runs at `http://localhost:5173` and proxies API requests to port
+8080. To run the production build locally:
 
 ```bash
-./scripts/install-updater.sh              # install and start it
-./scripts/install-updater.sh --uninstall  # remove it
+npm run build
+npm start
 ```
-
-The button only appears when the agent is installed. Everywhere else the
-dashboard just links to the release notes, and updating stays a command.
-
-**How it works.** A container cannot replace itself — the process doing the work
-is killed partway through when its own container goes away. So the work runs
-outside Docker, and the two sides pass notes through `.hearth-control/`, a
-directory bind-mounted into the container:
-
-| File | Written by | Means |
-| --- | --- | --- |
-| `agent.json` | `install-updater.sh` | An agent exists. This is what shows the button. |
-| `request.json` | the dashboard | Install this release. |
-| `status.json` | `update.sh` | How it is going: `running`, `ok`, `failed`. |
-| `update.log` | `update.sh` | The full output, for when `status.json` says `failed`. |
-
-launchd watches `request.json` and runs `./scripts/update.sh --requested` when
-it appears. The API never shells out and never talks to Docker; it writes one
-file. Requesting an update needs the parent PIN, like everything else in
-Settings.
-
-macOS only, because launchd is. The agent is a *user* agent rather than a system
-daemon because Docker Desktop runs as the logged-in user. On Linux the same two
-files work behind a systemd path unit — see
-`scripts/updater/com.hearth.updater.plist` for what it has to run; nothing in
-the app changes.
-
-`UPDATE_CHECK_TOKEN` is read if it is set, but it is not needed: it only raises
-GitHub's rate limit, and one call an hour never comes close. Leave it blank.
-
-### What the wall panels do afterwards
-
-Every API response carries the running version in an `x-hearth-version` header,
-and each panel remembers the version it loaded against. There is no polling for
-this — the app is already fetching the board every minute, so an update is
-noticed on the next request the panel makes anyway, and instantly on any tap.
-
-- **Idle panels reload themselves.** A screen nobody has touched drops into frame
-  mode, notices the mismatch, and refreshes silently. The kitchen display needs no
-  attention after an update.
-- **Panels in use ask first.** A tablet someone is holding gets a "Hearth v0.2.0 is
-  ready · Refresh" toast rather than reloading under their finger.
-
-This matters because a wall panel can sit on the same page for weeks; without it,
-it keeps running whatever JavaScript it loaded back then.
 
 ## Configuration
 
-| Variable | Default | What it does |
+| Variable | Default | Purpose |
 | --- | --- | --- |
-| `PORT` | `8080` | Port the server listens on |
+| `PORT` | `8080` | HTTP port |
 | `HOST` | `0.0.0.0` | Bind address |
-| `DATABASE_PATH` | `./data/dashboard.db` | SQLite file location |
-| `PUBLIC_URL` | `http://localhost:$PORT` | Base URL; determines the OAuth redirect URI |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | — | OAuth client; without them the Calendar settings explain what is missing |
-| `COOKIE_SECRET` | dev value | Signs the parent-session cookie |
-| `TRUST_PROXY` | `false` | Set `true` only behind a reverse proxy |
-| `TZ` | system | Local time for resets and day boundaries |
-| `APP_VERSION` | `dev` | Stamped in at build time; reported at `/api/version` |
-| `UPDATE_CHECK_TOKEN` | — | Not needed. Only raises GitHub's rate limit for the release check |
-| `UPDATE_REPO` | `johndelong/hearth` | Repo whose releases the app and `update.sh` follow |
-| `HEARTH_IMAGE` | `ghcr.io/johndelong/hearth` | Image the host pulls; change it with `UPDATE_REPO` for a fork |
-| `UPDATE_CONTROL_DIR` | `/control` | Where the container and the host's update agent pass notes |
-| `HEARTH_CONTROL_DIR` | `./.hearth-control` | The host side of that directory, used by the scripts and compose |
+| `DATABASE_PATH` | `./data/dashboard.db` | SQLite database path |
+| `PUBLIC_URL` | `http://localhost:$PORT` | Public base URL and OAuth redirect base |
+| `GOOGLE_CLIENT_ID` | — | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret |
+| `COOKIE_SECRET` | development value | Cookie plugin secret; set a random production value |
+| `CREDENTIAL_ENCRYPTION_KEY` | `COOKIE_SECRET` | Key used to encrypt stored Google tokens; keep stable across updates |
+| `TRUST_PROXY` | `false` | Enable only behind a trusted reverse proxy |
+| `TZ` | system timezone | Chore reset and calendar day boundaries |
+| `APP_VERSION` | `dev` | Version reported by the server |
+| `UPDATE_REPO` | `johndelong/hearth` | GitHub repository used for update checks |
+| `UPDATE_CHECK_TOKEN` | — | Optional GitHub token for a higher rate limit |
+| `HEARTH_IMAGE` | `ghcr.io/johndelong/hearth` | Container image installed by the updater |
+| `UPDATE_CONTROL_DIR` | `/control` | Container-side update-agent directory |
+| `HEARTH_CONTROL_DIR` | `./.hearth-control` | Host-side update-agent directory |
+
+Hearth is intended for a trusted home network. Put it behind HTTPS and normal
+network access controls before exposing it outside that network.

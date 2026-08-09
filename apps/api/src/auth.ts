@@ -1,6 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { getRaw, setRaw } from './store/settings.js';
+import { deleteRaw, getRaw, setRaw } from './store/settings.js';
 
 const COOKIE = 'parent_session';
 const SESSION_MS = 30 * 60_000; // a wall panel should not stay unlocked all day
@@ -18,7 +18,7 @@ export function setPin(pin: string): void {
 }
 
 export function clearPin(): void {
-  setRaw('_pinHash', '');
+  deleteRaw('_pinHash');
   sessions.clear();
 }
 
@@ -30,7 +30,7 @@ export function verifyPin(pin: string): boolean {
   const stored = getRaw('_pinHash');
   if (!stored) return true; // no PIN configured yet — nothing to check against
   const [salt, expected] = stored.split(':');
-  if (!salt || !expected) return true;
+  if (!salt || !expected || !/^[0-9a-f]{64}$/.test(expected)) return false;
   const actual = hash(pin, salt);
   const a = Buffer.from(actual, 'hex');
   const b = Buffer.from(expected, 'hex');
@@ -43,20 +43,22 @@ export function startSession(reply: FastifyReply): void {
   reply.setCookie(COOKIE, token, {
     path: '/',
     httpOnly: true,
+    signed: true,
+    secure: process.env.PUBLIC_URL?.startsWith('https://') ?? false,
     sameSite: 'lax',
     maxAge: SESSION_MS / 1000,
   });
 }
 
 export function endSession(request: FastifyRequest, reply: FastifyReply): void {
-  const token = request.cookies[COOKIE];
+  const token = sessionToken(request);
   if (token) sessions.delete(token);
   reply.clearCookie(COOKIE, { path: '/' });
 }
 
 export function hasSession(request: FastifyRequest): boolean {
   if (!pinIsSet()) return true; // unconfigured PIN leaves the panel open
-  const token = request.cookies[COOKIE];
+  const token = sessionToken(request);
   if (!token) return false;
   const expires = sessions.get(token);
   if (!expires) return false;
@@ -66,6 +68,13 @@ export function hasSession(request: FastifyRequest): boolean {
   }
   sessions.set(token, Date.now() + SESSION_MS); // sliding window while in use
   return true;
+}
+
+function sessionToken(request: FastifyRequest): string | null {
+  const raw = request.cookies[COOKIE];
+  if (!raw) return null;
+  const parsed = request.unsignCookie(raw);
+  return parsed.valid ? parsed.value : null;
 }
 
 /**
