@@ -14,6 +14,8 @@ export interface CalendarScreenProps {
   settings: Settings;
   night: boolean;
   onEditEvent: (event: CalendarEvent) => void;
+  /** Tapping a day in week or month drops into that day. */
+  onOpenDay: (day: Date) => void;
 }
 
 export function CalendarScreen({
@@ -24,6 +26,7 @@ export function CalendarScreen({
   settings,
   night,
   onEditEvent,
+  onOpenDay,
 }: CalendarScreenProps) {
   const { events, loading, error } = useEvents(view, anchor, settings.weekStart);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -51,8 +54,8 @@ export function CalendarScreen({
   return (
     <div style={{ height: '100%', animation: `fadeIn .3s ${EASE} both` }}>
       {view === 'day' && <DayView {...shared} day={anchor} />}
-      {view === 'week' && <WeekView {...shared} anchor={anchor} />}
-      {view === 'month' && <MonthView {...shared} anchor={anchor} />}
+      {view === 'week' && <WeekView {...shared} anchor={anchor} onOpenDay={onOpenDay} />}
+      {view === 'month' && <MonthView {...shared} anchor={anchor} onOpenDay={onOpenDay} />}
     </div>
   );
 }

@@ -11,11 +11,21 @@ interface Props {
   night: boolean;
   settings: Settings;
   onEditEvent: (event: CalendarEvent) => void;
+  onOpenDay: (day: Date) => void;
 }
 
 const MAX_CHIPS = 3;
 
-export function MonthView({ anchor, now, events, byPerson, night, settings, onEditEvent }: Props) {
+export function MonthView({
+  anchor,
+  now,
+  events,
+  byPerson,
+  night,
+  settings,
+  onEditEvent,
+  onOpenDay,
+}: Props) {
   const [gridStart] = rangeFor('month', anchor, settings.weekStart);
   const days = Array.from({ length: 42 }, (_, i) => {
     const d = new Date(gridStart);
@@ -65,7 +75,9 @@ export function MonthView({ anchor, now, events, byPerson, night, settings, onEd
           return (
             <div
               key={day.toISOString()}
+              onClick={() => onOpenDay(day)}
               style={{
+                cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 5,
@@ -96,7 +108,13 @@ export function MonthView({ anchor, now, events, byPerson, night, settings, onEd
                 return (
                   <TapButton
                     key={e.id}
-                    onClick={() => !e.synthetic && onEditEvent(e)}
+                    // A synthetic event has nothing to edit, so its tap is left
+                    // to fall through to the cell and open the day instead.
+                    onClick={(click) => {
+                      if (e.synthetic) return;
+                      click.stopPropagation();
+                      onEditEvent(e);
+                    }}
                     style={{
                       display: 'block',
                       width: '100%',

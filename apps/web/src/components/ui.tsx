@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { AVATAR_LIFT, CARD, EASE, ICONS, type IconName, col } from '../theme';
 import { AvatarArt, isAvatarKey } from './AvatarArt';
@@ -92,7 +92,8 @@ export function TapButton({
   title,
 }: {
   children: ReactNode;
-  onClick?: () => void;
+  /** Gets the event so a button inside a tappable surface can claim the tap. */
+  onClick?: (e: MouseEvent) => void;
   onHold?: () => void;
   style?: CSSProperties;
   disabled?: boolean;
@@ -136,13 +137,13 @@ export function TapButton({
         e.preventDefault();
         onHold();
       }}
-      onClick={() => {
+      onClick={(e) => {
         // Suppress the click that follows a long-press.
         if (held.current) {
           held.current = false;
           return;
         }
-        onClick?.();
+        onClick?.(e);
       }}
       style={{
         border: 'none',
@@ -245,11 +246,15 @@ export const Card = forwardRef<
     padding?: number | string;
     /** Stagger for the rise-in entrance, in ms. Omit for no animation. */
     delay?: number;
+    /** Makes the whole surface tappable. Cards that hold their own buttons
+     *  cannot be one, so this stays a div and the inner buttons win the tap. */
+    onClick?: () => void;
   }
->(function Card({ children, style, padding = 0, delay }, ref) {
+>(function Card({ children, style, padding = 0, delay, onClick }, ref) {
   return (
     <div
       ref={ref}
+      onClick={onClick}
       style={{
         ...cardSurface,
         padding,

@@ -11,9 +11,19 @@ interface Props {
   night: boolean;
   settings: Settings;
   onEditEvent: (event: CalendarEvent) => void;
+  onOpenDay: (day: Date) => void;
 }
 
-export function WeekView({ anchor, now, events, byPerson, night, settings, onEditEvent }: Props) {
+export function WeekView({
+  anchor,
+  now,
+  events,
+  byPerson,
+  night,
+  settings,
+  onEditEvent,
+  onOpenDay,
+}: Props) {
   const [start] = rangeFor('week', anchor, settings.weekStart);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start);
@@ -37,7 +47,9 @@ export function WeekView({ anchor, now, events, byPerson, night, settings, onEdi
           <Card
             key={day.toISOString()}
             delay={di * 40}
+            onClick={() => onOpenDay(day)}
             style={{
+              cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
               minHeight: 0,
@@ -74,7 +86,13 @@ export function WeekView({ anchor, now, events, byPerson, night, settings, onEdi
                 return (
                   <TapButton
                     key={e.id}
-                    onClick={() => !e.synthetic && onEditEvent(e)}
+                    // A synthetic event has nothing to edit, so its tap is left
+                    // to fall through to the card and open the day instead.
+                    onClick={(click) => {
+                      if (e.synthetic) return;
+                      click.stopPropagation();
+                      onEditEvent(e);
+                    }}
                     style={{
                       display: 'block',
                       width: '100%',

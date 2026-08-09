@@ -297,6 +297,10 @@ export default function App() {
               settings={settings}
               night={night}
               onEditEvent={(event) => setEditor({ kind: 'event', event })}
+              onOpenDay={(day) => {
+                setAnchor(day);
+                setCalView('day');
+              }}
             />
           )}
 
