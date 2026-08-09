@@ -1,0 +1,7 @@
+// The build leaves test files out of dist; this brings them back for
+// typechecking, so a test can still fail to compile rather than silently rot.
+{
+  "extends": "./tsconfig.json",
+  "include": ["src"],
+  "exclude": []
+}

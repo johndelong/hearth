@@ -17,6 +17,7 @@
     "dev:web": "npm run dev --workspace=@dashboard/web",
     "build": "npm run build --workspace=@dashboard/shared && npm run build --workspace=@dashboard/api && npm run build --workspace=@dashboard/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
     "seed:dev": "node scripts/seed-dev.mjs",
     "start": "node apps/api/dist/index.js"
   },

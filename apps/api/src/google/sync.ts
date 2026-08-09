@@ -1,12 +1,14 @@
 import type { calendar_v3 } from 'googleapis';
 import { db, nowIso } from '../db/index.js';
+import type { CalendarRow } from '../store/calendars.js';
 import {
   accountIds,
-  clearCalendarEvents,
   deleteEventByGoogleId,
   enabledCalendarIds,
   getCalendar,
+  markWindowAnchored,
   saveSyncToken,
+  sweepEvents,
   upsertCalendar,
   upsertEvent,
 } from '../store/calendars.js';
@@ -19,13 +21,40 @@ import { calendarApi, markAccountError } from './client.js';
 const WINDOW_BACK_DAYS = 45;
 const WINDOW_FORWARD_DAYS = 180;
 
-const windowBounds = () => {
-  const min = new Date();
+export const windowBounds = (now: Date = new Date()) => {
+  const min = new Date(now);
   min.setDate(min.getDate() - WINDOW_BACK_DAYS);
-  const max = new Date();
+  const max = new Date(now);
   max.setDate(max.getDate() + WINDOW_FORWARD_DAYS);
   return { timeMin: min.toISOString(), timeMax: max.toISOString() };
 };
+
+/**
+ * How long we let a window drift before pulling a fresh one.
+ *
+ * A sync token carries the timeMin/timeMax of the request that created it, and
+ * Google will not let an incremental sync change them. So the window does not
+ * follow the calendar forward: it stays where it was born and the usable horizon
+ * shrinks a day per day. A week of drift costs seven days off a 180-day horizon,
+ * which nobody can see, and re-anchoring weekly costs one full pull per calendar
+ * per week — the bandwidth argument for incremental sync survives intact.
+ */
+const MAX_ANCHOR_AGE_MS = 7 * 24 * 60 * 60_000;
+
+/**
+ * Whether this calendar needs a full-window pull rather than an incremental one.
+ *
+ * An unparseable timestamp answers true through the negated comparison, because
+ * NaN fails every test: not knowing when the window was anchored is a reason to
+ * anchor it, never a reason to keep drifting.
+ */
+export function needsAnchor(
+  cal: Pick<CalendarRow, 'syncToken' | 'windowAnchoredAt'>,
+  now: Date = new Date(),
+): boolean {
+  if (!cal.syncToken || !cal.windowAnchoredAt) return true;
+  return !(now.getTime() - Date.parse(cal.windowAnchoredAt) < MAX_ANCHOR_AGE_MS);
+}
 
 /** Pull the account's calendar list into the `calendars` table. */
 export async function refreshCalendarList(accountId: string): Promise<void> {
@@ -50,19 +79,46 @@ export async function refreshCalendarList(accountId: string): Promise<void> {
   })();
 }
 
+/** The one call this module makes against Google, injectable so it can be tested. */
+export type ListEvents = (
+  params: calendar_v3.Params$Resource$Events$List,
+) => Promise<calendar_v3.Schema$Events>;
+
+const googleList =
+  (accountId: string): ListEvents =>
+  (params) =>
+    calendarApi(accountId).events.list(params).then((res) => res.data);
+
 /**
- * Incremental sync for one calendar. Google's syncToken gives us only what
- * changed; a 410 means the token expired and we fall back to a full window pull.
+ * Sync one calendar, incrementally when we can and from a fresh window when we
+ * must. Returns how many cached rows the sync touched.
+ *
+ * Three paths reach the same place. An incremental sync asks Google for what
+ * changed since the sync token. An anchored sync pulls the whole window and
+ * sweeps away anything it did not return, which is what re-establishes the
+ * horizon and prunes events that have aged out of it. A 410 — the token expired
+ * before we used it — falls back to the anchored path.
+ *
+ * Fetching and writing are kept strictly apart. `node:sqlite` is synchronous, so
+ * every write holds the one thread Fastify answers requests on — writing each
+ * event as it arrives meant a full pull was thousands of separate commits, each
+ * with its own fsync, and the dashboard could not be served for the duration.
+ * Collecting the pages first and committing them once turns that into a single
+ * fsync the panel never notices, and it means the sweep and the refill share a
+ * transaction so a reader can never catch the calendar mid-rebuild.
  */
-export async function syncCalendar(calendarRowId: string): Promise<number> {
+export async function syncCalendar(calendarRowId: string, list?: ListEvents): Promise<number> {
   const cal = getCalendar(calendarRowId);
   if (!cal) return 0;
 
-  const api = calendarApi(cal.accountId);
-  let token = cal.syncToken;
-  let changed = 0;
+  const listEvents = list ?? googleList(cal.accountId);
+  const startedAt = new Date();
 
-  const run = async (useToken: string | null): Promise<string | null | undefined> => {
+  /** Every page Google has for us, read before a single row is written. */
+  const fetchAll = async (
+    useToken: string | null,
+  ): Promise<{ items: calendar_v3.Schema$Event[]; nextSyncToken: string | null | undefined }> => {
+    const items: calendar_v3.Schema$Event[] = [];
     let pageToken: string | undefined;
     let nextSyncToken: string | null | undefined;
     do {
@@ -73,33 +129,62 @@ export async function syncCalendar(calendarRowId: string): Promise<number> {
         pageToken,
       };
       if (useToken) params.syncToken = useToken;
-      else Object.assign(params, windowBounds(), { orderBy: 'startTime' });
+      else Object.assign(params, windowBounds(startedAt), { orderBy: 'startTime' });
 
-      const res = await api.events.list(params);
-      for (const ev of res.data.items ?? []) {
-        changed += applyEvent(cal.id, ev);
-      }
-      pageToken = res.data.nextPageToken ?? undefined;
-      nextSyncToken = res.data.nextSyncToken;
+      const data = await listEvents(params);
+      items.push(...(data.items ?? []));
+      pageToken = data.nextPageToken ?? undefined;
+      nextSyncToken = data.nextSyncToken;
     } while (pageToken);
-    return nextSyncToken;
+    return { items, nextSyncToken };
   };
 
-  try {
-    const next = await run(token);
-    token = next ?? null;
-  } catch (err) {
-    const status = (err as { code?: number; status?: number }).code ?? (err as { status?: number }).status;
-    if (status === 410) {
-      clearCalendarEvents(cal.id);
-      token = (await run(null)) ?? null;
-    } else {
-      throw err;
+  /** A delta: apply what arrived and touch nothing else. */
+  const commitDelta = db.transaction((items: calendar_v3.Schema$Event[]): number => {
+    let changed = 0;
+    for (const ev of items) changed += applyEvent(cal.id, ev);
+    return changed;
+  });
+
+  /**
+   * A full window: apply everything, then sweep whatever Google did not mention.
+   * Upsert-then-sweep rather than wipe-then-fill, so surviving events keep the
+   * row ids the dashboard edits them by.
+   */
+  const commitWindow = db.transaction((items: calendar_v3.Schema$Event[]): number => {
+    const keep: string[] = [];
+    let changed = 0;
+    for (const ev of items) {
+      changed += applyEvent(cal.id, ev);
+      if (ev.id && ev.status !== 'cancelled') keep.push(ev.id);
+    }
+    return changed + sweepEvents(cal.id, keep);
+  });
+
+  const anchoredSync = async () => {
+    const pulled = await fetchAll(null);
+    const changed = commitWindow(pulled.items);
+    markWindowAnchored(cal.id, startedAt.toISOString());
+    return { pulled, changed };
+  };
+
+  let result: { pulled: { nextSyncToken: string | null | undefined }; changed: number };
+
+  if (needsAnchor(cal, startedAt)) {
+    result = await anchoredSync();
+  } else {
+    try {
+      const pulled = await fetchAll(cal.syncToken);
+      result = { pulled, changed: commitDelta(pulled.items) };
+    } catch (err) {
+      const status = (err as { code?: number; status?: number }).code ?? (err as { status?: number }).status;
+      if (status !== 410) throw err;
+      result = await anchoredSync();
     }
   }
 
-  saveSyncToken(cal.id, token);
-  return changed;
+  saveSyncToken(cal.id, result.pulled.nextSyncToken ?? null);
+  return result.changed;
 }
 
 /**

@@ -1,0 +1,11 @@
+-- When a calendar's sync window was last established.
+--
+-- Google pins timeMin/timeMax to the request that issued a sync token, so an
+-- incremental sync can never widen the window it was born with — a calendar
+-- first synced in June still stops in December, and its horizon shrinks by a day
+-- every day. Recording when the window was anchored lets the sync loop notice a
+-- stale one and pull a fresh full window to replace it.
+--
+-- NULL means "never anchored", which reads as due — existing calendars re-anchor
+-- on the next sync.
+ALTER TABLE calendars ADD COLUMN window_anchored_at TEXT;

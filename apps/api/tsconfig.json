@@ -13,5 +13,8 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src"]
+  // Tests are typechecked (see tsconfig.test.json) but never built — they would
+  // otherwise be emitted into dist and shipped inside the container image.
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

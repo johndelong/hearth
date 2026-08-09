@@ -105,6 +105,8 @@ export interface CalendarRow {
   googleCalendarId: string;
   readOnly: boolean;
   syncToken: string | null;
+  /** When the sync window was last established, or null if it never was. */
+  windowAnchoredAt: string | null;
 }
 
 const toCalendarRow = (r: {
@@ -113,12 +115,14 @@ const toCalendarRow = (r: {
   google_calendar_id: string;
   read_only: number;
   sync_token: string | null;
+  window_anchored_at: string | null;
 }): CalendarRow => ({
   id: r.id,
   accountId: r.account_id,
   googleCalendarId: r.google_calendar_id,
   readOnly: toBool(r.read_only),
   syncToken: r.sync_token,
+  windowAnchoredAt: r.window_anchored_at,
 });
 
 export function listCalendars(): SubscribedCalendar[] {
@@ -150,8 +154,16 @@ export function listCalendars(): SubscribedCalendar[] {
 
 export function getCalendar(calendarRowId: string): CalendarRow | null {
   const row = db
-    .prepare<[string], { id: string; account_id: string; google_calendar_id: string; read_only: number; sync_token: string | null }>(
-      'SELECT id, account_id, google_calendar_id, read_only, sync_token FROM calendars WHERE id = ?',
+    .prepare<[string], {
+      id: string;
+      account_id: string;
+      google_calendar_id: string;
+      read_only: number;
+      sync_token: string | null;
+      window_anchored_at: string | null;
+    }>(
+      `SELECT id, account_id, google_calendar_id, read_only, sync_token, window_anchored_at
+         FROM calendars WHERE id = ?`,
     )
     .get(calendarRowId);
   return row ? toCalendarRow(row) : null;
@@ -213,6 +225,11 @@ export function updateCalendar(
 
 export function saveSyncToken(calendarRowId: string, token: string | null): void {
   db.prepare('UPDATE calendars SET sync_token = ? WHERE id = ?').run(token, calendarRowId);
+}
+
+/** Records that this calendar's window was just pulled fresh. */
+export function markWindowAnchored(calendarRowId: string, at: string): void {
+  db.prepare('UPDATE calendars SET window_anchored_at = ? WHERE id = ?').run(at, calendarRowId);
 }
 
 // ---------- cached events ----------
@@ -278,7 +295,19 @@ export function deleteEvent(eventId: string): void {
   db.prepare('DELETE FROM events WHERE id = ?').run(eventId);
 }
 
-/** Clears a calendar's cache, used when Google expires its sync token. */
-export function clearCalendarEvents(calendarRowId: string): void {
-  db.prepare('DELETE FROM events WHERE calendar_id = ?').run(calendarRowId);
+/**
+ * Drops every cached event for a calendar that a full-window pull did not
+ * return — events deleted in Google, and events that have fallen outside the
+ * window. This is how a full pull prunes, rather than by wiping the calendar
+ * first: rows that survive keep their `id`, and the dashboard edits events by
+ * that id, so churning them would break an editor someone left open.
+ *
+ * The ids go over as one JSON array rather than thousands of bound parameters,
+ * which SQLite would refuse past its variable limit.
+ */
+export function sweepEvents(calendarRowId: string, keepGoogleIds: string[]): number {
+  const res = db
+    .prepare('DELETE FROM events WHERE calendar_id = ? AND google_id NOT IN (SELECT value FROM json_each(?))')
+    .run(calendarRowId, JSON.stringify(keepGoogleIds));
+  return Number(res.changes);
 }
