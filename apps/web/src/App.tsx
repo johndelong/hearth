@@ -377,6 +377,7 @@ export default function App() {
           now={now}
           events={idleEvents.events}
           people={people}
+          onWake={poke}
         />
       )}
 

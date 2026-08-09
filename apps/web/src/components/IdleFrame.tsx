@@ -16,6 +16,37 @@ import { fmtTime } from '../screens/calendar/useEvents';
 const FRAME_INK = '#e4e7ee';
 const FRAME_INK2 = '#767c88';
 
+/**
+ * The frame owns the whole waking gesture, rather than letting the touch reach
+ * the app underneath it.
+ *
+ * Waking on the press would tear the tap in half: the frame unmounts while the
+ * finger is still down, so the browser sends the rest of the gesture —
+ * pointerup, then click — to whatever button happened to be under that spot,
+ * and the touch that woke the panel also ticked off a chore. So we wake on the
+ * release, hold the frame up for the whole press, and eat the click the
+ * gesture leaves behind.
+ */
+const swallow = (e: React.PointerEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+};
+
+/**
+ * preventDefault on the pointer events already suppresses the mouse events a
+ * touch would synthesise, but a real mouse still gets its click through. The
+ * timer matters as much as the listener: on touch no click ever arrives, and a
+ * once-listener left armed would silently eat the user's next real tap.
+ */
+const eatNextClick = () => {
+  const eat = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  window.addEventListener('click', eat, { capture: true, once: true });
+  window.setTimeout(() => window.removeEventListener('click', eat, { capture: true }), 400);
+};
+
 /** Which calendar square a date falls on locally, as a sortable number. */
 const dayKey = (d: Date): number => d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate();
 
@@ -52,10 +83,12 @@ export function IdleFrame({
   now,
   events,
   people,
+  onWake,
 }: {
   now: Date;
   events: CalendarEvent[];
   people: Person[];
+  onWake: () => void;
 }) {
   // What is left of today, plus anything already under way. The events query is
   // a deliberately coarse prefilter that reaches into the neighbouring days, so
@@ -70,10 +103,20 @@ export function IdleFrame({
 
   return (
     <div
+      onPointerDown={swallow}
+      onPointerMove={swallow}
+      onPointerCancel={swallow}
+      onPointerUp={(e) => {
+        swallow(e);
+        eatNextClick();
+        onWake();
+      }}
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 90,
+        // No scrolling or double-tap zoom to fight the tap for ownership.
+        touchAction: 'none',
         background: '#000',
         color: FRAME_INK,
         display: 'flex',
