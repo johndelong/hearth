@@ -27,8 +27,8 @@ export async function voiceRoutes(app: FastifyInstance) {
         return reply.code(response.status >= 500 ? 503 : 502).send({ ok: false, error: body.error ?? 'voice_gateway_unavailable' });
       }
 
-      const wsUrl = VOICE_GATEWAY_URL.replace(/^http/, 'ws') + `/hearth/media?token=${encodeURIComponent(body.token)}`;
-      return { ok: true, wsUrl, expiresIn: body.expires_in ?? 120 };
+      const wsUrl = VOICE_GATEWAY_URL.replace(/^http/, 'ws') + '/hearth/media';
+      return { ok: true, wsUrl, voiceToken: body.token, expiresIn: body.expires_in ?? 120 };
     } catch {
       return reply.code(503).send({ ok: false, error: 'voice_gateway_unavailable' });
     }

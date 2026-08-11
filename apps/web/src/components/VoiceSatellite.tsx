@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 type VoiceState = 'off' | 'connecting' | 'ready' | 'listening' | 'thinking' | 'error';
 
-type VoiceConfig = { ok: boolean; wsUrl?: string; error?: string };
+type VoiceConfig = { ok: boolean; wsUrl?: string; voiceToken?: string; error?: string };
 
 function pcmToBase64(samples: Float32Array, inputRate: number): string {
   const ratio = inputRate / 24000;
@@ -31,7 +31,7 @@ export function VoiceSatellite() {
   const [message, setMessage] = useState('');
   const socket = useRef<WebSocket | null>(null);
   const audioContext = useRef<AudioContext | null>(null);
-  const processor = useRef<ScriptProcessorNode | null>(null);
+  const processor = useRef<AudioWorkletNode | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const nextPlayback = useRef(0);
   const playbackSources = useRef<Set<AudioBufferSourceNode>>(new Set());
@@ -94,20 +94,25 @@ export function VoiceSatellite() {
     try {
       const response = await fetch('/api/voice/config');
       const config = (await response.json()) as VoiceConfig;
-      if (!response.ok || !config.ok || !config.wsUrl) throw new Error(config.error ?? 'Voice is not configured');
+      if (!response.ok || !config.ok || !config.wsUrl || !config.voiceToken) throw new Error(config.error ?? 'Voice is not configured');
       const ws = new WebSocket(config.wsUrl);
       socket.current = ws;
+      let started = false;
       ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'start' }));
-        setState('ready');
-        setMessage('Hold to talk');
+        ws.send(JSON.stringify({ type: 'auth', token: config.voiceToken }));
       };
       ws.onmessage = (event) => {
         const payload = JSON.parse(event.data) as { type: string; status?: VoiceState; audio?: string; message?: string; text?: string };
         if (payload.type === 'audio' && payload.audio) playAudio(payload.audio);
         if (payload.type === 'interrupt') clearPlayback();
         if (payload.type === 'status' && payload.status) setState(payload.status);
-        if (payload.type === 'status' && payload.status === 'ready') setMessage('Hold to talk');
+        if (payload.type === 'status' && payload.status === 'ready') {
+          if (!started) {
+            started = true;
+            ws.send(JSON.stringify({ type: 'start' }));
+          }
+          setMessage('Hold to talk');
+        }
         if (payload.type === 'transcript' && payload.text) setMessage(payload.text);
         if (payload.type === 'status' && payload.message) setMessage(payload.message);
       };
@@ -135,12 +140,13 @@ export function VoiceSatellite() {
       const context = audioContext.current ?? new AudioContext({ sampleRate: 24000 });
       if (context.state === 'suspended') await context.resume();
       const source = context.createMediaStreamSource(media);
-      const node = context.createScriptProcessor(4096, 1, 1);
+      await context.audioWorklet.addModule('/voice-processor.js');
+      const node = new AudioWorkletNode(context, 'voice-capture', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
       const silent = context.createGain();
       silent.gain.value = 0;
-      node.onaudioprocess = (event) => {
+      node.port.onmessage = (event: MessageEvent<Float32Array>) => {
         if (!pressed.current || socket.current?.readyState !== WebSocket.OPEN) return;
-        socket.current.send(JSON.stringify({ type: 'audio', audio: pcmToBase64(event.inputBuffer.getChannelData(0), context.sampleRate) }));
+        socket.current.send(JSON.stringify({ type: 'audio', audio: pcmToBase64(event.data, context.sampleRate) }));
       };
       source.connect(node);
       node.connect(silent);
@@ -161,7 +167,11 @@ export function VoiceSatellite() {
     if (!pressed.current) return;
     pressed.current = false;
     stopAudio();
-    if (socket.current?.readyState === WebSocket.OPEN) setState('thinking');
+    if (socket.current?.readyState === WebSocket.OPEN) {
+      socket.current.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+      socket.current.send(JSON.stringify({ type: 'response.create' }));
+      setState('thinking');
+    }
   };
 
   const active = state !== 'off' && state !== 'error';
