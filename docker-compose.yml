@@ -30,7 +30,7 @@ services:
       # Optional: only raises GitHub's rate limit for the release check.
       UPDATE_CHECK_TOKEN: ${UPDATE_CHECK_TOKEN:-}
       UPDATE_REPO: ${UPDATE_REPO:-johndelong/hearth}
-      # Optional low-latency Rhys voice satellite. The API uses this server-side
+      # Optional low-latency household voice satellite. The API uses this server-side
       # token to mint short-lived browser session tokens; it is never exposed
       # to the tablet.
       VOICE_GATEWAY_URL: ${VOICE_GATEWAY_URL:-}
