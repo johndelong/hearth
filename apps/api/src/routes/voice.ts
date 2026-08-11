@@ -1,19 +1,25 @@
 import type { FastifyInstance } from 'fastify';
-import { requireParent } from '../auth.js';
+import { requireVoiceParent, voiceSessionBinding } from '../auth.js';
 
 const VOICE_GATEWAY_URL = (process.env.VOICE_GATEWAY_URL ?? '').replace(/\/$/, '');
 const VOICE_GATEWAY_TOKEN = process.env.VOICE_GATEWAY_TOKEN ?? '';
 
 export async function voiceRoutes(app: FastifyInstance) {
-  app.get('/api/voice/config', { preHandler: requireParent }, async (_request, reply) => {
+  app.get('/api/voice/config', { preHandler: requireVoiceParent }, async (request, reply) => {
     if (!VOICE_GATEWAY_URL || !VOICE_GATEWAY_TOKEN) {
       return reply.code(404).send({ ok: false, error: 'voice_not_configured' });
     }
 
+    const sessionBinding = voiceSessionBinding(request);
+    if (!sessionBinding) return reply.code(401).send({ ok: false, error: 'parent_session_required' });
     try {
       const response = await fetch(`${VOICE_GATEWAY_URL}/hearth/token`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${VOICE_GATEWAY_TOKEN}`, 'x-voice-principal': 'parent_session' },
+        headers: {
+          authorization: `Bearer ${VOICE_GATEWAY_TOKEN}`,
+          'x-voice-principal': 'parent_session',
+          'x-voice-session-binding': sessionBinding,
+        },
         signal: AbortSignal.timeout(5000),
       });
       const body = (await response.json()) as { ok?: boolean; token?: string; expires_in?: number; error?: string };

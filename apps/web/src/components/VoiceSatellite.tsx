@@ -171,7 +171,7 @@ export function VoiceSatellite() {
       <button
         className="voice-satellite-button"
         type="button"
-        aria-label={active ? 'Hold to talk to Rhys' : 'Connect to Rhys voice'}
+        aria-label={active ? 'Hold to talk to the voice assistant' : 'Connect to the voice assistant'}
         onClick={() => {
           if (!active) void connect();
         }}

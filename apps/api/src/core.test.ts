@@ -9,7 +9,7 @@ import Fastify from 'fastify';
 process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), 'hearth-core-')), 'test.db');
 
 const { db } = await import('./db/index.js');
-const { clearPin, pinIsSet, setPin, verifyPin } = await import('./auth.js');
+const { clearPin, pinIsSet, setPin, verifyPin, requireVoiceParent } = await import('./auth.js');
 const { getSettings, setRaw } = await import('./store/settings.js');
 const { createPerson } = await import('./store/people.js');
 const { createExtra, createReward, redeemReward, adjustPoints, pointsFor } = await import('./store/chores.js');
@@ -44,7 +44,25 @@ describe('parent PIN persistence', () => {
     assert.equal(pinIsSet(), true);
     assert.equal(verifyPin('1234'), false);
   });
+
+  test('voice admission fails closed without an explicit parent PIN session', async () => {
+    let status = 0;
+    const reply = {
+      code(value: number) { status = value; return this; },
+      async send() { return this; },
+    } as never;
+    const request = { cookies: {}, unsignCookie: () => ({ valid: false }) } as never;
+
+    await requireVoiceParent(request, reply);
+    assert.equal(status, 503);
+
+    setPin('567890');
+    status = 0;
+    await requireVoiceParent(request, reply);
+    assert.equal(status, 401);
+  });
 });
+
 
 describe('domain constraints and ledger', () => {
   test('invalid point values are rejected below the route layer', () => {
