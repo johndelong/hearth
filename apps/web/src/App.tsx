@@ -5,6 +5,7 @@ import { EventEditor } from './components/EventEditor';
 import { IdleFrame } from './components/IdleFrame';
 import { PinPad } from './components/PinPad';
 import { UpdateToast, useVersionWatch } from './components/UpdateNotice';
+import { VoiceSatellite } from './components/VoiceSatellite';
 import { ChoreEditor, ExtraEditor, PersonEditor, RewardEditor } from './components/editors';
 import { ExtraPicker } from './components/pickers';
 import { Button, Confetti, Icon, IconButton, TapButton, Toast } from './components/ui';
@@ -395,6 +396,8 @@ export default function App() {
       ) : (
         <Toast toast={toast} night={night} />
       )}
+
+      <VoiceSatellite />
 
       {pinPrompt && (
         <PinPad
