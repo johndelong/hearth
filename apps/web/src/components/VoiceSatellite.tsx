@@ -98,6 +98,7 @@ export function VoiceSatellite() {
       const ws = new WebSocket(config.wsUrl);
       socket.current = ws;
       let started = false;
+      let socketError = false;
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: 'auth', token: config.voiceToken }));
       };
@@ -117,6 +118,7 @@ export function VoiceSatellite() {
         if (payload.type === 'status' && payload.message) setMessage(payload.message);
       };
       ws.onerror = () => {
+        socketError = true;
         setState('error');
         setMessage('Voice connection failed');
       };
@@ -124,7 +126,8 @@ export function VoiceSatellite() {
         stopAudio();
         clearPlayback();
         socket.current = null;
-        setState('off');
+        setState(socketError ? 'error' : 'off');
+        if (socketError) setMessage('Voice connection failed');
       };
     } catch (error) {
       setState('error');
@@ -140,6 +143,7 @@ export function VoiceSatellite() {
       const context = audioContext.current ?? new AudioContext({ sampleRate: 24000 });
       if (context.state === 'suspended') await context.resume();
       const source = context.createMediaStreamSource(media);
+      if (!context.audioWorklet) throw new Error('Voice audio is not supported on this browser');
       await context.audioWorklet.addModule('/voice-processor.js');
       const node = new AudioWorkletNode(context, 'voice-capture', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
       const silent = context.createGain();
@@ -156,10 +160,10 @@ export function VoiceSatellite() {
       processor.current = node;
       setState('listening');
       setMessage('Listening…');
-    } catch {
+    } catch (error) {
       pressed.current = false;
       setState('error');
-      setMessage('Microphone permission is required');
+      setMessage(error instanceof Error ? error.message : 'Microphone permission is required');
     }
   };
 
