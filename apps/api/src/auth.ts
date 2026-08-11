@@ -77,6 +77,12 @@ function sessionToken(request: FastifyRequest): string | null {
   return parsed.valid ? parsed.value : null;
 }
 
+export function voiceSessionExpiresAt(request: FastifyRequest): number | null {
+  const token = sessionToken(request);
+  const expires = token ? sessions.get(token) : undefined;
+  return expires ? Math.floor(expires / 1000) : null;
+}
+
 /**
  * Guard for parent-only mutations. Kids can check chores off; changing who owns
  * what, the points, or the calendars requires the PIN.

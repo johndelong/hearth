@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { requireVoiceParent, voiceSessionBinding } from '../auth.js';
+import { requireVoiceParent, voiceSessionBinding, voiceSessionExpiresAt } from '../auth.js';
 
 const VOICE_GATEWAY_URL = (process.env.VOICE_GATEWAY_URL ?? '').replace(/\/$/, '');
 const VOICE_GATEWAY_TOKEN = process.env.VOICE_GATEWAY_TOKEN ?? '';
@@ -27,7 +27,8 @@ export async function voiceRoutes(app: FastifyInstance) {
     }
 
     const sessionBinding = voiceSessionBinding(request);
-    if (!sessionBinding) return reply.code(401).send({ ok: false, error: 'parent_session_required' });
+    const sessionExpiresAt = voiceSessionExpiresAt(request);
+    if (!sessionBinding || !sessionExpiresAt) return reply.code(401).send({ ok: false, error: 'parent_session_required' });
     try {
       const response = await fetch(`${VOICE_GATEWAY_URL}/hearth/token`, {
         method: 'POST',
@@ -35,6 +36,7 @@ export async function voiceRoutes(app: FastifyInstance) {
           authorization: `Bearer ${VOICE_GATEWAY_TOKEN}`,
           'x-voice-principal': 'parent_session',
           'x-voice-session-binding': sessionBinding,
+          'x-voice-session-expires-at': String(sessionExpiresAt),
         },
         signal: AbortSignal.timeout(5000),
       });
