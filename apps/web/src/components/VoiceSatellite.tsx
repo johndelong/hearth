@@ -34,6 +34,7 @@ export function VoiceSatellite() {
   const processor = useRef<ScriptProcessorNode | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const nextPlayback = useRef(0);
+  const playbackSources = useRef<Set<AudioBufferSourceNode>>(new Set());
   const pressed = useRef(false);
 
   const stopAudio = () => {
@@ -48,6 +49,7 @@ export function VoiceSatellite() {
     socket.current?.close();
     socket.current = null;
     stopAudio();
+    clearPlayback();
     void audioContext.current?.close();
     audioContext.current = null;
     setState('off');
@@ -65,9 +67,24 @@ export function VoiceSatellite() {
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.connect(context.destination);
+    playbackSources.current.add(source);
+    source.onended = () => playbackSources.current.delete(source);
     const start = Math.max(context.currentTime + 0.02, nextPlayback.current);
     source.start(start);
     nextPlayback.current = start + buffer.duration;
+  };
+
+  const clearPlayback = () => {
+    for (const source of playbackSources.current) {
+      try {
+        source.stop();
+      } catch {
+        // The source may already have ended between the iteration and stop.
+      }
+      source.disconnect();
+    }
+    playbackSources.current.clear();
+    nextPlayback.current = 0;
   };
 
   const connect = async () => {
@@ -88,6 +105,7 @@ export function VoiceSatellite() {
       ws.onmessage = (event) => {
         const payload = JSON.parse(event.data) as { type: string; status?: VoiceState; audio?: string; message?: string; text?: string };
         if (payload.type === 'audio' && payload.audio) playAudio(payload.audio);
+        if (payload.type === 'interrupt') clearPlayback();
         if (payload.type === 'status' && payload.status) setState(payload.status);
         if (payload.type === 'status' && payload.status === 'ready') setMessage('Hold to talk');
         if (payload.type === 'transcript' && payload.text) setMessage(payload.text);
@@ -99,6 +117,7 @@ export function VoiceSatellite() {
       };
       ws.onclose = () => {
         stopAudio();
+        clearPlayback();
         socket.current = null;
         setState('off');
       };
