@@ -5,6 +5,7 @@ import {
   type Claim,
   type Extra,
   type ExtraInput,
+  type PointEvent,
   type PointsBalance,
   type Recurrence,
   type Redemption,
@@ -663,6 +664,46 @@ export function listRedemptions(limit = 20): Redemption[] {
       label: r.label,
       cost: r.cost,
       redeemedAt: r.redeemed_at,
+    }));
+}
+
+/**
+ * One person's ledger, newest first — every claim payout, redemption, and
+ * manual adjustment that has moved their balance.
+ *
+ * The ledger is the whole history, so a parent reading it can always account
+ * for the number on the board.
+ */
+export function listPointEvents(personId: string, limit = 100): PointEvent[] {
+  return db
+    .prepare<
+      [string, number],
+      {
+        id: string;
+        person_id: string;
+        delta: number;
+        reason: string;
+        ref_type: PointEvent['refType'];
+        ref_id: string | null;
+        created_at: string;
+      }
+    >(
+      `SELECT * FROM point_events
+        WHERE person_id = ?
+        -- rowid breaks the tie by insertion order: two entries can share a
+        -- millisecond, and ids carry no sequence to sort on.
+        ORDER BY created_at DESC, rowid DESC
+        LIMIT ?`,
+    )
+    .all(personId, limit)
+    .map((r) => ({
+      id: r.id,
+      personId: r.person_id,
+      delta: r.delta,
+      reason: r.reason,
+      refType: r.ref_type,
+      refId: r.ref_id,
+      createdAt: r.created_at,
     }));
 }
 

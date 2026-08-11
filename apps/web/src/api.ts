@@ -6,6 +6,7 @@ import type {
   Extra,
   GoogleAccount,
   Person,
+  PointEvent,
   PointsBalance,
   Redemption,
   Reward,
@@ -117,12 +118,10 @@ export interface VersionInfo {
   updater: UpdaterInfo;
 }
 
-export interface ActivityEntry {
-  id: string;
-  action: string;
-  subject: string | null;
-  detail: string | null;
-  createdAt: string;
+export interface PointLedger {
+  personId: string;
+  points: number;
+  events: PointEvent[];
 }
 
 export const api = {
@@ -167,6 +166,12 @@ export const api = {
   redeem: (personId: string, rewardId: string) =>
     post<{ redemption: Redemption; points: PointsBalance[] }>('/api/redemptions', { personId, rewardId }),
 
+  /** One person's ledger, newest first, with the balance it adds up to. */
+  pointHistory: (personId: string, limit = 100) =>
+    call<PointLedger>(`/api/points/${personId}/history?limit=${limit}`),
+  adjustPoints: (personId: string, delta: number, reason: string) =>
+    post<PointLedger>('/api/points/adjust', { personId, delta, reason }),
+
   events: (from: Date, to: Date) =>
     call<CalendarEvent[]>(`/api/events?from=${from.toISOString()}&to=${to.toISOString()}`),
   createEvent: (body: Record<string, unknown>) => post<{ googleId: string }>('/api/events', body),
@@ -189,5 +194,4 @@ export const api = {
   lock: () => del<{ unlocked: false }>('/api/session'),
   setPin: (pin: string, currentPin?: string) => post<{ pinSet: boolean }>('/api/settings/pin', { pin, currentPin }),
   clearPin: () => del<{ pinSet: false }>('/api/settings/pin'),
-  activity: () => call<ActivityEntry[]>('/api/activity?limit=20'),
 };

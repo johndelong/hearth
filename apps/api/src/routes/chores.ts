@@ -16,9 +16,11 @@ import {
   listChores,
   listClaims,
   listExtras,
+  listPointEvents,
   listPoints,
   listRedemptions,
   listRewards,
+  pointsFor,
   redeemReward,
   setChoreDone,
   setClaimDone,
@@ -26,11 +28,11 @@ import {
   updateExtra,
   updateReward,
 } from '../store/chores.js';
-import { listPeople } from '../store/people.js';
+import { getPerson, listPeople } from '../store/people.js';
 import { MAX_DAYS_AHEAD, daysAhead, localDate, periodKey } from '../store/period.js';
 import { getSettings } from '../store/settings.js';
 import { listStreaks, pauseStreak, resumeStreak } from '../store/streaks.js';
-import { choreBody, extraBody, rewardBody } from '../schemas.js';
+import { choreBody, extraBody, pointAdjustBody, rewardBody } from '../schemas.js';
 import { recordActivity } from '../store/activity.js';
 
 export async function choreRoutes(app: FastifyInstance): Promise<void> {
@@ -206,16 +208,33 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
       },
     );
 
+    // One person's ledger, so a parent can account for the number on the board.
+    guarded.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+      '/api/points/:id/history',
+      async (request, reply) => {
+        if (!getPerson(request.params.id)) return reply.code(404).send({ error: 'Unknown person' });
+        const asked = Number(request.query.limit ?? 100);
+        const limit = Number.isFinite(asked) ? Math.min(Math.max(Math.trunc(asked), 1), 500) : 100;
+        return {
+          personId: request.params.id,
+          points: pointsFor(request.params.id),
+          events: listPointEvents(request.params.id, limit),
+        };
+      },
+    );
+
     guarded.post<{ Body: { personId: string; delta: number; reason?: string } }>(
       '/api/points/adjust',
+      { schema: { body: pointAdjustBody } },
       async (request, reply) => {
-        const { personId, delta, reason } = request.body ?? {};
-        if (!personId || typeof delta !== 'number') {
-          return reply.code(400).send({ error: 'personId and numeric delta are required' });
-        }
-        const points = adjustPoints(personId, delta, reason ?? 'Adjustment');
-        recordActivity('points.adjusted', personId, { delta, reason: reason ?? 'Adjustment' });
-        return { personId, points };
+        const { personId, delta } = request.body;
+        const reason = request.body.reason?.trim() || 'Adjustment';
+        // Checked here rather than left to the foreign key, so an unknown
+        // person is a 404 instead of a 500.
+        if (!getPerson(personId)) return reply.code(404).send({ error: 'Unknown person' });
+        const points = adjustPoints(personId, delta, reason);
+        recordActivity('points.adjusted', personId, { delta, reason });
+        return { personId, points, events: listPointEvents(personId) };
       },
     );
   });
