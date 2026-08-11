@@ -68,6 +68,18 @@ export const rewardBody = {
   },
 } as const;
 
+export const pointAdjustBody = {
+  type: 'object', additionalProperties: false,
+  required: ['personId', 'delta'],
+  properties: {
+    personId: { type: 'string', minLength: 1 },
+    // Bounded and non-zero: a zero adjustment is a ledger entry that explains
+    // nothing, and the bounds keep a mis-typed number from wrecking a balance.
+    delta: { type: 'integer', minimum: -100000, maximum: 100000, not: { const: 0 } },
+    reason: { type: 'string', minLength: 1, maxLength: 200 },
+  },
+} as const;
+
 export const settingsBody = {
   type: 'object', additionalProperties: false,
   properties: {

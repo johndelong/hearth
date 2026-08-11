@@ -12,7 +12,9 @@ const { db } = await import('./db/index.js');
 const { clearPin, pinIsSet, setPin, verifyPin } = await import('./auth.js');
 const { getSettings, setRaw } = await import('./store/settings.js');
 const { createPerson } = await import('./store/people.js');
-const { createExtra, createReward, redeemReward, adjustPoints, pointsFor } = await import('./store/chores.js');
+const { createExtra, createReward, redeemReward, adjustPoints, pointsFor, listPointEvents } = await import(
+  './store/chores.js'
+);
 const { peopleRoutes } = await import('./routes/people.js');
 const { choreRoutes } = await import('./routes/chores.js');
 
@@ -59,6 +61,90 @@ describe('domain constraints and ledger', () => {
     redeemReward(person.id, reward.id);
     assert.equal(pointsFor(person.id), 0);
     assert.throws(() => redeemReward(person.id, reward.id));
+  });
+});
+
+describe('points ledger', () => {
+  test('the ledger explains a balance, newest entry first', () => {
+    const person = createPerson({ name: 'Kid' });
+    const reward = createReward({ label: 'Movie night', cost: 40 });
+    adjustPoints(person.id, 50, 'Laundry bonus');
+    redeemReward(person.id, reward.id);
+    adjustPoints(person.id, -5, 'Broke a window');
+
+    const events = listPointEvents(person.id);
+    assert.deepEqual(
+      events.map((e) => [e.refType, e.delta, e.reason]),
+      [
+        ['manual', -5, 'Broke a window'],
+        ['redemption', -40, 'Movie night'],
+        ['manual', 50, 'Laundry bonus'],
+      ],
+    );
+    assert.equal(
+      events.reduce((sum, e) => sum + e.delta, 0),
+      pointsFor(person.id),
+    );
+    for (const event of events) assert.ok(!Number.isNaN(new Date(event.createdAt).getTime()));
+  });
+
+  test('a ledger never carries another person’s entries', () => {
+    const a = createPerson({ name: 'A' });
+    const b = createPerson({ name: 'B' });
+    adjustPoints(a.id, 10, 'A only');
+    adjustPoints(b.id, 20, 'B only');
+    assert.deepEqual(listPointEvents(a.id).map((e) => e.reason), ['A only']);
+    assert.equal(pointsFor(b.id), 20);
+  });
+});
+
+describe('manual point adjustment over HTTP', () => {
+  test('an adjustment lands on the ledger and moves the balance', async () => {
+    const person = createPerson({ name: 'Kid' });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/points/adjust',
+      payload: { personId: person.id, delta: -15, reason: 'Skipped a job' },
+    });
+    assert.equal(response.statusCode, 200);
+    const body = response.json();
+    assert.equal(body.points, -15);
+    assert.equal(body.events[0].reason, 'Skipped a job');
+    assert.equal(body.events[0].refType, 'manual');
+    assert.equal(pointsFor(person.id), -15);
+  });
+
+  test('rejects a zero, fractional, or oversized adjustment', async () => {
+    const person = createPerson({ name: 'Kid' });
+    for (const delta of [0, 2.5, 10_000_000]) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/points/adjust',
+        payload: { personId: person.id, delta },
+      });
+      assert.equal(response.statusCode, 400, `delta ${delta} should be refused`);
+    }
+    assert.equal(listPointEvents(person.id).length, 0);
+  });
+
+  test('an unknown person is a 404 rather than a foreign key failure', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/points/adjust',
+      payload: { personId: 'pe_nobody', delta: 5 },
+    });
+    assert.equal(response.statusCode, 404);
+  });
+
+  test('history reports the balance alongside the entries', async () => {
+    const person = createPerson({ name: 'Kid' });
+    adjustPoints(person.id, 30, 'Yard work');
+    const response = await app.inject({ method: 'GET', url: `/api/points/${person.id}/history` });
+    assert.equal(response.statusCode, 200);
+    const body = response.json();
+    assert.equal(body.points, 30);
+    assert.equal(body.events.length, 1);
+    assert.equal((await app.inject({ method: 'GET', url: '/api/points/pe_nobody/history' })).statusCode, 404);
   });
 });
 

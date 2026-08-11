@@ -383,11 +383,14 @@ export function Switch({
   onChange,
   night,
   label,
+  disabled,
 }: {
   on: boolean;
   onChange: (next: boolean) => void;
   night?: boolean;
   label?: string;
+  /** Still readable, but not actionable — the setting does not apply yet. */
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -395,6 +398,7 @@ export function Switch({
       role="switch"
       aria-checked={on}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!on)}
       style={{
         flex: 'none',
@@ -404,7 +408,8 @@ export function Switch({
         borderRadius: 999,
         border: on ? '1px solid transparent' : '1px solid var(--line)',
         padding: 0,
-        cursor: 'pointer',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.4 : 1,
         background: on ? col(148, night ?? false) : 'var(--chip)',
         transition: `background .28s ${EASE}`,
       }}
