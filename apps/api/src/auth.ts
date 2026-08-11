@@ -83,6 +83,19 @@ export function voiceSessionExpiresAt(request: FastifyRequest): number | null {
   return expires ? Math.floor(expires / 1000) : null;
 }
 
+export function voiceBindingIsActive(binding: string): boolean {
+  if (!binding) return false;
+  const now = Date.now();
+  for (const [token, expires] of sessions) {
+    if (expires <= now) {
+      sessions.delete(token);
+      continue;
+    }
+    if (createHash('sha256').update(token).digest('hex') === binding) return true;
+  }
+  return false;
+}
+
 /**
  * Guard for parent-only mutations. Kids can check chores off; changing who owns
  * what, the points, or the calendars requires the PIN.

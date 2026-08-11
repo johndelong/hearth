@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { requireVoiceParent, voiceSessionBinding, voiceSessionExpiresAt } from '../auth.js';
+import { requireVoiceParent, voiceBindingIsActive, voiceSessionBinding, voiceSessionExpiresAt } from '../auth.js';
 
 const VOICE_GATEWAY_URL = (process.env.VOICE_GATEWAY_URL ?? '').replace(/\/$/, '');
 const VOICE_GATEWAY_TOKEN = process.env.VOICE_GATEWAY_TOKEN ?? '';
@@ -21,6 +21,16 @@ export async function revokeVoiceSession(binding: string | null): Promise<void> 
 }
 
 export async function voiceRoutes(app: FastifyInstance) {
+  app.get('/api/voice/validate', async (request, reply) => {
+    const supplied = request.headers.authorization ?? '';
+    if (!VOICE_GATEWAY_TOKEN || supplied !== `Bearer ${VOICE_GATEWAY_TOKEN}`) {
+      return reply.code(401).send({ valid: false });
+    }
+    const binding = request.headers['x-voice-session-binding'];
+    const value = Array.isArray(binding) ? binding[0] : binding;
+    return { valid: voiceBindingIsActive(value ?? '') };
+  });
+
   app.get('/api/voice/config', { preHandler: requireVoiceParent }, async (request, reply) => {
     if (!VOICE_GATEWAY_URL || !VOICE_GATEWAY_TOKEN) {
       return reply.code(404).send({ ok: false, error: 'voice_not_configured' });
