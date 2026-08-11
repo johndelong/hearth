@@ -37,6 +37,49 @@ button {
   touch-action: manipulation;
 }
 
+.voice-satellite {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.voice-satellite-message {
+  max-width: 240px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--ink2);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(20, 24, 40, .12);
+}
+
+.voice-satellite-button {
+  pointer-events: auto;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 25px;
+  box-shadow: 0 8px 22px rgba(20, 24, 40, .2);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.voice-ready .voice-satellite-button { border-color: #7d9bd1; }
+.voice-listening .voice-satellite-button { background: #e9f5ef; border-color: #46a878; transform: scale(1.06); }
+.voice-thinking .voice-satellite-button { background: #fff4df; border-color: #d99b3f; }
+.voice-error .voice-satellite-button { background: #fff0ef; border-color: #d46a61; }
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

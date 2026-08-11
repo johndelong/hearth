@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { deleteRaw, getRaw, setRaw } from './store/settings.js';
 
@@ -77,6 +77,25 @@ function sessionToken(request: FastifyRequest): string | null {
   return parsed.valid ? parsed.value : null;
 }
 
+export function voiceSessionExpiresAt(request: FastifyRequest): number | null {
+  const token = sessionToken(request);
+  const expires = token ? sessions.get(token) : undefined;
+  return expires ? Math.floor(expires / 1000) : null;
+}
+
+export function voiceBindingIsActive(binding: string): boolean {
+  if (!binding) return false;
+  const now = Date.now();
+  for (const [token, expires] of sessions) {
+    if (expires <= now) {
+      sessions.delete(token);
+      continue;
+    }
+    if (createHash('sha256').update(token).digest('hex') === binding) return true;
+  }
+  return false;
+}
+
 /**
  * Guard for parent-only mutations. Kids can check chores off; changing who owns
  * what, the points, or the calendars requires the PIN.
@@ -84,4 +103,20 @@ function sessionToken(request: FastifyRequest): string | null {
 export async function requireParent(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   if (hasSession(request)) return;
   await reply.code(401).send({ error: 'PIN required' });
+}
+
+/** Voice is stricter than ordinary panel browsing and requires an explicit PIN-backed parent session. */
+export async function requireVoiceParent(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  if (!pinIsSet()) {
+    await reply.code(503).send({ error: 'voice_requires_parent_pin' });
+    return;
+  }
+  if (hasSession(request)) return;
+  await reply.code(401).send({ error: 'PIN required' });
+}
+
+/** Opaque binding for downstream one-time voice admission; the raw cookie never leaves Hearth. */
+export function voiceSessionBinding(request: FastifyRequest): string | null {
+  const token = sessionToken(request);
+  return token ? createHash('sha256').update(token).digest('hex') : null;
 }

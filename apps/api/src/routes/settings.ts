@@ -1,6 +1,6 @@
 import type { Settings } from '@dashboard/shared';
 import type { FastifyInstance } from 'fastify';
-import { clearPin, endSession, hasSession, pinIsSet, requireParent, setPin, startSession, verifyPin } from '../auth.js';
+import { clearPin, endSession, hasSession, pinIsSet, requireParent, setPin, startSession, verifyPin, voiceSessionBinding } from '../auth.js';
 import { getSettings, updateSettings } from '../store/settings.js';
 import { settingsBody } from '../schemas.js';
 import { listActivity, recordActivity } from '../store/activity.js';
@@ -8,6 +8,7 @@ import { db } from '../db/index.js';
 import { readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { revokeVoiceSession } from './voice.js';
 
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/settings', async () => getSettings());
@@ -40,7 +41,9 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.delete('/api/session', async (request, reply) => {
+    const binding = voiceSessionBinding(request);
     endSession(request, reply);
+    await revokeVoiceSession(binding);
     return { unlocked: false };
   });
 
@@ -61,8 +64,10 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete('/api/settings/pin', {
     preHandler: requireParent,
-    handler: async () => {
+    handler: async (request) => {
+      const binding = voiceSessionBinding(request);
       clearPin();
+      await revokeVoiceSession(binding);
       recordActivity('pin.removed');
       return { pinSet: false };
     },
