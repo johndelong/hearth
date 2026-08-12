@@ -17,18 +17,16 @@ process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), 'hearth-sync-')), 't
 
 const { db } = await import('../db/index.js');
 const {
-  eventKey,
   getCalendar,
   listCalendars,
   markWindowAnchored,
-  peopleByEventKey,
   saveSyncToken,
-  setEventPeople,
+  updateCalendar,
   upsertAccount,
   upsertCalendar,
+  writableCalendarByPerson,
 } = await import('../store/calendars.js');
-const { createPerson } = await import('../store/people.js');
-const { updateCalendar } = await import('../store/calendars.js');
+const { createPerson, updatePerson } = await import('../store/people.js');
 const { listEvents } = await import('../store/events.js');
 const { needsAnchor, syncCalendar, windowBounds } = await import('./sync.js');
 
@@ -329,151 +327,169 @@ describe('syncCalendar', () => {
 });
 
 describe('who is going to an event', () => {
-  const window = () => [
-    new Date(Date.now() - 400 * DAY_MS).toISOString(),
-    new Date(Date.now() + 400 * DAY_MS).toISOString(),
-  ] as const;
+  const window = () =>
+    [new Date(Date.now() - 400 * DAY_MS).toISOString(), new Date(Date.now() + 400 * DAY_MS).toISOString()] as const;
 
   const soon = () => new Date(Date.now() + DAY_MS).toISOString();
 
-  beforeEach(() => {
-    db.exec('DELETE FROM event_people; DELETE FROM people;');
+  const shown = () => listEvents(...window()).filter((e) => !e.synthetic);
+
+  /** A second calendar on the same account, mapped to its own person. */
+  function addCalendar(summary: string, personId: string): string {
+    upsertCalendar({
+      accountId: 'acct_1',
+      googleCalendarId: `${summary}@example.com`,
+      summary,
+      description: null,
+      enabled: true,
+      readOnly: false,
+      primary: false,
+      timeZone: 'America/New_York',
+    });
+    const cal = listCalendars().find((c) => c.summary === summary)!;
+    updateCalendar(cal.id, { personId });
+    return cal.id;
+  }
+
+  /** One copy of a fanned-out event, as Google hands it back. */
+  const copy = (googleId: string, group: string | null, startIso: string): calendar_v3.Schema$Event => ({
+    ...timedEvent(googleId, 'Swim meet', startIso),
+    ...(group ? { extendedProperties: { private: { hearthGroup: group } } } : {}),
   });
 
-  test('an untagged event still belongs to whoever the calendar does', async () => {
+  beforeEach(() => {
+    db.exec('DELETE FROM people');
+  });
+
+  test('an event on one calendar belongs to that calendar\u2019s person', async () => {
     const calendarId = makeCalendar();
     const kid = createPerson({ name: 'Everly' });
     updateCalendar(calendarId, { personId: kid.id });
 
-    const google = fakeGoogle([
-      { items: [timedEvent('g1', 'Dentist', soon())], nextSyncToken: 'tok-1' },
-    ]);
-    await syncCalendar(calendarId, google.list);
+    await syncCalendar(calendarId, fakeGoogle([{ items: [copy('g1', null, soon())], nextSyncToken: 't' }]).list);
 
-    const [event] = listEvents(...window()).filter((e) => !e.synthetic);
-    assert.deepEqual(event?.personIds, [kid.id]);
+    assert.deepEqual(shown().map((e) => e.personIds), [[kid.id]]);
   });
 
-  test('tagging replaces the calendar owner rather than adding to them', async () => {
-    const calendarId = makeCalendar();
-    const mum = createPerson({ name: 'Amanda', role: 'parent' });
+  test('copies sharing a group are one event with everyone on it', async () => {
+    const mainId = makeCalendar();
     const a = createPerson({ name: 'Everly' });
     const b = createPerson({ name: 'Gemma' });
-    updateCalendar(calendarId, { personId: mum.id });
+    updateCalendar(mainId, { personId: a.id });
+    const otherId = addCalendar('Gemma', b.id);
 
-    const google = fakeGoogle([
-      { items: [timedEvent('g1', 'Swim meet', soon())], nextSyncToken: 'tok-1' },
-    ]);
-    await syncCalendar(calendarId, google.list);
+    const at = soon();
+    await syncCalendar(mainId, fakeGoogle([{ items: [copy('g1', 'grp_1', at)], nextSyncToken: 't' }]).list);
+    await syncCalendar(otherId, fakeGoogle([{ items: [copy('g2', 'grp_1', at)], nextSyncToken: 't' }]).list);
 
-    setEventPeople(calendarId, 'g1', [a.id, b.id]);
-
-    const [event] = listEvents(...window()).filter((e) => !e.synthetic);
-    assert.deepEqual(event?.personIds, [a.id, b.id]);
-    // The calendar mapping is untouched — it is still Mum's calendar.
-    assert.equal(event?.personId, mum.id);
+    const events = shown();
+    assert.equal(events.length, 1, 'two copies should read as one event');
+    assert.deepEqual(events[0]?.personIds, [a.id, b.id]);
   });
 
   /**
-   * The reason tags are keyed on the Google id and not on events.id: a full
-   * window pull sweeps rows that fall outside it and re-inserts them under a
-   * new row id if they come back. Keyed on the row, everyone would silently
-   * fall off the event.
+   * The reason the group is carried rather than inferred: two people can have
+   * genuinely separate appointments at the same time, and merging them would
+   * hide the clash the panel exists to show.
    */
-  test('tags survive an event being swept and returning', async () => {
-    const calendarId = makeCalendar();
-    const kid = createPerson({ name: 'Everly' });
+  test('identical events with no group stay two events', async () => {
+    const mainId = makeCalendar();
+    const a = createPerson({ name: 'Everly' });
+    const b = createPerson({ name: 'Gemma' });
+    updateCalendar(mainId, { personId: a.id });
+    const otherId = addCalendar('Gemma', b.id);
 
-    const first = fakeGoogle([
-      { items: [timedEvent('g1', 'Swim meet', soon())], nextSyncToken: 'tok-1' },
-    ]);
-    await syncCalendar(calendarId, first.list);
-    setEventPeople(calendarId, 'g1', [kid.id]);
-    const before = listEvents(...window()).find((e) => !e.synthetic)?.id;
+    const at = soon();
+    await syncCalendar(mainId, fakeGoogle([{ items: [copy('g1', null, at)], nextSyncToken: 't' }]).list);
+    await syncCalendar(otherId, fakeGoogle([{ items: [copy('g2', null, at)], nextSyncToken: 't' }]).list);
 
-    // A full window that no longer mentions the event: it is swept away.
-    forceFullWindow(calendarId);
-    const swept = fakeGoogle([{ items: [], nextSyncToken: 'tok-2' }]);
-    await syncCalendar(calendarId, swept.list);
-    assert.equal(listEvents(...window()).filter((e) => !e.synthetic).length, 0);
-
-    // And now it comes back.
-    forceFullWindow(calendarId);
-    const again = fakeGoogle([
-      { items: [timedEvent('g1', 'Swim meet', soon())], nextSyncToken: 'tok-3' },
-    ]);
-    await syncCalendar(calendarId, again.list);
-
-    const [event] = listEvents(...window()).filter((e) => !e.synthetic);
-    assert.notEqual(event?.id, before, 'expected a new row id after the sweep');
-    assert.deepEqual(event?.personIds, [kid.id], 'tags should outlive the row');
+    assert.equal(shown().length, 2);
   });
 
   /**
-   * Google expands a series into one instance per occurrence, each with its own
-   * id. Tagging has to file under the series or "who goes to swim practice"
-   * would have to be answered again every Tuesday.
+   * A group names a shared event, not one occurrence of one. Every expanded
+   * instance of a fanned-out series carries the same group, so the start has to
+   * be part of what separates them.
    */
-  test('one tag covers every occurrence of a series', async () => {
-    const calendarId = makeCalendar();
-    const kid = createPerson({ name: 'Everly' });
-
-    const instance = (suffix: string, offsetDays: number): calendar_v3.Schema$Event => ({
-      ...timedEvent(`series_${suffix}`, 'Swim practice', new Date(Date.now() + offsetDays * DAY_MS).toISOString()),
-      recurringEventId: 'series',
-    });
-
-    const google = fakeGoogle([
-      { items: [instance('a', 1), instance('b', 8), instance('c', 15)], nextSyncToken: 'tok-1' },
-    ]);
-    await syncCalendar(calendarId, google.list);
-
-    setEventPeople(calendarId, 'series', [kid.id]);
-
-    const events = listEvents(...window()).filter((e) => !e.synthetic);
-    assert.equal(events.length, 3);
-    for (const event of events) {
-      assert.deepEqual(event.personIds, [kid.id], 'every occurrence should carry the tag');
-    }
-  });
-
-  test('the key is the series when there is one, and the event itself otherwise', () => {
-    assert.equal(eventKey({ googleId: 'g1', recurringEventId: null }), 'g1');
-    assert.equal(eventKey({ googleId: 'series_20260812', recurringEventId: 'series' }), 'series');
-  });
-
-  test('someone hidden from the calendar drops off a shared event', async () => {
-    const calendarId = makeCalendar();
+  test('a shared series stays one event per occurrence, not one in total', async () => {
+    const mainId = makeCalendar();
     const a = createPerson({ name: 'Everly' });
     const b = createPerson({ name: 'Gemma' });
+    updateCalendar(mainId, { personId: a.id });
+    const otherId = addCalendar('Gemma', b.id);
 
-    const google = fakeGoogle([
-      { items: [timedEvent('g1', 'Swim meet', soon())], nextSyncToken: 'tok-1' },
-    ]);
-    await syncCalendar(calendarId, google.list);
-    setEventPeople(calendarId, 'g1', [a.id, b.id]);
+    const week1 = new Date(Date.now() + DAY_MS).toISOString();
+    const week2 = new Date(Date.now() + 8 * DAY_MS).toISOString();
+    const series = (googleId: string, at: string) => ({ ...copy(googleId, 'grp_1', at), recurringEventId: 'master' });
 
-    const { updatePerson } = await import('../store/people.js');
+    await syncCalendar(mainId, fakeGoogle([{ items: [series('a1', week1), series('a2', week2)], nextSyncToken: 't' }]).list);
+    await syncCalendar(otherId, fakeGoogle([{ items: [series('b1', week1), series('b2', week2)], nextSyncToken: 't' }]).list);
+
+    const events = shown();
+    assert.equal(events.length, 2, 'two Tuesdays, not one pile');
+    for (const event of events) assert.deepEqual(event.personIds, [a.id, b.id]);
+  });
+
+  test('the faces read in the household\u2019s own order, not the sync\u2019s', async () => {
+    const mainId = makeCalendar();
+    // Created second, so it sorts second wherever people are ordered.
+    const first = createPerson({ name: 'Everly' });
+    const second = createPerson({ name: 'Gemma' });
+    updateCalendar(mainId, { personId: second.id });
+    const otherId = addCalendar('Everly', first.id);
+
+    const at = soon();
+    await syncCalendar(mainId, fakeGoogle([{ items: [copy('g1', 'grp_1', at)], nextSyncToken: 't' }]).list);
+    await syncCalendar(otherId, fakeGoogle([{ items: [copy('g2', 'grp_1', at)], nextSyncToken: 't' }]).list);
+
+    assert.deepEqual(shown()[0]?.personIds, [first.id, second.id]);
+  });
+
+  test('someone hidden from the calendar drops off a shared event without hiding it', async () => {
+    const mainId = makeCalendar();
+    const a = createPerson({ name: 'Everly' });
+    const b = createPerson({ name: 'Gemma' });
+    updateCalendar(mainId, { personId: a.id });
+    const otherId = addCalendar('Gemma', b.id);
+
+    const at = soon();
+    await syncCalendar(mainId, fakeGoogle([{ items: [copy('g1', 'grp_1', at)], nextSyncToken: 't' }]).list);
+    await syncCalendar(otherId, fakeGoogle([{ items: [copy('g2', 'grp_1', at)], nextSyncToken: 't' }]).list);
+
     updatePerson(b.id, { onCal: false });
 
-    const [event] = listEvents(...window()).filter((e) => !e.synthetic);
-    assert.deepEqual(event?.personIds, [a.id]);
+    const events = shown();
+    assert.equal(events.length, 1);
+    assert.deepEqual(events[0]?.personIds, [a.id]);
   });
 
-  test('deleting a person takes them off every event they were on', async () => {
+  test('a person with no writable calendar cannot be given a copy', () => {
     const calendarId = makeCalendar();
-    const a = createPerson({ name: 'Everly' });
-    const b = createPerson({ name: 'Gemma' });
+    const withCalendar = createPerson({ name: 'Everly' });
+    const without = createPerson({ name: 'Violet' });
+    updateCalendar(calendarId, { personId: withCalendar.id });
 
-    const google = fakeGoogle([
-      { items: [timedEvent('g1', 'Swim meet', soon())], nextSyncToken: 'tok-1' },
-    ]);
-    await syncCalendar(calendarId, google.list);
-    setEventPeople(calendarId, 'g1', [a.id, b.id]);
+    const byPerson = writableCalendarByPerson();
+    assert.equal(byPerson.get(withCalendar.id), calendarId);
+    assert.equal(byPerson.has(without.id), false);
+  });
 
-    const { deletePerson } = await import('../store/people.js');
-    deletePerson(b.id);
+  test('a read-only calendar is never somewhere to write a copy', () => {
+    makeCalendar();
+    const kid = createPerson({ name: 'Everly' });
+    upsertCalendar({
+      accountId: 'acct_1',
+      googleCalendarId: 'school@example.com',
+      summary: 'School',
+      description: null,
+      enabled: true,
+      readOnly: true,
+      primary: false,
+      timeZone: 'America/New_York',
+    });
+    const school = listCalendars().find((c) => c.summary === 'School')!;
+    updateCalendar(school.id, { personId: kid.id });
 
-    assert.deepEqual(peopleByEventKey(calendarId, ['g1']).get('g1'), [a.id]);
+    assert.equal(writableCalendarByPerson().has(kid.id), false);
   });
 });

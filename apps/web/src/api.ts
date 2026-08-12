@@ -76,8 +76,6 @@ const post = <T,>(path: string, body?: unknown) =>
   call<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 const patch = <T,>(path: string, body: unknown) =>
   call<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
-const put = <T,>(path: string, body: unknown) =>
-  call<T>(path, { method: 'PUT', body: JSON.stringify(body) });
 const del = <T,>(path: string) => call<T>(path, { method: 'DELETE' });
 
 export interface Board {
@@ -185,9 +183,6 @@ export const api = {
   /** How a repeating event repeats, read from Google on demand. */
   eventSeries: (id: string) =>
     call<{ recurrence: Recurrence | null; editable: boolean }>(`/api/events/${id}/series`),
-  /** Who is going. Local to Hearth, so this works on read-only calendars too. */
-  setEventPeople: (id: string, personIds: string[]) =>
-    put<{ id: string; personIds: string[] }>(`/api/events/${id}/people`, { personIds }),
 
   calendars: () =>
     call<{ accounts: GoogleAccount[]; calendars: SubscribedCalendar[]; configured: boolean }>('/api/calendars'),

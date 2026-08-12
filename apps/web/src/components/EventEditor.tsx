@@ -100,6 +100,12 @@ export function EventEditor({
   // Narrowed so the read-only branch below can lean on `event` being present.
   const readOnlyEvent = event?.readOnly ? event : null;
 
+  // Only somebody with a writable calendar can be given a copy, so only they
+  // are offered — and the rest are named, rather than quietly left out.
+  const owns = new Set(calendars.map((c) => c.personId).filter(Boolean));
+  const canAttend = people.filter((p) => owns.has(p.id));
+  const missing = people.filter((p) => !owns.has(p.id));
+
   const save = async (pickedScope: 'this' | 'all' = scope) => {
     setSaving(true);
     try {
@@ -130,10 +136,14 @@ export function EventEditor({
                 // Day field may have moved since the rule was switched on.
                 { recurrence: { ...recurrence, startsOn: date } }
               : {};
-        await api.updateEvent(event.id, { ...body, ...repeatPatch, scope: pickedScope });
-        // Who is going is a Hearth fact, not a Google one, so it is its own
-        // call. Skipped when untouched, so editing a title never rewrites tags.
-        if (!samePeople(personIds, event.personIds)) await api.setEventPeople(event.id, personIds);
+        await api.updateEvent(event.id, {
+          ...body,
+          ...repeatPatch,
+          // Only sent when it changed: every other save leaves the copies where
+          // they are rather than re-deciding who is going.
+          ...(samePeople(personIds, event.personIds) ? {} : { personIds }),
+          scope: pickedScope,
+        });
       } else {
         // A new event has no Hearth id to tag until it has been pulled back, so
         // the create carries its people and the server files them after the sync.
@@ -149,22 +159,6 @@ export function EventEditor({
       onClose();
     } catch (err) {
       say(err instanceof Error ? err.message : 'Could not save the event', 25);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  /** The read-only branch can still say who is going; that much is ours. */
-  const saveAttendees = async () => {
-    if (!event) return;
-    setSaving(true);
-    try {
-      await api.setEventPeople(event.id, personIds);
-      say('Saved who is going', 148);
-      onSaved();
-      onClose();
-    } catch (err) {
-      say(err instanceof Error ? err.message : 'Could not save', 25);
     } finally {
       setSaving(false);
     }
@@ -191,17 +185,7 @@ export function EventEditor({
         title={readOnlyEvent.title}
         sub="This event lives on a read-only calendar, so it can only be changed in Google."
         onClose={onClose}
-        footer={
-          <>
-            <GhostButton onClick={onClose}>Close</GhostButton>
-            <PrimaryButton
-              onClick={() => void saveAttendees()}
-              disabled={saving || samePeople(personIds, readOnlyEvent.personIds)}
-            >
-              {saving ? 'Saving…' : 'Save who is going'}
-            </PrimaryButton>
-          </>
-        }
+        footer={<GhostButton onClick={onClose}>Close</GhostButton>}
       >
         <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink2)' }}>
           {readOnlyEvent.allDay
@@ -216,10 +200,6 @@ export function EventEditor({
             {readOnlyEvent.description}
           </div>
         )}
-
-        <Field label="Who is going" sub="Tagged in Hearth — this does not change anything in Google">
-          <PeoplePicker people={people} selected={personIds} night={night} onChange={setPersonIds} />
-        </Field>
       </Modal>
     );
   }
@@ -283,15 +263,18 @@ export function EventEditor({
         <input value={title} onChange={(e) => setTitle(e.target.value)} style={fieldStyle} autoFocus />
       </Field>
 
-      <Field label="Calendar">
-        <select value={calendarId} onChange={(e) => setCalendarId(e.target.value)} style={fieldStyle}>
-          {calendars.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.summary}
-            </option>
-          ))}
-        </select>
-      </Field>
+      {/* With people named, their calendars are the answer and this is noise. */}
+      {personIds.length === 0 && (
+        <Field label="Calendar">
+          <select value={calendarId} onChange={(e) => setCalendarId(e.target.value)} style={fieldStyle}>
+            {calendars.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.summary}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <Field label="Day">
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
@@ -360,8 +343,27 @@ export function EventEditor({
         </>
       )}
 
-      <Field label="Who is going" sub="Leave empty to use whoever the calendar belongs to">
-        <PeoplePicker people={people} selected={personIds} night={night} onChange={setPersonIds} />
+      {/*
+        Who is going is where the event is written: everyone named gets a real
+        copy on their own calendar, so Google reads the way the panel does.
+      */}
+      <Field
+        label="Who is going"
+        sub={
+          personIds.length
+            ? 'It goes on their calendars, so it reads right in Google too'
+            : 'Pick nobody and it goes on the calendar below'
+        }
+      >
+        <PeoplePicker people={canAttend} selected={personIds} night={night} onChange={setPersonIds} />
+        {missing.length > 0 && (
+          <div style={{ marginTop: 8, fontSize: 14.5, fontWeight: 600, color: 'var(--ink2)' }}>
+            {missing.map((p) => p.name).join(' and ')}{' '}
+            {missing.length === 1 ? 'has no calendar' : 'have no calendars'} yet — give{' '}
+            {missing.length === 1 ? 'them one' : 'them one each'} in Settings › Calendar to add{' '}
+            {missing.length === 1 ? 'them' : 'them'} here.
+          </div>
+        )}
       </Field>
 
       <Field label="Notes (optional)">

@@ -1,27 +1,29 @@
 import { randomBytes } from 'node:crypto';
 import { type EventInput, fromRRule, toRRule } from '@dashboard/shared';
 import type { FastifyInstance } from 'fastify';
-import { google } from 'googleapis';
+import { type calendar_v3, google } from 'googleapis';
 import { requireParent } from '../auth.js';
 import { id } from '../db/index.js';
 import { SCOPES, calendarApi, googleConfig, oauthClient } from '../google/client.js';
 import { refreshCalendarList, syncAll, syncCalendar } from '../google/sync.js';
+import type { CachedEvent } from '../store/calendars.js';
 import {
   accountIdForEmail,
   deleteAccount,
   deleteEvent,
-  eventKey,
+  eventGroupCopies,
   getCachedEvent,
   getCalendar,
+  getEventDetails,
   listAccounts,
   listCalendars,
-  setEventPeople,
   updateCalendar,
+  writableCalendarByPerson,
   upsertAccount,
 } from '../store/calendars.js';
 import { listEvents } from '../store/events.js';
 import { listPeople } from '../store/people.js';
-import { eventAttendeesBody, eventBody } from '../schemas.js';
+import { eventBody } from '../schemas.js';
 import { recordActivity } from '../store/activity.js';
 
 /** Pending OAuth states, valid for one round trip. */
@@ -92,24 +94,46 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
       if (!cal) return reply.code(404).send({ error: 'Unknown calendar' });
       if (cal.readOnly) return reply.code(403).send({ error: 'That calendar is read-only' });
 
-      const res = await calendarApi(cal.accountId).events.insert({
-        calendarId: cal.googleCalendarId,
-        requestBody: {
-          ...toGoogleEvent(body),
-          ...(body.recurrence ? { recurrence: toRRule(body.recurrence, body.allDay ?? false) } : {}),
-        },
-      });
-      await syncCalendar(cal.id);
-      // The new event's own id is the key its people file under: for a series
-      // it is what every expanded instance reports as `recurringEventId`, so
-      // tagging here tags the whole thing.
-      if (body.personIds?.length && res.data.id) {
+      // Who is going decides where it is written. Everyone named gets a real
+      // copy on their own calendar, so Google is as truthful as the panel.
+      let targets = [cal];
+      if (body.personIds?.length) {
         const unknown = unknownPeople(body.personIds);
         if (unknown) return reply.code(400).send({ error: unknown });
-        setEventPeople(cal.id, res.data.id, body.personIds);
+        const resolved = calendarsForPeople(body.personIds);
+        if ('error' in resolved) return reply.code(400).send({ error: resolved.error });
+        targets = resolved.calendars;
       }
-      recordActivity('event.created', cal.id, body.title);
-      return { googleId: res.data.id };
+
+      // A shared repeating event would be one series per calendar, each with
+      // its own master, and an "all events" edit that can half-succeed. Refused
+      // until the single-series path has earned its keep.
+      if (body.recurrence && targets.length > 1) {
+        return reply.code(400).send({
+          error: 'A repeating event can only be on one calendar for now — pick one person, or turn off Repeats',
+        });
+      }
+
+      const group = id('grp');
+      const created: string[] = [];
+      for (const target of targets) {
+        const res = await calendarApi(target.accountId).events.insert({
+          calendarId: target.googleCalendarId,
+          requestBody: {
+            ...toGoogleEvent(body),
+            ...(body.recurrence ? { recurrence: toRRule(body.recurrence, body.allDay ?? false) } : {}),
+            // Invisible in every Google UI, and what ties the copies back
+            // together — matching titles and times would merge two people's
+            // separate three o'clock appointments into one.
+            extendedProperties: { private: { hearthGroup: group } },
+          },
+        });
+        if (res.data.id) created.push(res.data.id);
+      }
+
+      for (const target of targets) await syncCalendar(target.id);
+      recordActivity('event.created', cal.id, { title: body.title, copies: created.length });
+      return { googleId: created[0] ?? null, copies: created.length };
     });
 
     guarded.patch<{ Params: { id: string }; Body: Partial<EventInput> }>(
@@ -144,36 +168,33 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
             : null;
         }
 
-        await calendarApi(cal.accountId).events.patch({
-          calendarId: cal.googleCalendarId,
-          eventId: targetId,
-          requestBody: patch,
-        });
-        await syncCalendar(cal.id);
+        // Every copy of a shared event is the same event, so an edit lands on
+        // all of them. The one in hand is the only copy when there is no group.
+        const copies = cached.hearthGroup ? eventGroupCopies(cached.hearthGroup) : [cached];
+        const touched = new Set<string>();
+
+        for (const copy of copies) {
+          const copyCal = getCalendar(copy.calendarRowId);
+          if (!copyCal || copyCal.readOnly) continue;
+          await calendarApi(copyCal.accountId).events.patch({
+            calendarId: copyCal.googleCalendarId,
+            eventId: wholeSeries && copy.recurringEventId ? copy.recurringEventId : copy.googleId,
+            requestBody: patch,
+          });
+          touched.add(copyCal.id);
+        }
+
+        // Changing who is going is a change of where the event lives: someone
+        // added needs a copy made, someone dropped needs theirs removed.
+        if (request.body?.personIds && cached.hearthGroup) {
+          const moved = await reshareEvent(request.params.id, cached.hearthGroup, copies, request.body);
+          if ('error' in moved) return reply.code(400).send({ error: moved.error });
+          for (const calendarRowId of moved.touched) touched.add(calendarRowId);
+        }
+
+        for (const calendarRowId of touched) await syncCalendar(calendarRowId);
         recordActivity('event.updated', request.params.id, Object.keys(request.body ?? {}));
         return { ok: true };
-      },
-    );
-
-    /**
-     * Who is going, which is a Hearth fact rather than a Google one — see
-     * migration 018. Separate from the event body so tagging people never has
-     * to round-trip to Google, and so it works on read-only calendars: the
-     * household can say who is going to something it cannot edit.
-     */
-    guarded.put<{ Params: { id: string }; Body: { personIds: string[] } }>(
-      '/api/events/:id/people',
-      { schema: { body: eventAttendeesBody } },
-      async (request, reply) => {
-        const cached = getCachedEvent(request.params.id);
-        if (!cached) return reply.code(404).send({ error: 'Unknown event' });
-
-        const unknown = unknownPeople(request.body.personIds);
-        if (unknown) return reply.code(400).send({ error: unknown });
-
-        setEventPeople(cached.calendarRowId, eventKey(cached), request.body.personIds);
-        recordActivity('event.people', request.params.id, request.body.personIds);
-        return { id: request.params.id, personIds: request.body.personIds };
       },
     );
 
@@ -187,19 +208,24 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         if (cal.readOnly) return reply.code(403).send({ error: 'That calendar is read-only' });
 
         const scope = request.query.scope === 'all' ? 'all' : 'this';
-        // Deleting an instance cancels that occurrence and leaves the series;
-        // deleting the master takes the whole thing with it.
-        const targetId = scope === 'all' && cached.recurringEventId ? cached.recurringEventId : cached.googleId;
+        const copies = cached.hearthGroup ? eventGroupCopies(cached.hearthGroup) : [cached];
 
-        await calendarApi(cal.accountId).events.delete({
-          calendarId: cal.googleCalendarId,
-          eventId: targetId,
-        });
-        // The sync is what removes the rest of a deleted series; this row is
-        // dropped now so the panel does not draw it in the meantime.
+        for (const copy of copies) {
+          const copyCal = getCalendar(copy.calendarRowId);
+          if (!copyCal || copyCal.readOnly) continue;
+          // Deleting an instance cancels that occurrence and leaves the series;
+          // deleting the master takes the whole thing with it.
+          await calendarApi(copyCal.accountId).events.delete({
+            calendarId: copyCal.googleCalendarId,
+            eventId: scope === 'all' && copy.recurringEventId ? copy.recurringEventId : copy.googleId,
+          });
+        }
+
+        // The sync is what removes the rest of a deleted series and the other
+        // copies; this row goes now so the panel does not draw it meanwhile.
         deleteEvent(request.params.id);
-        if (scope === 'all') await syncCalendar(cal.id);
-        recordActivity('event.deleted', request.params.id, { scope });
+        for (const copy of copies) await syncCalendar(copy.calendarRowId);
+        recordActivity('event.deleted', request.params.id, { scope, copies: copies.length });
         return { ok: true };
       },
     );
@@ -279,6 +305,87 @@ function consumeState(state: string): boolean {
   return Boolean(expires && expires > Date.now());
 }
 
+/**
+ * Brings a shared event's copies in line with who is going now: a copy made on
+ * each newly named person's calendar, and the copy removed from anyone dropped.
+ *
+ * Deliberately not a delete-and-recreate of the whole set. Rewriting every copy
+ * would give the untouched people a brand new event — losing anything they had
+ * changed on their own copy, and making it reappear as new on their phone.
+ */
+async function reshareEvent(
+  eventId: string,
+  group: string,
+  copies: CachedEvent[],
+  body: Partial<EventInput>,
+): Promise<{ touched: string[] } | { error: string }> {
+  const resolved = calendarsForPeople(body.personIds ?? []);
+  if ('error' in resolved) return resolved;
+
+  const wanted = new Map(resolved.calendars.map((c) => [c.id, c]));
+  const held = new Map(copies.map((c) => [c.calendarRowId, c]));
+  const touched: string[] = [];
+
+  // A new copy is a whole event, not the edit that prompted it: the patch may
+  // say nothing but "Gemma is coming too", and a copy built from that alone
+  // would be a blank entry on her calendar.
+  const details = getEventDetails(eventId);
+
+  for (const [calendarRowId, cal] of wanted) {
+    if (held.has(calendarRowId)) continue;
+    if (!details) return { error: 'That event is no longer cached — sync and try again' };
+    await calendarApi(cal.accountId).events.insert({
+      calendarId: cal.googleCalendarId,
+      requestBody: {
+        ...toGoogleEvent({ ...details, ...body }),
+        extendedProperties: { private: { hearthGroup: group } },
+      },
+    });
+    touched.push(cal.id);
+  }
+
+  for (const [calendarRowId, copy] of held) {
+    if (wanted.has(calendarRowId)) continue;
+    const cal = getCalendar(calendarRowId);
+    if (!cal || cal.readOnly) continue;
+    await calendarApi(cal.accountId).events.delete({
+      calendarId: cal.googleCalendarId,
+      eventId: copy.googleId,
+    });
+    touched.push(cal.id);
+  }
+
+  return { touched };
+}
+
+/**
+ * The calendars a set of people's copies belong on.
+ *
+ * Someone with no writable calendar cannot be given one, which is why the
+ * editor does not offer them — but the check lives here too, because the API is
+ * not the editor's to trust.
+ */
+function calendarsForPeople(
+  personIds: string[],
+): { calendars: NonNullable<ReturnType<typeof getCalendar>>[] } | { error: string } {
+  const byPerson = writableCalendarByPerson();
+  const calendars = [];
+  const seen = new Set<string>();
+  for (const personId of personIds) {
+    const calendarRowId = byPerson.get(personId);
+    if (!calendarRowId) {
+      const person = listPeople().find((p) => p.id === personId);
+      return { error: `${person?.name ?? 'That person'} has no calendar to add this to` };
+    }
+    // Two people sharing a calendar get one copy, not two identical ones.
+    if (seen.has(calendarRowId)) continue;
+    seen.add(calendarRowId);
+    const cal = getCalendar(calendarRowId);
+    if (cal) (calendars.push(cal), undefined);
+  }
+  return { calendars };
+}
+
 /** The first id that names nobody, as a message. Null when they all resolve. */
 function unknownPeople(personIds: string[]): string | null {
   const known = new Set(listPeople().map((p) => p.id));
@@ -286,8 +393,8 @@ function unknownPeople(personIds: string[]): string | null {
   return missing ? `Unknown person ${missing}` : null;
 }
 
-function toGoogleEvent(input: Partial<EventInput>): Record<string, unknown> {
-  const body: Record<string, unknown> = {};
+function toGoogleEvent(input: Partial<EventInput>): calendar_v3.Schema$Event {
+  const body: calendar_v3.Schema$Event = {};
   if (input.title !== undefined) body.summary = input.title;
   if (input.location !== undefined) body.location = input.location;
   if (input.description !== undefined) body.description = input.description;

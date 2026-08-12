@@ -223,6 +223,9 @@ function applyEvent(calendarRowId: string, ev: calendar_v3.Schema$Event): number
     updatedAt: ev.updated ?? nowIso(),
     // Present only on an instance Google expanded out of a series.
     recurringEventId: ev.recurringEventId ?? null,
+    // Written by Hearth when it fanned this event out across calendars; absent
+    // on everything else, which is then simply its own event.
+    hearthGroup: ev.extendedProperties?.private?.hearthGroup ?? null,
   });
   return 1;
 }

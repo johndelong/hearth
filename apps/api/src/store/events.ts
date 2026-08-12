@@ -1,6 +1,5 @@
 import type { CalendarEvent } from '@dashboard/shared';
 import { db, toBool } from '../db/index.js';
-import { eventKey, peopleByEventKey } from './calendars.js';
 import { listPeople } from './people.js';
 import { getSettings } from './settings.js';
 
@@ -17,6 +16,7 @@ interface EventRow {
   person_id: string | null;
   read_only: number;
   recurring_event_id: string | null;
+  hearth_group: string | null;
 }
 
 /**
@@ -41,44 +41,77 @@ export function listEvents(from: string, to: string): CalendarEvent[] {
     )
     .all(shiftDays(to, 1), shiftDays(from, -1));
 
-  const hidden = new Set(listPeople().filter((p) => !p.onCal).map((p) => p.id));
+  const people = listPeople();
+  const hidden = new Set(people.filter((p) => !p.onCal).map((p) => p.id));
+  // Faces on a shared event read in the household's own order, not in whatever
+  // order the copies happened to come back from SQLite.
+  const rank = new Map(people.map((p, i) => [p.id, i]));
 
-  // Tags are keyed per calendar, so they are read one calendar at a time.
-  const tagsByCalendar = new Map<string, Map<string, string[]>>();
-  for (const calendarRowId of new Set(rows.map((r) => r.calendar_id))) {
-    const keys = rows.filter((r) => r.calendar_id === calendarRowId).map(eventRowKey);
-    tagsByCalendar.set(calendarRowId, peopleByEventKey(calendarRowId, keys));
+  /**
+   * The copies of one fanned-out event, collapsed into the single event it
+   * always was. Who is going is which calendars hold a copy — nothing is
+   * stored, so moving a copy in Google moves the answer here too.
+   *
+   * The representative copy is the one whose person sorts first, deliberately
+   * and not by accident of row order: it is the id every edit is aimed at, and
+   * it has to be the same id from one render to the next.
+   */
+  const collapse = (copies: EventRow[]): CalendarEvent => {
+    const ordered = [...copies].sort(
+      (a, b) => personRank(a) - personRank(b) || a.google_id.localeCompare(b.google_id),
+    );
+    const primary = ordered[0]!;
+    const attending = ordered
+      .map((r) => r.person_id)
+      .filter((id): id is string => Boolean(id) && !hidden.has(id!));
+
+    return {
+      id: primary.id,
+      calendarId: primary.calendar_id,
+      personId: primary.person_id,
+      // An event on nobody's calendar has nobody going, and says so rather than
+      // inventing an owner.
+      personIds: [...new Set(attending)],
+      title: primary.title,
+      location: primary.location,
+      description: primary.description,
+      start: primary.start_utc,
+      end: primary.end_utc,
+      allDay: toBool(primary.all_day),
+      readOnly: toBool(primary.read_only),
+      seriesId: primary.recurring_event_id,
+      synthetic: false,
+    };
+  };
+
+  const personRank = (r: EventRow): number =>
+    r.person_id ? (rank.get(r.person_id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+
+  // Someone turned off the calendar loses their copy outright, so a shared
+  // event stays visible through everyone else and one nobody can see is gone.
+  const visible = rows.filter((r) => !(r.person_id && hidden.has(r.person_id)));
+
+  const grouped = new Map<string, EventRow[]>();
+  for (const r of visible) {
+    // Ungrouped rows are their own group, keyed on something no id can collide
+    // with, so one code path builds every event.
+    //
+    // The start is part of the key because a group id names a shared event, not
+    // a single occurrence of one: every expanded instance of a fanned-out series
+    // carries the same group, and keying on it alone would pile a whole term of
+    // swim practice into one row.
+    const key = r.hearth_group ? `${r.hearth_group}@${r.start_utc}` : `row:${r.id}`;
+    const bucket = grouped.get(key);
+    if (bucket) bucket.push(r);
+    else grouped.set(key, [r]);
   }
 
-  const events: CalendarEvent[] = rows
-    .filter((r) => !(r.person_id && hidden.has(r.person_id)))
-    .map((r) => ({
-      id: r.id,
-      calendarId: r.calendar_id,
-      personId: r.person_id,
-      // Whoever was tagged; failing that, whoever the calendar belongs to. A
-      // hidden person is dropped here too, so turning someone off the calendar
-      // takes their face off a shared event as well as their own.
-      personIds: (tagsByCalendar.get(r.calendar_id)?.get(eventRowKey(r)) ?? (r.person_id ? [r.person_id] : []))
-        .filter((personId) => !hidden.has(personId)),
-      title: r.title,
-      location: r.location,
-      description: r.description,
-      start: r.start_utc,
-      end: r.end_utc,
-      allDay: toBool(r.all_day),
-      readOnly: toBool(r.read_only),
-      seriesId: r.recurring_event_id,
-      synthetic: false,
-    }));
+  const events: CalendarEvent[] = [...grouped.values()].map(collapse);
 
   if (getSettings().birthdaysOnCal) events.push(...birthdayEvents(from, to));
 
   return events.sort((a, b) => a.start.localeCompare(b.start));
 }
-
-const eventRowKey = (r: EventRow): string =>
-  eventKey({ googleId: r.google_id, recurringEventId: r.recurring_event_id });
 
 /** Move an ISO instant by whole days, for the coarse window prefilter. */
 function shiftDays(iso: string, days: number): string {
