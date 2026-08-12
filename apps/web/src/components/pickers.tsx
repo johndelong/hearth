@@ -1,7 +1,57 @@
 import type { Extra, Person, Reward } from '@dashboard/shared';
 import { GhostButton, Modal } from './Modal';
-import { Button, TapButton } from './ui';
-import { deep, soft } from '../theme';
+import { Avatar, Button, TapButton } from './ui';
+import { col, deep, soft } from '../theme';
+
+/**
+ * Pick any number of people, as a row of tappable faces.
+ *
+ * Shared by the chore editor ("whose chore is this") and the event editor
+ * ("who is going") — the same question, and it should not look like two
+ * different controls depending on which screen asked it.
+ */
+export function PeoplePicker({
+  people,
+  selected,
+  night,
+  onChange,
+}: {
+  people: Person[];
+  selected: string[];
+  night: boolean;
+  onChange: (personIds: string[]) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+      {people.map((p) => {
+        const on = selected.includes(p.id);
+        return (
+          <TapButton
+            key={p.id}
+            aria-pressed={on}
+            onClick={() => onChange(on ? selected.filter((x) => x !== p.id) : [...selected, p.id])}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              minHeight: 52,
+              padding: '8px 16px 8px 8px',
+              borderRadius: 999,
+              fontSize: 16.5,
+              fontWeight: 800,
+              border: `2px solid ${on ? col(p.hue, night) : 'var(--line)'}`,
+              background: on ? soft(p.hue, night) : 'transparent',
+              color: on ? deep(p.hue, night) : 'var(--ink2)',
+            }}
+          >
+            <Avatar name={p.name} hue={p.hue} night={night} size={34} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
+            {p.name}
+          </TapButton>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Kid-facing list of extra jobs they can pick up for points. */
 export function ExtraPicker({

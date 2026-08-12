@@ -1,7 +1,7 @@
 import { type CalendarEvent, type Person, type Settings, eventStart } from '@dashboard/shared';
 import { Card, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
-import { eventsOn, fmtTime, rangeFor, sameDay } from './useEvents';
+import { eventHue, eventsOn, fmtTime, rangeFor, sameDay } from './useEvents';
 
 interface Props {
   anchor: Date;
@@ -81,8 +81,7 @@ export function WeekView({
               }}
             >
               {dayEvents.map((e) => {
-                const p = e.personId ? byPerson.get(e.personId) : undefined;
-                const hue = p?.hue ?? -1;
+                const hue = eventHue(e, byPerson);
                 return (
                   <TapButton
                     key={e.id}

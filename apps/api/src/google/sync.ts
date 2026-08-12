@@ -221,6 +221,8 @@ function applyEvent(calendarRowId: string, ev: calendar_v3.Schema$Event): number
     allDay,
     status: ev.status ?? null,
     updatedAt: ev.updated ?? nowIso(),
+    // Present only on an instance Google expanded out of a series.
+    recurringEventId: ev.recurringEventId ?? null,
   });
   return 1;
 }

@@ -198,6 +198,15 @@ export interface CalendarEvent {
   calendarId: string;
   /** Person the owning calendar is mapped to, or null for unmapped calendars. */
   personId: string | null;
+  /**
+   * Who is actually going. Tagged in Hearth rather than carried by Google,
+   * because a family event is often some of the house and not all of it, and
+   * the kids have no email address to be an attendee with.
+   *
+   * Falls back to the calendar's own person when nothing has been tagged, so an
+   * untouched per-person calendar keeps meaning what it always did.
+   */
+  personIds: string[];
   title: string;
   location: string | null;
   description: string | null;
@@ -230,6 +239,8 @@ export interface EventInput {
   allDay?: boolean;
   location?: string | null;
   description?: string | null;
+  /** Who is going. Stored by Hearth; never sent to Google. */
+  personIds?: string[];
 }
 
 /** A bare `YYYY-MM-DD`, the form an all-day boundary takes. */

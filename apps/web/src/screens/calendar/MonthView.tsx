@@ -1,7 +1,7 @@
 import type { CalendarEvent, Person, Settings } from '@dashboard/shared';
 import { TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
-import { eventsOn, rangeFor, sameDay } from './useEvents';
+import { eventHue, eventsOn, rangeFor, sameDay } from './useEvents';
 
 interface Props {
   anchor: Date;
@@ -104,7 +104,7 @@ export function MonthView({
               </div>
 
               {chips.map((e) => {
-                const hue = e.personId ? byPerson.get(e.personId)?.hue ?? -1 : -1;
+                const hue = eventHue(e, byPerson);
                 return (
                   <TapButton
                     key={e.id}

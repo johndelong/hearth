@@ -2,7 +2,7 @@ import { type CalendarEvent, type Person, type Settings, eventEnd, eventStart } 
 import { useEffect, useRef } from 'react';
 import { Avatar, Card, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
-import { dayHourRange, eventsOn, fmtRange, layoutDay, sameDay } from './useEvents';
+import { dayHourRange, eventHue, eventPeople, eventsOn, fmtRange, layoutDay, sameDay } from './useEvents';
 
 /**
  * Height of one hour of the grid. Every block's height is derived from this, so
@@ -71,8 +71,10 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
     scroller.current.scrollTo({ top: Math.max(0, row.offsetTop - 120), behavior: 'smooth' });
   }, [isToday, day, timed.length]);
 
-  const person = (e: CalendarEvent): EventOwner =>
-    (e.personId ? byPerson.get(e.personId) : undefined) ?? FALLBACK;
+  // The first of an event's people carries its colour; the rest ride along as
+  // faces, which is the whole point of tagging more than one.
+  const person = (e: CalendarEvent): EventOwner => eventPeople(e, byPerson)[0] ?? FALLBACK;
+  const going = (e: CalendarEvent): Person[] => eventPeople(e, byPerson);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>
@@ -99,6 +101,7 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
               >
                 <span style={{ width: 9, height: 9, borderRadius: '50%', background: col(p.hue, night) }} />
                 {e.title}
+                {going(e).length > 1 && <Faces people={going(e)} night={night} size={22} />}
               </TapButton>
             );
           })}
@@ -177,9 +180,12 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
                       animation: `riseIn .45s ${EASE} ${i * 26}ms both`,
                     }}
                   >
-                    {!tight && (
-                      <Avatar name={p.name} hue={p.hue} night={night} size={27} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
-                    )}
+                    {!tight &&
+                      (going(e).length > 1 ? (
+                        <Faces people={going(e)} night={night} size={27} />
+                      ) : (
+                        <Avatar name={p.name} hue={p.hue} night={night} size={27} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
+                      ))}
                     <span style={{ minWidth: 0 }}>
                       <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, opacity: 0.75 }}>
                         {fmtRange(eventStart(e), eventEnd(e))}
@@ -222,5 +228,29 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
         )}
       </Card>
     </div>
+  );
+}
+
+/** Overlapping faces for everyone going to one event. */
+function Faces({ people, night, size }: { people: Person[]; night: boolean; size: number }) {
+  const shown = people.slice(0, 3);
+  const extra = people.length - shown.length;
+  return (
+    <span
+      style={{ flex: 'none', display: 'flex', alignItems: 'center' }}
+      aria-label={people.map((p) => p.name).join(', ')}
+    >
+      {shown.map((p, i) => (
+        <span
+          key={p.id}
+          style={{ marginLeft: i === 0 ? 0 : -size / 3, borderRadius: '50%', display: 'flex' }}
+        >
+          <Avatar name={p.name} hue={p.hue} night={night} size={size} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
+        </span>
+      ))}
+      {extra > 0 && (
+        <span style={{ marginLeft: 3, fontSize: size * 0.46, fontWeight: 800, opacity: 0.75 }}>+{extra}</span>
+      )}
+    </span>
   );
 }

@@ -1,5 +1,6 @@
 import type { CalendarEvent } from '@dashboard/shared';
 import { db, toBool } from '../db/index.js';
+import { eventKey, peopleByEventKey } from './calendars.js';
 import { listPeople } from './people.js';
 import { getSettings } from './settings.js';
 
@@ -15,6 +16,7 @@ interface EventRow {
   all_day: number;
   person_id: string | null;
   read_only: number;
+  recurring_event_id: string | null;
 }
 
 /**
@@ -41,12 +43,24 @@ export function listEvents(from: string, to: string): CalendarEvent[] {
 
   const hidden = new Set(listPeople().filter((p) => !p.onCal).map((p) => p.id));
 
+  // Tags are keyed per calendar, so they are read one calendar at a time.
+  const tagsByCalendar = new Map<string, Map<string, string[]>>();
+  for (const calendarRowId of new Set(rows.map((r) => r.calendar_id))) {
+    const keys = rows.filter((r) => r.calendar_id === calendarRowId).map(eventRowKey);
+    tagsByCalendar.set(calendarRowId, peopleByEventKey(calendarRowId, keys));
+  }
+
   const events: CalendarEvent[] = rows
     .filter((r) => !(r.person_id && hidden.has(r.person_id)))
     .map((r) => ({
       id: r.id,
       calendarId: r.calendar_id,
       personId: r.person_id,
+      // Whoever was tagged; failing that, whoever the calendar belongs to. A
+      // hidden person is dropped here too, so turning someone off the calendar
+      // takes their face off a shared event as well as their own.
+      personIds: (tagsByCalendar.get(r.calendar_id)?.get(eventRowKey(r)) ?? (r.person_id ? [r.person_id] : []))
+        .filter((personId) => !hidden.has(personId)),
       title: r.title,
       location: r.location,
       description: r.description,
@@ -61,6 +75,9 @@ export function listEvents(from: string, to: string): CalendarEvent[] {
 
   return events.sort((a, b) => a.start.localeCompare(b.start));
 }
+
+const eventRowKey = (r: EventRow): string =>
+  eventKey({ googleId: r.google_id, recurringEventId: r.recurring_event_id });
 
 /** Move an ISO instant by whole days, for the coarse window prefilter. */
 function shiftDays(iso: string, days: number): string {
@@ -111,6 +128,7 @@ function birthdayEvents(from: string, to: string): CalendarEvent[] {
         id: `bday_${person.id}_${year}`,
         calendarId: 'birthdays',
         personId: person.id,
+        personIds: [person.id],
         title: age !== null ? `${person.name} turns ${age}` : `${person.name}'s birthday`,
         location: null,
         description: null,

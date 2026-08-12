@@ -1,6 +1,6 @@
 import { type CalendarEvent, type Person, eventEnd, eventStart } from '@dashboard/shared';
 import { EASE, col } from '../theme';
-import { fmtTime } from '../screens/calendar/useEvents';
+import { eventPeople, fmtTime } from '../screens/calendar/useEvents';
 
 /**
  * Frame mode: what the panel shows when nobody has touched it. Big clock, the
@@ -148,7 +148,7 @@ export function IdleFrame({
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 300, maxWidth: '45vw' }}>
           {upcoming.map((e) => {
-            const p = e.personId ? byPerson.get(e.personId) : undefined;
+            const p = eventPeople(e, byPerson)[0];
             return (
               <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <span

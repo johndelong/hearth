@@ -1,4 +1,4 @@
-import { type CalendarEvent, type Settings, eventEnd, eventStart } from '@dashboard/shared';
+import { type CalendarEvent, type Person, type Settings, eventEnd, eventStart } from '@dashboard/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api';
 import { useOnWake } from '../../state';
@@ -200,4 +200,24 @@ export function layoutDay(events: CalendarEvent[], day: Date, hours: number[]): 
   flush();
 
   return boxes;
+}
+
+/**
+ * The people an event belongs to, resolved to the household.
+ *
+ * `personIds` carries whoever was tagged, already falling back to the
+ * calendar's own person when nothing was — so this is simply "who is going",
+ * and an event nobody is tagged on comes back empty.
+ */
+export function eventPeople(event: CalendarEvent, byPerson: Map<string, Person>): Person[] {
+  return event.personIds.map((id) => byPerson.get(id)).filter((p): p is Person => Boolean(p));
+}
+
+/**
+ * The colour an event is drawn in: the first of its people, or the neutral
+ * household hue when it has none. Shared so a two-person event is the same
+ * colour in the day, week, and month views.
+ */
+export function eventHue(event: CalendarEvent, byPerson: Map<string, Person>): number {
+  return eventPeople(event, byPerson)[0]?.hue ?? -1;
 }

@@ -551,6 +551,8 @@ export default function App() {
         return (
           <EventEditor
             event={editor.event}
+            people={people.filter((p) => p.onCal)}
+            night={night}
             defaultDate={anchor}
             onClose={close}
             onSaved={() => setCalendarNonce((n) => n + 1)}

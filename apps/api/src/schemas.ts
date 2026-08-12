@@ -1,5 +1,9 @@
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] } as const;
 
+/** A bounded nullable string, for text that is passed on to Google. */
+const nullableText = (maxLength: number) =>
+  ({ anyOf: [{ type: 'string', maxLength }, { type: 'null' }] }) as const;
+
 export const personBody = {
   type: 'object',
   additionalProperties: false,
@@ -80,6 +84,14 @@ export const pointAdjustBody = {
   },
 } as const;
 
+export const eventAttendeesBody = {
+  type: 'object', additionalProperties: false,
+  required: ['personIds'],
+  properties: {
+    personIds: { type: 'array', uniqueItems: true, maxItems: 64, items: { type: 'string', minLength: 1 } },
+  },
+} as const;
+
 export const settingsBody = {
   type: 'object', additionalProperties: false,
   properties: {
@@ -100,6 +112,11 @@ export const eventBody = {
     calendarId: { type: 'string', minLength: 1 },
     title: { type: 'string', minLength: 1, maxLength: 500 },
     start: { type: 'string', minLength: 10 }, end: { type: 'string', minLength: 10 },
-    allDay: { type: 'boolean' }, location: nullableString, description: nullableString,
+    allDay: { type: 'boolean' },
+    // Bounded here rather than left to Google, whose rejection would surface as
+    // a 500 on a request that was always going to be refused.
+    location: nullableText(1024), description: nullableText(8192),
+    // Hearth's own, never forwarded to Google — see migration 018.
+    personIds: { type: 'array', uniqueItems: true, maxItems: 64, items: { type: 'string', minLength: 1 } },
   },
 } as const;

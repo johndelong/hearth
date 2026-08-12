@@ -10,15 +10,18 @@ import {
   accountIdForEmail,
   deleteAccount,
   deleteEvent,
+  eventKey,
   getCachedEvent,
   getCalendar,
   listAccounts,
   listCalendars,
+  setEventPeople,
   updateCalendar,
   upsertAccount,
 } from '../store/calendars.js';
 import { listEvents } from '../store/events.js';
-import { eventBody } from '../schemas.js';
+import { listPeople } from '../store/people.js';
+import { eventAttendeesBody, eventBody } from '../schemas.js';
 import { recordActivity } from '../store/activity.js';
 
 /** Pending OAuth states, valid for one round trip. */
@@ -94,6 +97,14 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         requestBody: toGoogleEvent(body),
       });
       await syncCalendar(cal.id);
+      // The new event's own id is the key its people file under: for a series
+      // it is what every expanded instance reports as `recurringEventId`, so
+      // tagging here tags the whole thing.
+      if (body.personIds?.length && res.data.id) {
+        const unknown = unknownPeople(body.personIds);
+        if (unknown) return reply.code(400).send({ error: unknown });
+        setEventPeople(cal.id, res.data.id, body.personIds);
+      }
       recordActivity('event.created', cal.id, body.title);
       return { googleId: res.data.id };
     });
@@ -117,6 +128,28 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         await syncCalendar(cal.id);
         recordActivity('event.updated', request.params.id, Object.keys(request.body ?? {}));
         return { ok: true };
+      },
+    );
+
+    /**
+     * Who is going, which is a Hearth fact rather than a Google one — see
+     * migration 018. Separate from the event body so tagging people never has
+     * to round-trip to Google, and so it works on read-only calendars: the
+     * household can say who is going to something it cannot edit.
+     */
+    guarded.put<{ Params: { id: string }; Body: { personIds: string[] } }>(
+      '/api/events/:id/people',
+      { schema: { body: eventAttendeesBody } },
+      async (request, reply) => {
+        const cached = getCachedEvent(request.params.id);
+        if (!cached) return reply.code(404).send({ error: 'Unknown event' });
+
+        const unknown = unknownPeople(request.body.personIds);
+        if (unknown) return reply.code(400).send({ error: unknown });
+
+        setEventPeople(cached.calendarRowId, eventKey(cached), request.body.personIds);
+        recordActivity('event.people', request.params.id, request.body.personIds);
+        return { id: request.params.id, personIds: request.body.personIds };
       },
     );
 
@@ -184,6 +217,13 @@ function consumeState(state: string): boolean {
   const expires = pendingStates.get(state);
   pendingStates.delete(state);
   return Boolean(expires && expires > Date.now());
+}
+
+/** The first id that names nobody, as a message. Null when they all resolve. */
+function unknownPeople(personIds: string[]): string | null {
+  const known = new Set(listPeople().map((p) => p.id));
+  const missing = personIds.find((personId) => !known.has(personId));
+  return missing ? `Unknown person ${missing}` : null;
 }
 
 function toGoogleEvent(input: Partial<EventInput>) {

@@ -1,7 +1,8 @@
-import { type CalendarEvent, type SubscribedCalendar, eventEnd, eventStart } from '@dashboard/shared';
+import { type CalendarEvent, type Person, type SubscribedCalendar, eventEnd, eventStart } from '@dashboard/shared';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
+import { PeoplePicker } from './pickers';
 
 /** `YYYY-MM-DD` and `HH:MM` in local time, which is what date/time inputs want. */
 const dateValue = (d: Date) =>
@@ -11,12 +12,16 @@ const timeValue = (d: Date) =>
 
 export function EventEditor({
   event,
+  people,
+  night,
   defaultDate,
   onClose,
   onSaved,
   say,
 }: {
   event: CalendarEvent | null;
+  people: Person[];
+  night: boolean;
   defaultDate: Date;
   onClose: () => void;
   onSaved: () => void;
@@ -29,6 +34,8 @@ export function EventEditor({
   const [calendarId, setCalendarId] = useState(event?.calendarId ?? '');
   const [title, setTitle] = useState(event?.title ?? '');
   const [location, setLocation] = useState(event?.location ?? '');
+  const [description, setDescription] = useState(event?.description ?? '');
+  const [personIds, setPersonIds] = useState<string[]>(event?.personIds ?? []);
   const [allDay, setAllDay] = useState(event?.allDay ?? false);
   const [date, setDate] = useState(dateValue(start));
   const [from, setFrom] = useState(timeValue(start));
@@ -64,16 +71,41 @@ export function EventEditor({
         end: endIso,
         allDay,
         location: location.trim() || null,
+        description: description.trim() || null,
       };
 
-      if (event) await api.updateEvent(event.id, body);
-      else await api.createEvent(body);
+      if (event) {
+        await api.updateEvent(event.id, body);
+        // Who is going is a Hearth fact, not a Google one, so it is its own
+        // call. Skipped when untouched, so editing a title never rewrites tags.
+        if (!samePeople(personIds, event.personIds)) await api.setEventPeople(event.id, personIds);
+      } else {
+        // A new event has no Hearth id to tag until it has been pulled back, so
+        // the create carries its people and the server files them after the sync.
+        await api.createEvent({ ...body, personIds });
+      }
 
       say(event ? 'Event updated' : 'Event added', 148);
       onSaved();
       onClose();
     } catch (err) {
       say(err instanceof Error ? err.message : 'Could not save the event', 25);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** The read-only branch can still say who is going; that much is ours. */
+  const saveAttendees = async () => {
+    if (!event) return;
+    setSaving(true);
+    try {
+      await api.setEventPeople(event.id, personIds);
+      say('Saved who is going', 148);
+      onSaved();
+      onClose();
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not save', 25);
     } finally {
       setSaving(false);
     }
@@ -100,7 +132,17 @@ export function EventEditor({
         title={readOnlyEvent.title}
         sub="This event lives on a read-only calendar, so it can only be changed in Google."
         onClose={onClose}
-        footer={<GhostButton onClick={onClose}>Close</GhostButton>}
+        footer={
+          <>
+            <GhostButton onClick={onClose}>Close</GhostButton>
+            <PrimaryButton
+              onClick={() => void saveAttendees()}
+              disabled={saving || samePeople(personIds, readOnlyEvent.personIds)}
+            >
+              {saving ? 'Saving…' : 'Save who is going'}
+            </PrimaryButton>
+          </>
+        }
       >
         <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink2)' }}>
           {readOnlyEvent.allDay
@@ -108,6 +150,17 @@ export function EventEditor({
             : `${new Date(readOnlyEvent.start).toLocaleString()} – ${new Date(readOnlyEvent.end).toLocaleTimeString()}`}
           {readOnlyEvent.location ? ` · ${readOnlyEvent.location}` : ''}
         </div>
+        {readOnlyEvent.description && (
+          // Google returns this as authored, newlines and all, so it is rendered
+          // as text rather than markup — an event body can contain anything.
+          <div style={{ fontSize: 16, fontWeight: 600, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+            {readOnlyEvent.description}
+          </div>
+        )}
+
+        <Field label="Who is going" sub="Tagged in Hearth — this does not change anything in Google">
+          <PeoplePicker people={people} selected={personIds} night={night} onChange={setPersonIds} />
+        </Field>
       </Modal>
     );
   }
@@ -187,8 +240,26 @@ export function EventEditor({
       <Field label="Where (optional)">
         <input value={location} onChange={(e) => setLocation(e.target.value)} style={fieldStyle} />
       </Field>
+
+      <Field label="Who is going" sub="Leave empty to use whoever the calendar belongs to">
+        <PeoplePicker people={people} selected={personIds} night={night} onChange={setPersonIds} />
+      </Field>
+
+      <Field label="Notes (optional)">
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          style={{ ...fieldStyle, minHeight: 92, padding: '14px 18px', resize: 'vertical', lineHeight: 1.45 }}
+        />
+      </Field>
     </Modal>
   );
+}
+
+/** Order is not meaningful in a set of attendees, so it is not compared. */
+function samePeople(a: string[], b: string[]): boolean {
+  return a.length === b.length && [...a].sort().join() === [...b].sort().join();
 }
 
 /** Next half hour, so a new event does not default to an awkward time. */

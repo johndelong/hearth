@@ -244,15 +244,23 @@ export function markWindowAnchored(calendarRowId: string, at: string): void {
 export interface CachedEvent {
   googleId: string;
   calendarRowId: string;
+  /** Set when this row is one occurrence of a series Google expanded. */
+  recurringEventId: string | null;
 }
 
 export function getCachedEvent(eventId: string): CachedEvent | null {
   const row = db
-    .prepare<[string], { google_id: string; calendar_id: string }>(
-      'SELECT google_id, calendar_id FROM events WHERE id = ?',
+    .prepare<[string], { google_id: string; calendar_id: string; recurring_event_id: string | null }>(
+      'SELECT google_id, calendar_id, recurring_event_id FROM events WHERE id = ?',
     )
     .get(eventId);
-  return row ? { googleId: row.google_id, calendarRowId: row.calendar_id } : null;
+  return row
+    ? {
+        googleId: row.google_id,
+        calendarRowId: row.calendar_id,
+        recurringEventId: row.recurring_event_id,
+      }
+    : null;
 }
 
 export function upsertEvent(params: {
@@ -266,11 +274,13 @@ export function upsertEvent(params: {
   allDay: boolean;
   status: string | null;
   updatedAt: string;
+  recurringEventId: string | null;
 }): void {
   db.prepare(
-    `INSERT INTO events (id, calendar_id, google_id, title, location, description, start_utc, end_utc, all_day, status, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (id, calendar_id, google_id, title, location, description, start_utc, end_utc, all_day, status, updated_at, recurring_event_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(calendar_id, google_id) DO UPDATE SET
+       recurring_event_id = excluded.recurring_event_id,
        title = excluded.title,
        location = excluded.location,
        description = excluded.description,
@@ -291,8 +301,53 @@ export function upsertEvent(params: {
     fromBool(params.allDay),
     params.status,
     params.updatedAt,
+    params.recurringEventId,
   );
 }
+
+/**
+ * The key an event's people are filed under: its series when Google expanded
+ * one, otherwise the event itself.
+ *
+ * Tagging the series is what makes "Everly and Gemma go to swim practice" a
+ * single statement rather than one per Tuesday. A single occurrence can still
+ * differ — see `setEventPeople`, which writes against whichever key it is given.
+ */
+export const eventKey = (event: { googleId: string; recurringEventId?: string | null }): string =>
+  event.recurringEventId || event.googleId;
+
+/** Everyone tagged on each of these keys, in one query rather than one apiece. */
+export function peopleByEventKey(calendarRowId: string, keys: string[]): Map<string, string[]> {
+  const byKey = new Map<string, string[]>();
+  if (keys.length === 0) return byKey;
+  const rows = db
+    .prepare<[string, string], { event_key: string; person_id: string }>(
+      `SELECT ep.event_key, ep.person_id
+         FROM event_people ep
+         JOIN people p ON p.id = ep.person_id
+        WHERE ep.calendar_id = ?
+          AND ep.event_key IN (SELECT value FROM json_each(?))
+        ORDER BY p.sort_order`,
+    )
+    .all(calendarRowId, JSON.stringify(keys));
+  for (const r of rows) {
+    const list = byKey.get(r.event_key);
+    if (list) list.push(r.person_id);
+    else byKey.set(r.event_key, [r.person_id]);
+  }
+  return byKey;
+}
+
+/** Replaces an event's people wholesale. Callers always send the full set. */
+export const setEventPeople = db.transaction(
+  (calendarRowId: string, key: string, personIds: string[]): void => {
+    db.prepare('DELETE FROM event_people WHERE calendar_id = ? AND event_key = ?').run(calendarRowId, key);
+    const link = db.prepare(
+      'INSERT OR IGNORE INTO event_people (calendar_id, event_key, person_id) VALUES (?, ?, ?)',
+    );
+    for (const personId of personIds) link.run(calendarRowId, key, personId);
+  },
+);
 
 export function deleteEventByGoogleId(calendarRowId: string, googleId: string): void {
   db.prepare('DELETE FROM events WHERE calendar_id = ? AND google_id = ?').run(calendarRowId, googleId);

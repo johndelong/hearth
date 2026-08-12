@@ -12,6 +12,7 @@ import {
 import { useState } from 'react';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
 import { AVATAR_PACK, AvatarArt, avatarLabel, isAvatarKey } from './AvatarArt';
+import { PeoplePicker } from './pickers';
 import { RepeatPicker } from './RepeatPicker';
 import { Avatar, Button, TapButton } from './ui';
 import { col, deep, soft } from '../theme';
@@ -297,35 +298,7 @@ export function ChoreEditor({
       </Field>
 
       <Field label="Who" sub="Pick everyone this chore belongs to — each gets their own checkbox">
-        <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
-          {assignable.map((p) => {
-            const on = personIds.includes(p.id);
-            return (
-              <TapButton
-                key={p.id}
-                onClick={() =>
-                  setPersonIds((ids) => (on ? ids.filter((x) => x !== p.id) : [...ids, p.id]))
-                }
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 9,
-                  minHeight: 52,
-                  padding: '8px 16px 8px 8px',
-                  borderRadius: 999,
-                  fontSize: 16.5,
-                  fontWeight: 800,
-                  border: `2px solid ${on ? col(p.hue, night) : 'var(--line)'}`,
-                  background: on ? soft(p.hue, night) : 'transparent',
-                  color: on ? deep(p.hue, night) : 'var(--ink2)',
-                }}
-              >
-                <Avatar name={p.name} hue={p.hue} night={night} size={34} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
-                {p.name}
-              </TapButton>
-            );
-          })}
-        </div>
+        <PeoplePicker people={assignable} selected={personIds} night={night} onChange={setPersonIds} />
       </Field>
 
       <RepeatPicker value={recurrence} onChange={setRecurrence} night={night} />

@@ -75,6 +75,8 @@ const post = <T,>(path: string, body?: unknown) =>
   call<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 const patch = <T,>(path: string, body: unknown) =>
   call<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
+const put = <T,>(path: string, body: unknown) =>
+  call<T>(path, { method: 'PUT', body: JSON.stringify(body) });
 const del = <T,>(path: string) => call<T>(path, { method: 'DELETE' });
 
 export interface Board {
@@ -177,6 +179,9 @@ export const api = {
   createEvent: (body: Record<string, unknown>) => post<{ googleId: string }>('/api/events', body),
   updateEvent: (id: string, body: Record<string, unknown>) => patch<{ ok: true }>(`/api/events/${id}`, body),
   deleteEvent: (id: string) => del<{ ok: true }>(`/api/events/${id}`),
+  /** Who is going. Local to Hearth, so this works on read-only calendars too. */
+  setEventPeople: (id: string, personIds: string[]) =>
+    put<{ id: string; personIds: string[] }>(`/api/events/${id}/people`, { personIds }),
 
   calendars: () =>
     call<{ accounts: GoogleAccount[]; calendars: SubscribedCalendar[]; configured: boolean }>('/api/calendars'),
