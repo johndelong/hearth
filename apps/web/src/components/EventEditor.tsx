@@ -1,8 +1,19 @@
-import { type CalendarEvent, type Person, type SubscribedCalendar, eventEnd, eventStart } from '@dashboard/shared';
+import {
+  type CalendarEvent,
+  type Person,
+  type Recurrence,
+  type SubscribedCalendar,
+  describeRecurrence,
+  eventEnd,
+  eventStart,
+  everyDay,
+} from '@dashboard/shared';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
 import { PeoplePicker } from './pickers';
+import { RepeatPicker } from './RepeatPicker';
+import { Button } from './ui';
 
 /** `YYYY-MM-DD` and `HH:MM` in local time, which is what date/time inputs want. */
 const dateValue = (d: Date) =>
@@ -36,11 +47,44 @@ export function EventEditor({
   const [location, setLocation] = useState(event?.location ?? '');
   const [description, setDescription] = useState(event?.description ?? '');
   const [personIds, setPersonIds] = useState<string[]>(event?.personIds ?? []);
+  const [repeats, setRepeats] = useState(false);
+  const [recurrence, setRecurrence] = useState<Recurrence>(() => everyDay(dateValue(start)));
+  /**
+   * The series behind this occurrence: null while it is being read, and
+   * `editable: false` when Google's rule is one the picker cannot represent.
+   */
+  const [series, setSeries] = useState<{ recurrence: Recurrence | null; editable: boolean } | null>(
+    event?.seriesId ? null : { recurrence: null, editable: true },
+  );
+  /** Which of a repeating event the pending action means. */
+  const [scope, setScope] = useState<'this' | 'all'>('this');
+  const [confirming, setConfirming] = useState<'save' | 'delete' | null>(null);
   const [allDay, setAllDay] = useState(event?.allDay ?? false);
   const [date, setDate] = useState(dateValue(start));
   const [from, setFrom] = useState(timeValue(start));
   const [to, setTo] = useState(timeValue(end));
   const [saving, setSaving] = useState(false);
+
+  // The rule lives on the master Google keeps behind the expansion, so it is
+  // only knowable by asking. Until it lands, the repeat controls stay shut.
+  useEffect(() => {
+    if (!event?.seriesId) return;
+    let live = true;
+    void api
+      .eventSeries(event.id)
+      .then((data) => {
+        if (!live) return;
+        setSeries(data);
+        if (data.recurrence) {
+          setRecurrence(data.recurrence);
+          setRepeats(true);
+        }
+      })
+      .catch(() => live && setSeries({ recurrence: null, editable: false }));
+    return () => {
+      live = false;
+    };
+  }, [event?.id, event?.seriesId]);
 
   useEffect(() => {
     void api
@@ -56,7 +100,7 @@ export function EventEditor({
   // Narrowed so the read-only branch below can lean on `event` being present.
   const readOnlyEvent = event?.readOnly ? event : null;
 
-  const save = async () => {
+  const save = async (pickedScope: 'this' | 'all' = scope) => {
     setSaving(true);
     try {
       // All-day events go up as plain dates, the same shape they come back in;
@@ -75,14 +119,29 @@ export function EventEditor({
       };
 
       if (event) {
-        await api.updateEvent(event.id, body);
+        // How it repeats is a property of the series, so it only ever travels
+        // with an "all events" save. Sending it on one occurrence is refused by
+        // the API rather than quietly reinterpreted.
+        const repeatPatch =
+          event.seriesId && pickedScope === 'all' && series?.editable
+            ? { recurrence: repeats ? recurrence : null }
+            : !event.seriesId && repeats
+              ? // A one-off becoming a series counts from its own day, which the
+                // Day field may have moved since the rule was switched on.
+                { recurrence: { ...recurrence, startsOn: date } }
+              : {};
+        await api.updateEvent(event.id, { ...body, ...repeatPatch, scope: pickedScope });
         // Who is going is a Hearth fact, not a Google one, so it is its own
         // call. Skipped when untouched, so editing a title never rewrites tags.
         if (!samePeople(personIds, event.personIds)) await api.setEventPeople(event.id, personIds);
       } else {
         // A new event has no Hearth id to tag until it has been pulled back, so
         // the create carries its people and the server files them after the sync.
-        await api.createEvent({ ...body, personIds });
+        await api.createEvent({
+          ...body,
+          personIds,
+          ...(repeats ? { recurrence: { ...recurrence, startsOn: date } } : {}),
+        });
       }
 
       say(event ? 'Event updated' : 'Event added', 148);
@@ -111,12 +170,12 @@ export function EventEditor({
     }
   };
 
-  const remove = async () => {
+  const remove = async (pickedScope: 'this' | 'all' = scope) => {
     if (!event) return;
     setSaving(true);
     try {
-      await api.deleteEvent(event.id);
-      say('Event deleted', 25);
+      await api.deleteEvent(event.id, pickedScope);
+      say(pickedScope === 'all' ? 'Every one of them deleted' : 'Event deleted', 25);
       onSaved();
       onClose();
     } catch (err) {
@@ -186,14 +245,40 @@ export function EventEditor({
       onClose={onClose}
       footer={
         <>
-          {event && <GhostButton onClick={() => void remove()} danger>Delete</GhostButton>}
+          {event && (
+            <GhostButton onClick={() => (event.seriesId ? setConfirming('delete') : void remove())} danger>
+              Delete
+            </GhostButton>
+          )}
           <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton onClick={() => void save()} disabled={!title.trim() || !calendarId || saving}>
+          <PrimaryButton
+            onClick={() => (event?.seriesId ? setConfirming('save') : void save())}
+            disabled={!title.trim() || !calendarId || saving}
+          >
             {saving ? 'Saving…' : 'Save'}
           </PrimaryButton>
         </>
       }
     >
+      {/*
+        A repeating event has to say which of itself is meant. Asked once, at
+        the moment of acting, rather than as a mode the whole form sits in —
+        the answer is about this edit, not about the event.
+      */}
+      {confirming && (
+        <ScopePrompt
+          action={confirming}
+          onCancel={() => setConfirming(null)}
+          onPick={(picked) => {
+            setScope(picked);
+            setConfirming(null);
+            // State set in the same tick is not readable by the handler, so the
+            // choice is passed down rather than read back out.
+            if (confirming === 'delete') void remove(picked);
+            else void save(picked);
+          }}
+        />
+      )}
       <Field label="What">
         <input value={title} onChange={(e) => setTitle(e.target.value)} style={fieldStyle} autoFocus />
       </Field>
@@ -241,6 +326,40 @@ export function EventEditor({
         <input value={location} onChange={(e) => setLocation(e.target.value)} style={fieldStyle} />
       </Field>
 
+      {series && !series.editable && (
+        <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--ink2)' }}>
+          This repeats on a rule Hearth cannot show — change how it repeats in Google.
+        </div>
+      )}
+
+      {(!event || !event.seriesId || series?.editable) && (
+        <>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 17, fontWeight: 800 }}>
+            <input
+              type="checkbox"
+              checked={repeats}
+              onChange={(e) => {
+                setRepeats(e.target.checked);
+                // The rule counts from the event's own day, so a start that no
+                // longer matches would silently shift which days it lands on.
+                if (e.target.checked) setRecurrence((r) => ({ ...r, startsOn: date }));
+              }}
+              style={{ width: 22, height: 22 }}
+            />
+            Repeats
+            {repeats && (
+              <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink2)' }}>
+                · {describeRecurrence(recurrence)}
+              </span>
+            )}
+          </label>
+
+          {repeats && (
+            <RepeatPicker value={recurrence} onChange={setRecurrence} night={night} variant="event" />
+          )}
+        </>
+      )}
+
       <Field label="Who is going" sub="Leave empty to use whoever the calendar belongs to">
         <PeoplePicker people={people} selected={personIds} night={night} onChange={setPersonIds} />
       </Field>
@@ -254,6 +373,49 @@ export function EventEditor({
         />
       </Field>
     </Modal>
+  );
+}
+
+/**
+ * "This event, or all of them?" — the question Google and Apple both ask, in
+ * the same words, because a repeating event is two things at once and only the
+ * person tapping knows which one they mean.
+ */
+function ScopePrompt({
+  action,
+  onPick,
+  onCancel,
+}: {
+  action: 'save' | 'delete';
+  onPick: (scope: 'this' | 'all') => void;
+  onCancel: () => void;
+}) {
+  const verb = action === 'delete' ? 'Delete' : 'Change';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        padding: 16,
+        borderRadius: 18,
+        border: '1px solid var(--line)',
+        background: 'var(--chip)',
+      }}
+    >
+      <div style={{ fontSize: 16.5, fontWeight: 800 }}>{verb} which of these?</div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <Button size="lg" onClick={() => onPick('this')} style={{ flex: '1 1 150px' }}>
+          This event
+        </Button>
+        <Button size="lg" onClick={() => onPick('all')} style={{ flex: '1 1 150px' }}>
+          All events
+        </Button>
+        <Button size="lg" onClick={onCancel} style={{ flex: '0 0 auto' }}>
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }
 

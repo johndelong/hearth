@@ -7,6 +7,7 @@ import type {
   GoogleAccount,
   Person,
   PointEvent,
+  Recurrence,
   PointsBalance,
   Redemption,
   Reward,
@@ -178,7 +179,12 @@ export const api = {
     call<CalendarEvent[]>(`/api/events?from=${from.toISOString()}&to=${to.toISOString()}`),
   createEvent: (body: Record<string, unknown>) => post<{ googleId: string }>('/api/events', body),
   updateEvent: (id: string, body: Record<string, unknown>) => patch<{ ok: true }>(`/api/events/${id}`, body),
-  deleteEvent: (id: string) => del<{ ok: true }>(`/api/events/${id}`),
+  /** `scope` says whether a repeating event loses one occurrence or all of them. */
+  deleteEvent: (id: string, scope: 'this' | 'all' = 'this') =>
+    del<{ ok: true }>(`/api/events/${id}?scope=${scope}`),
+  /** How a repeating event repeats, read from Google on demand. */
+  eventSeries: (id: string) =>
+    call<{ recurrence: Recurrence | null; editable: boolean }>(`/api/events/${id}/series`),
   /** Who is going. Local to Hearth, so this works on read-only calendars too. */
   setEventPeople: (id: string, personIds: string[]) =>
     put<{ id: string; personIds: string[] }>(`/api/events/${id}/people`, { personIds }),

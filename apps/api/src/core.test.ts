@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, test } from 'node:test';
-import { dueOn, normalizeRecurrence } from '@dashboard/shared';
+import { dueOn, fromRRule, normalizeRecurrence, toRRule } from '@dashboard/shared';
 import Fastify from 'fastify';
 
 process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), 'hearth-core-')), 'test.db');
@@ -173,5 +173,88 @@ describe('recurrence boundaries', () => {
     });
     assert.equal(dueOn(rule, new Date('2026-02-28T00:00:00')), false);
     assert.equal(dueOn(rule, new Date('2026-03-31T00:00:00')), true);
+  });
+
+  test('an end date is inclusive, and nothing lands after it', () => {
+    const rule = normalizeRecurrence({
+      freq: 'daily', interval: 1, startsOn: '2026-08-10', until: '2026-08-12',
+    });
+    assert.equal(dueOn(rule, new Date('2026-08-12T00:00:00')), true);
+    assert.equal(dueOn(rule, new Date('2026-08-13T00:00:00')), false);
+  });
+
+  test('an end before the start is dropped rather than making a rule that never lands', () => {
+    const rule = normalizeRecurrence({ freq: 'daily', interval: 1, startsOn: '2026-08-10', until: '2026-08-01' });
+    assert.equal(rule.until, null);
+    assert.equal(dueOn(rule, new Date('2026-08-10T00:00:00')), true);
+  });
+
+  test('every other day counts from the start, across a DST change', () => {
+    // 1 Nov 2026 is the US fall-back. Stepping by fixed 24h intervals across it
+    // drifts an hour and lands the rule on the wrong days from there on.
+    const rule = normalizeRecurrence({ freq: 'daily', interval: 2, startsOn: '2026-10-30' });
+    assert.equal(dueOn(rule, new Date('2026-11-01T00:00:00')), true);
+    assert.equal(dueOn(rule, new Date('2026-11-02T00:00:00')), false);
+    assert.equal(dueOn(rule, new Date('2026-11-03T00:00:00')), true);
+  });
+
+  test('a yearly rule lands on its own day and nothing else', () => {
+    const rule = normalizeRecurrence({ freq: 'yearly', interval: 1, startsOn: '2026-08-31' });
+    assert.equal(dueOn(rule, new Date('2027-08-31T00:00:00')), true);
+    assert.equal(dueOn(rule, new Date('2027-08-30T00:00:00')), false);
+    assert.equal(dueOn(rule, new Date('2026-08-31T00:00:00')), true);
+  });
+
+  test('daily and yearly carry no day list to contradict the start date', () => {
+    const rule = normalizeRecurrence({ freq: 'daily', interval: 1, byDay: [1, 3], startsOn: '2026-08-10' });
+    assert.deepEqual(rule.byDay, []);
+  });
+});
+
+describe('RRULE round trip', () => {
+  const roundTrip = (input: Parameters<typeof normalizeRecurrence>[0], allDay = false) => {
+    const rule = normalizeRecurrence(input);
+    const back = fromRRule(toRRule(rule, allDay), rule.startsOn);
+    assert.deepEqual(back, rule);
+    return toRRule(rule, allDay)[0];
+  };
+
+  test('every weekday survives the trip through Google', () => {
+    const line = roundTrip({ freq: 'weekly', interval: 1, byDay: [1, 2, 3, 4, 5], startsOn: '2026-08-10' });
+    assert.equal(line, 'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR');
+  });
+
+  test('the monthly "third Monday" reading survives', () => {
+    const line = roundTrip({
+      freq: 'monthly', interval: 2, byDay: [1], byMonthDay: null, bySetPos: 3, startsOn: '2026-08-17',
+    });
+    assert.equal(line, 'RRULE:FREQ=MONTHLY;INTERVAL=2;BYDAY=3MO');
+  });
+
+  test('an all-day series ends on a bare date, a timed one on an instant', () => {
+    const rule = normalizeRecurrence({ freq: 'daily', interval: 1, startsOn: '2026-08-10', until: '2026-08-20' });
+    assert.equal(toRRule(rule, true)[0], 'RRULE:FREQ=DAILY;UNTIL=20260820');
+    // RFC 5545 ties UNTIL's shape to DTSTART's, and Google refuses a mismatch.
+    assert.match(toRRule(rule, false)[0]!, /UNTIL=\d{8}T\d{6}Z$/);
+  });
+
+  test('a timed UNTIL covers the whole of its last local day', () => {
+    const rule = normalizeRecurrence({ freq: 'weekly', interval: 1, byDay: [1], startsOn: '2026-08-10', until: '2026-08-31' });
+    // Whatever the offset, it comes back as the same local day it went in as.
+    assert.equal(fromRRule(toRRule(rule, false), rule.startsOn)?.until, '2026-08-31');
+  });
+
+  test('a rule the picker cannot represent is refused rather than flattened', () => {
+    const startsOn = '2026-08-10';
+    // COUNT has no end date to show; rewriting it as one would move the end.
+    assert.equal(fromRRule(['RRULE:FREQ=WEEKLY;COUNT=10'], startsOn), null);
+    assert.equal(fromRRule(['RRULE:FREQ=MONTHLY;BYSETPOS=2;BYDAY=MO,TU'], startsOn), null);
+    assert.equal(fromRRule(['RRULE:FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=1'], startsOn), null);
+    assert.equal(fromRRule(['RRULE:FREQ=HOURLY'], startsOn), null);
+  });
+
+  test('an event with no rule at all is simply not recurring', () => {
+    assert.equal(fromRRule(null, '2026-08-10'), null);
+    assert.equal(fromRRule(['EXDATE;VALUE=DATE:20260817'], '2026-08-10'), null);
   });
 });

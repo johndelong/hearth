@@ -2,9 +2,11 @@
  * When a chore comes around, modelled on the iCalendar recurrence rule that
  * Google Calendar and Outlook both put behind their "Custom repeat" dialog.
  *
- * Deliberately a subset: chores repeat weekly or monthly, and they never end.
- * There is no COUNT/UNTIL because a chore stops by being switched off, and no
- * yearly frequency because nobody sweeps the porch once a year.
+ * Shared by chores and calendar events, which want different amounts of it.
+ * A chore repeats weekly or monthly and never ends — it stops by being switched
+ * off. An event also needs daily ("standup"), yearly ("anniversary"), and an end
+ * date ("swim lessons through May"), so the rule carries those and chores simply
+ * never set them.
  *
  * The date math here is all local-midnight arithmetic. Nothing in a family's
  * week is worth a timezone library, but everything is worth being right about
@@ -13,7 +15,7 @@
  */
 
 /** How the interval is counted. `RRULE:FREQ=`, minus the parts we don't offer. */
-export type Freq = 'weekly' | 'monthly';
+export type Freq = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 /**
  * One chore's repeat rule.
@@ -25,7 +27,7 @@ export type Freq = 'weekly' | 'monthly';
  */
 export interface Recurrence {
   freq: Freq;
-  /** Every N weeks or months. Always >= 1; 1 is the plain "every week" case. */
+  /** Every N days, weeks, months or years. Always >= 1. */
   interval: number;
   /** Days of the week, `0` Sunday through `6` Saturday. Never empty. */
   byDay: number[];
@@ -39,12 +41,22 @@ export interface Recurrence {
    * which week is week one, and Google uses the event's own start for this.
    */
   startsOn: string;
+  /**
+   * `YYYY-MM-DD` of the last day it can land on, inclusive, or null to run
+   * forever. Chores never set this — a chore ends by being switched off.
+   */
+  until: string | null;
 }
 
 export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 export const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 /** Single letters for the day picker. Two T's and two S's is the accepted cost. */
 export const DAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
+
+export const FREQS: readonly Freq[] = ['daily', 'weekly', 'monthly', 'yearly'];
+
+const isYmd = (value: unknown): value is string =>
+  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const WEEKEND = [0, 6];
@@ -94,6 +106,14 @@ const weekStart = (d: Date): Date => {
 const weeksBetween = (a: Date, b: Date): number =>
   Math.round((weekStart(b).getTime() - weekStart(a).getTime()) / (7 * 86400000));
 
+/**
+ * Whole days from `a` to `b`, both snapped to midnight. Rounded because the
+ * clocks changing in between makes the span a whole number of days plus or
+ * minus an hour.
+ */
+const daysBetween = (a: Date, b: Date): number =>
+  Math.round((midnight(b).getTime() - midnight(a).getTime()) / 86400000);
+
 const monthsBetween = (a: Date, b: Date): number =>
   (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
 
@@ -117,14 +137,33 @@ export function nthWeekdayOfMonth(year: number, month: number, weekday: number, 
 
 /** The default a new chore starts on: every day, beginning today. */
 export function everyDay(startsOn = toYmd(new Date())): Recurrence {
-  return { freq: 'weekly', interval: 1, byDay: [...EVERY_DAY], byMonthDay: null, bySetPos: null, startsOn };
+  return {
+    freq: 'weekly',
+    interval: 1,
+    byDay: [...EVERY_DAY],
+    byMonthDay: null,
+    bySetPos: null,
+    startsOn,
+    until: null,
+  };
 }
 
-/** Whether a chore with this rule lands on one particular day. */
+/** Whether this rule lands on one particular day. */
 export function dueOn(rec: Recurrence, date: Date): boolean {
   const day = midnight(date);
   const start = fromYmd(rec.startsOn);
   if (day.getTime() < midnight(start).getTime()) return false;
+  // Inclusive: a rule that ends on the 30th still lands on the 30th.
+  if (rec.until && day.getTime() > midnight(fromYmd(rec.until)).getTime()) return false;
+
+  if (rec.freq === 'daily') {
+    return daysBetween(start, day) % rec.interval === 0;
+  }
+
+  if (rec.freq === 'yearly') {
+    if (day.getMonth() !== start.getMonth() || day.getDate() !== start.getDate()) return false;
+    return (day.getFullYear() - start.getFullYear()) % rec.interval === 0;
+  }
 
   if (rec.freq === 'weekly') {
     if (!rec.byDay.includes(day.getDay())) return false;
@@ -165,15 +204,38 @@ function describeDays(byDay: number[]): string {
  * says "Weekdays" the way it always did and only unusual rules grow a suffix.
  */
 export function describeRecurrence(rec: Recurrence): string {
+  const ends = rec.until ? ` until ${describeDate(rec.until)}` : '';
+
+  if (rec.freq === 'daily') {
+    return (rec.interval === 1 ? 'Every day' : `Every ${rec.interval} days`) + ends;
+  }
+
+  if (rec.freq === 'yearly') {
+    const start = fromYmd(rec.startsOn);
+    const on = `${MONTH_SHORT[start.getMonth()]} ${start.getDate()}`;
+    return (rec.interval === 1 ? `Every year on ${on}` : `Every ${rec.interval} years on ${on}`) + ends;
+  }
+
   if (rec.freq === 'weekly') {
     const days = describeDays(rec.byDay);
-    return rec.interval === 1 ? days : `${days} · every ${rec.interval} weeks`;
+    return (rec.interval === 1 ? days : `${days} · every ${rec.interval} weeks`) + ends;
   }
 
   const every = rec.interval === 1 ? 'Monthly' : `Every ${rec.interval} months`;
-  if (rec.byMonthDay !== null) return `${every} on day ${rec.byMonthDay}`;
+  if (rec.byMonthDay !== null) return `${every} on day ${rec.byMonthDay}${ends}`;
   const weekday = DAY_NAMES[rec.byDay[0] ?? 0];
-  return `${every} on the ${ORDINALS[rec.bySetPos ?? 1] ?? 'first'} ${weekday}`;
+  return `${every} on the ${ORDINALS[rec.bySetPos ?? 1] ?? 'first'} ${weekday}${ends}`;
+}
+
+export const MONTH_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+] as const;
+
+/** `2026-06-30` as "Jun 30", or with the year when it is not this one. */
+function describeDate(ymd: string): string {
+  const d = fromYmd(ymd);
+  const short = `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+  return d.getFullYear() === new Date().getFullYear() ? short : `${short} ${d.getFullYear()}`;
 }
 
 /** How the monthly options read in the picker, for a given start date. */
@@ -201,18 +263,24 @@ export function normalizeRecurrence(input: Partial<Recurrence> | undefined | nul
   const fallback = everyDay();
   if (!input) return fallback;
 
-  const freq: Freq = input.freq === 'monthly' ? 'monthly' : 'weekly';
-  const interval = Math.min(52, Math.max(1, Math.round(Number(input.interval) || 1)));
-  const startsOn =
-    typeof input.startsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.startsOn)
-      ? input.startsOn
-      : fallback.startsOn;
+  const freq: Freq = FREQS.includes(input.freq as Freq) ? (input.freq as Freq) : 'weekly';
+  const interval = Math.min(999, Math.max(1, Math.round(Number(input.interval) || 1)));
+  const startsOn = isYmd(input.startsOn) ? input.startsOn : fallback.startsOn;
+  // An end before the start would be a rule that can never land. Dropping it
+  // leaves a rule that repeats forever, which is at least a rule somebody meant.
+  const until = isYmd(input.until) && input.until >= startsOn ? input.until : null;
 
   const days = Array.isArray(input.byDay)
     ? [...new Set(input.byDay.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort(
         (a, b) => a - b,
       )
     : [];
+
+  // Neither daily nor yearly reads any of the day fields: the start date is the
+  // whole rule, so they are emptied rather than left to say something untrue.
+  if (freq === 'daily' || freq === 'yearly') {
+    return { freq, interval, byDay: [], byMonthDay: null, bySetPos: null, startsOn, until };
+  }
 
   if (freq === 'weekly') {
     return {
@@ -222,6 +290,7 @@ export function normalizeRecurrence(input: Partial<Recurrence> | undefined | nul
       byMonthDay: null,
       bySetPos: null,
       startsOn,
+      until,
     };
   }
 
@@ -240,6 +309,7 @@ export function normalizeRecurrence(input: Partial<Recurrence> | undefined | nul
       byMonthDay: byMonthDay ?? fromYmd(startsOn).getDate(),
       bySetPos: null,
       startsOn,
+      until,
     };
   }
 
@@ -250,5 +320,6 @@ export function normalizeRecurrence(input: Partial<Recurrence> | undefined | nul
     byMonthDay: null,
     bySetPos,
     startsOn,
+    until,
   };
 }

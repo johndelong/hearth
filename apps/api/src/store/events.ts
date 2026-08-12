@@ -68,6 +68,7 @@ export function listEvents(from: string, to: string): CalendarEvent[] {
       end: r.end_utc,
       allDay: toBool(r.all_day),
       readOnly: toBool(r.read_only),
+      seriesId: r.recurring_event_id,
       synthetic: false,
     }));
 
@@ -136,6 +137,7 @@ function birthdayEvents(from: string, to: string): CalendarEvent[] {
         end: next,
         allDay: true,
         readOnly: true,
+        seriesId: null,
         synthetic: true,
       });
     }

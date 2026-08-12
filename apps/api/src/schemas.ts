@@ -27,12 +27,13 @@ const recurrence = {
   additionalProperties: false,
   required: ['freq', 'interval', 'byDay', 'byMonthDay', 'bySetPos', 'startsOn'],
   properties: {
-    freq: { enum: ['weekly', 'monthly'] },
-    interval: { type: 'integer', minimum: 1, maximum: 52 },
+    freq: { enum: ['daily', 'weekly', 'monthly', 'yearly'] },
+    interval: { type: 'integer', minimum: 1, maximum: 999 },
     byDay: { type: 'array', uniqueItems: true, items: { type: 'integer', minimum: 0, maximum: 6 } },
     byMonthDay: { anyOf: [{ type: 'integer', minimum: 1, maximum: 31 }, { type: 'null' }] },
     bySetPos: { anyOf: [{ enum: [1, 2, 3, 4, -1] }, { type: 'null' }] },
     startsOn: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+    until: { anyOf: [{ type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }, { type: 'null' }] },
   },
 } as const;
 
@@ -118,5 +119,8 @@ export const eventBody = {
     location: nullableText(1024), description: nullableText(8192),
     // Hearth's own, never forwarded to Google — see migration 018.
     personIds: { type: 'array', uniqueItems: true, maxItems: 64, items: { type: 'string', minLength: 1 } },
+    recurrence: { anyOf: [recurrence, { type: 'null' }] },
+    /** Which of a repeating event a write is aimed at. */
+    scope: { enum: ['this', 'all'] },
   },
 } as const;

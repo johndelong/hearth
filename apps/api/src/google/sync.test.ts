@@ -34,6 +34,12 @@ const { needsAnchor, syncCalendar, windowBounds } = await import('./sync.js');
 
 const DAY_MS = 24 * 60 * 60_000;
 
+/** Puts a calendar back to "never pulled", so the next sync is a full window. */
+function forceFullWindow(calendarRowId: string): void {
+  saveSyncToken(calendarRowId, null);
+  db.prepare('UPDATE calendars SET window_anchored_at = NULL WHERE id = ?').run(calendarRowId);
+}
+
 /** A fresh account and calendar, returning the calendar's row id. */
 function makeCalendar(): string {
   db.exec('DELETE FROM events');
@@ -386,15 +392,13 @@ describe('who is going to an event', () => {
     const before = listEvents(...window()).find((e) => !e.synthetic)?.id;
 
     // A full window that no longer mentions the event: it is swept away.
-    saveSyncToken(calendarId, null);
-    markWindowAnchored(calendarId, null);
+    forceFullWindow(calendarId);
     const swept = fakeGoogle([{ items: [], nextSyncToken: 'tok-2' }]);
     await syncCalendar(calendarId, swept.list);
     assert.equal(listEvents(...window()).filter((e) => !e.synthetic).length, 0);
 
     // And now it comes back.
-    saveSyncToken(calendarId, null);
-    markWindowAnchored(calendarId, null);
+    forceFullWindow(calendarId);
     const again = fakeGoogle([
       { items: [timedEvent('g1', 'Swim meet', soon())], nextSyncToken: 'tok-3' },
     ]);

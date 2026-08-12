@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import type { EventInput } from '@dashboard/shared';
+import { type EventInput, fromRRule, toRRule } from '@dashboard/shared';
 import type { FastifyInstance } from 'fastify';
 import { google } from 'googleapis';
 import { requireParent } from '../auth.js';
@@ -94,7 +94,10 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
 
       const res = await calendarApi(cal.accountId).events.insert({
         calendarId: cal.googleCalendarId,
-        requestBody: toGoogleEvent(body),
+        requestBody: {
+          ...toGoogleEvent(body),
+          ...(body.recurrence ? { recurrence: toRRule(body.recurrence, body.allDay ?? false) } : {}),
+        },
       });
       await syncCalendar(cal.id);
       // The new event's own id is the key its people file under: for a series
@@ -120,10 +123,31 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         if (!cal) return reply.code(404).send({ error: 'Unknown calendar' });
         if (cal.readOnly) return reply.code(403).send({ error: 'That calendar is read-only' });
 
+        // "All events" edits the master Google keeps behind the expansion; the
+        // instance in front of us can only ever speak for its own occurrence.
+        const wholeSeries = request.body?.scope === 'all' && cached.recurringEventId;
+        const targetId = wholeSeries ? cached.recurringEventId! : cached.googleId;
+
+        const patch = toGoogleEvent(request.body);
+        // Moving a whole series by patching the master's start would drag every
+        // occurrence to that one day. The rule may change; the day may not.
+        if (wholeSeries) {
+          delete patch.start;
+          delete patch.end;
+        }
+        if (request.body?.recurrence !== undefined) {
+          if (!wholeSeries && cached.recurringEventId) {
+            return reply.code(400).send({ error: 'Changing how it repeats has to apply to every event' });
+          }
+          patch.recurrence = request.body.recurrence
+            ? toRRule(request.body.recurrence, request.body.allDay ?? false)
+            : null;
+        }
+
         await calendarApi(cal.accountId).events.patch({
           calendarId: cal.googleCalendarId,
-          eventId: cached.googleId,
-          requestBody: toGoogleEvent(request.body),
+          eventId: targetId,
+          requestBody: patch,
         });
         await syncCalendar(cal.id);
         recordActivity('event.updated', request.params.id, Object.keys(request.body ?? {}));
@@ -153,20 +177,56 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
       },
     );
 
-    guarded.delete<{ Params: { id: string } }>('/api/events/:id', async (request, reply) => {
+    guarded.delete<{ Params: { id: string }; Querystring: { scope?: string } }>(
+      '/api/events/:id',
+      async (request, reply) => {
+        const cached = getCachedEvent(request.params.id);
+        if (!cached) return reply.code(404).send({ error: 'Unknown event' });
+        const cal = getCalendar(cached.calendarRowId);
+        if (!cal) return reply.code(404).send({ error: 'Unknown calendar' });
+        if (cal.readOnly) return reply.code(403).send({ error: 'That calendar is read-only' });
+
+        const scope = request.query.scope === 'all' ? 'all' : 'this';
+        // Deleting an instance cancels that occurrence and leaves the series;
+        // deleting the master takes the whole thing with it.
+        const targetId = scope === 'all' && cached.recurringEventId ? cached.recurringEventId : cached.googleId;
+
+        await calendarApi(cal.accountId).events.delete({
+          calendarId: cal.googleCalendarId,
+          eventId: targetId,
+        });
+        // The sync is what removes the rest of a deleted series; this row is
+        // dropped now so the panel does not draw it in the meantime.
+        deleteEvent(request.params.id);
+        if (scope === 'all') await syncCalendar(cal.id);
+        recordActivity('event.deleted', request.params.id, { scope });
+        return { ok: true };
+      },
+    );
+
+    /**
+     * How a repeating event repeats.
+     *
+     * Read from Google rather than cached: `singleEvents: true` means we only
+     * ever see expanded instances, and the rule lives on the master. Asking for
+     * it on demand is one call in a parent's hands, and it cannot go stale.
+     */
+    guarded.get<{ Params: { id: string } }>('/api/events/:id/series', async (request, reply) => {
       const cached = getCachedEvent(request.params.id);
       if (!cached) return reply.code(404).send({ error: 'Unknown event' });
+      if (!cached.recurringEventId) return { recurrence: null, editable: true };
       const cal = getCalendar(cached.calendarRowId);
       if (!cal) return reply.code(404).send({ error: 'Unknown calendar' });
-      if (cal.readOnly) return reply.code(403).send({ error: 'That calendar is read-only' });
 
-      await calendarApi(cal.accountId).events.delete({
+      const master = await calendarApi(cal.accountId).events.get({
         calendarId: cal.googleCalendarId,
-        eventId: cached.googleId,
+        eventId: cached.recurringEventId,
       });
-      deleteEvent(request.params.id);
-      recordActivity('event.deleted', request.params.id);
-      return { ok: true };
+      const startsOn = (master.data.start?.date ?? master.data.start?.dateTime ?? '').slice(0, 10);
+      const recurrence = fromRRule(master.data.recurrence, startsOn);
+      // A rule we cannot represent is reported rather than flattened — see
+      // fromRRule. The event still opens; the repeat controls stay shut.
+      return { recurrence, editable: recurrence !== null };
     });
   });
 
@@ -226,7 +286,7 @@ function unknownPeople(personIds: string[]): string | null {
   return missing ? `Unknown person ${missing}` : null;
 }
 
-function toGoogleEvent(input: Partial<EventInput>) {
+function toGoogleEvent(input: Partial<EventInput>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (input.title !== undefined) body.summary = input.title;
   if (input.location !== undefined) body.location = input.location;
@@ -241,6 +301,9 @@ function toGoogleEvent(input: Partial<EventInput>) {
   if (input.end) {
     body.end = input.allDay ? { date: input.end.slice(0, 10) } : { dateTime: input.end };
   }
+  // `personIds`, `recurrence` and `scope` are deliberately absent: the first is
+  // Hearth's alone, and the other two are handled by their callers, which know
+  // whether they are addressing an instance or the series behind it.
   return body;
 }
 

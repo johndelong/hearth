@@ -8,6 +8,7 @@
 import type { Recurrence } from './recurrence.js';
 
 export * from './recurrence.js';
+export * from './rrule.js';
 
 export type Role = 'kid' | 'parent';
 
@@ -227,6 +228,11 @@ export interface CalendarEvent {
   allDay: boolean;
   /** True when the event came from a read-only subscription. */
   readOnly: boolean;
+  /**
+   * The series this occurrence belongs to, when Google expanded one. Null for a
+   * one-off. Editing or deleting a repeating event has to say which it means.
+   */
+  seriesId: string | null;
   /** Synthesized locally (birthdays), so it has no Google counterpart. */
   synthetic: boolean;
 }
@@ -241,6 +247,13 @@ export interface EventInput {
   description?: string | null;
   /** Who is going. Stored by Hearth; never sent to Google. */
   personIds?: string[];
+  /** How it repeats, or null for a one-off. */
+  recurrence?: Recurrence | null;
+  /**
+   * Which part of a repeating event a write means: just this occurrence, or the
+   * whole series. Ignored for an event that does not repeat.
+   */
+  scope?: 'this' | 'all';
 }
 
 /** A bare `YYYY-MM-DD`, the form an all-day boundary takes. */

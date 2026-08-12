@@ -11,6 +11,16 @@ import { Field, fieldStyle, labelStyle } from './Modal';
 import { Button, Switch, TapButton } from './ui';
 import { col, deep, soft } from '../theme';
 
+/** Google's own ceiling on an interval, and far past anything a house needs. */
+const MAX_INTERVAL = 52;
+
+const UNIT_LABELS: Record<Recurrence['freq'], [string, string]> = {
+  daily: ['Day', 'Days'],
+  weekly: ['Week', 'Weeks'],
+  monthly: ['Month', 'Months'],
+  yearly: ['Year', 'Years'],
+};
+
 /**
  * The repeat controls, shaped like the "Custom recurrence" dialog in Google
  * Calendar and Outlook — because that is the one recurrence UI every parent has
@@ -23,20 +33,32 @@ import { col, deep, soft } from '../theme';
  *
  * Being early is deliberately not expressed here. That is a property of one
  * tick, not of the schedule, and it lives on the board instead.
+ *
+ * `variant` is how much of the rule to offer. A chore repeats weekly or monthly
+ * and stops by being switched off, so it is never shown daily, yearly, or an
+ * end date; an event needs all three.
  */
 export function RepeatPicker({
   value,
   onChange,
   night,
+  variant = 'chore',
 }: {
   value: Recurrence;
   onChange: (next: Recurrence) => void;
   night: boolean;
+  variant?: 'chore' | 'event';
 }) {
+  const event = variant === 'event';
+  const FREQ_CHOICES = event ? (['daily', 'weekly', 'monthly', 'yearly'] as const) : (['weekly', 'monthly'] as const);
   // Whether the interval controls are showing. Kept separately from the rule
   // because "every 1 week" is the same rule whether or not they are open.
-  const [open, setOpen] = useState(value.freq === 'monthly' || value.interval > 1);
+  const [open, setOpen] = useState(
+    value.freq !== 'weekly' || value.interval > 1 || value.until !== null,
+  );
   const monthly = value.freq === 'monthly';
+  // Only weekly reads a day list; daily and yearly are answered by the start date.
+  const picksDays = value.freq === 'weekly';
   const options = monthlyOptions(value.startsOn);
 
   const toggleDay = (day: number) => {
@@ -50,12 +72,19 @@ export function RepeatPicker({
     });
   };
 
-  const setInterval = (next: number) => onChange({ ...value, interval: Math.min(52, Math.max(1, next)) });
+  const setInterval = (next: number) => onChange({ ...value, interval: Math.min(MAX_INTERVAL, Math.max(1, next)) });
 
   const setFreq = (freq: Recurrence['freq']) => {
     if (freq === value.freq) return;
+    if (freq === 'daily' || freq === 'yearly') {
+      onChange({ ...value, freq, byDay: [], byMonthDay: null, bySetPos: null });
+      return;
+    }
     if (freq === 'weekly') {
-      onChange({ ...value, freq, byMonthDay: null, bySetPos: null });
+      // Coming back from a frequency with no day list, the start date's own day
+      // is the only answer that is not a guess.
+      const byDay = value.byDay.length ? value.byDay : [fromYmd(value.startsOn).getDay()];
+      onChange({ ...value, freq, byDay, byMonthDay: null, bySetPos: null });
       return;
     }
     // Monthly defaults to the day-of-month reading, the way Google's dropdown
@@ -81,8 +110,8 @@ export function RepeatPicker({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {!monthly && (
-        <Field label="Repeats on" sub="Tap the days this chore lands on">
+      {picksDays && (
+        <Field label="Repeats on" sub={event ? 'Tap the days it lands on' : 'Tap the days this chore lands on'}>
           <div style={{ display: 'flex', gap: 7 }}>
             {DAY_INITIALS.map((initial, day) => {
               const on = value.byDay.includes(day);
@@ -134,7 +163,17 @@ export function RepeatPicker({
             setOpen(next);
             // Closing has to put the rule back to plain weekly, or an invisible
             // "every 3 months" would keep running behind a switch that is off.
-            if (!next) onChange({ ...value, freq: 'weekly', interval: 1, byMonthDay: null, bySetPos: null });
+            if (!next) {
+              onChange({
+                ...value,
+                freq: 'weekly',
+                interval: 1,
+                byDay: value.byDay.length ? value.byDay : [fromYmd(value.startsOn).getDay()],
+                byMonthDay: null,
+                bySetPos: null,
+                until: null,
+              });
+            }
           }}
         />
       </div>
@@ -153,16 +192,16 @@ export function RepeatPicker({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <Stepper value={value.interval} onChange={setInterval} />
-            <div style={{ display: 'flex', gap: 8, flex: '1 1 180px' }}>
-              {(['weekly', 'monthly'] as const).map((f) => (
+            <div style={{ display: 'flex', gap: 8, flex: '1 1 180px', flexWrap: 'wrap' }}>
+              {FREQ_CHOICES.map((f) => (
                 <Button
                   key={f}
                   size="lg"
                   selected={value.freq === f}
                   onClick={() => setFreq(f)}
-                  style={{ flex: 1, fontSize: 16 }}
+                  style={{ flex: '1 1 0', minWidth: 76, fontSize: 16 }}
                 >
-                  {f === 'weekly' ? (value.interval === 1 ? 'Week' : 'Weeks') : value.interval === 1 ? 'Month' : 'Months'}
+                  {UNIT_LABELS[f][value.interval === 1 ? 0 : 1]}
                 </Button>
               ))}
             </div>
@@ -208,6 +247,19 @@ export function RepeatPicker({
               style={fieldStyle}
             />
           </Field>
+
+          {/* A chore has no end date: it stops by being switched off. */}
+          {event && (
+            <Field label="Ends" sub="Leave empty to repeat forever">
+              <input
+                type="date"
+                value={value.until ?? ''}
+                min={value.startsOn}
+                onChange={(e) => onChange({ ...value, until: e.target.value || null })}
+                style={fieldStyle}
+              />
+            </Field>
+          )}
         </div>
       )}
     </div>
@@ -233,7 +285,7 @@ function Stepper({ value, onChange }: { value: number; onChange: (next: number) 
       >
         {value}
       </div>
-      <StepButton label="+" onClick={() => step(1)} disabled={value >= 52} />
+      <StepButton label="+" onClick={() => step(1)} disabled={value >= MAX_INTERVAL} />
     </div>
   );
 }
