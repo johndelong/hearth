@@ -125,6 +125,19 @@ export interface PointLedger {
   events: PointEvent[];
 }
 
+export interface ImmichAlbum {
+  id: string;
+  name: string;
+  assetCount: number;
+}
+
+export interface ImmichPhotoStatus {
+  configured: boolean;
+  url: string | null;
+}
+
+export type ImmichHealth = 'ready' | 'disconnected' | 'no-album' | 'needs-asset-view' | 'error';
+
 export const api = {
   version: () => call<VersionInfo>('/api/version'),
   checkVersion: () => post<VersionInfo>('/api/version/check'),
@@ -194,6 +207,12 @@ export const api = {
 
   settings: () => call<Settings>('/api/settings'),
   updateSettings: (body: Partial<Settings>) => patch<Settings>('/api/settings', body),
+  immichStatus: () => call<ImmichPhotoStatus>('/api/photos/immich'),
+  immichAlbums: () => call<ImmichAlbum[]>('/api/photos/immich/albums'),
+  saveImmich: (body: { url: string; apiKey: string }) => call<ImmichPhotoStatus>('/api/photos/immich', { method: 'PUT', body: JSON.stringify(body) }),
+  clearImmich: () => del<{ ok: true }>('/api/photos/immich'),
+  immichHealth: () => call<{ state: ImmichHealth }>('/api/photos/immich/health'),
+  immichPhotos: () => call<{ photos: Array<{ id: string; url: string }> }>('/api/photos/immich/assets'),
 
   session: () => call<{ unlocked: boolean; pinSet: boolean }>('/api/session'),
   unlock: (pin: string) => post<{ unlocked: boolean }>('/api/session', { pin }),

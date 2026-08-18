@@ -32,7 +32,7 @@ export default function App() {
   const { people, settings, board } = data;
   const night = useNight(settings.theme);
   const now = useClock();
-  const [idle, poke] = useIdle(settings.idleMin);
+  const [idle, poke, sleep] = useIdle(settings.idleMin);
   const [toast, say] = useToast();
   // Reloads itself when idle; prompts when someone is using the panel.
   const version = useVersionWatch(idle);
@@ -134,8 +134,6 @@ export default function App() {
     return <Splash text={data.error} night={night} tone="error" />;
   }
 
-  const isSidebar = settings.navModel === 'sidebar';
-
   return (
     <div
       onPointerDown={poke}
@@ -147,35 +145,35 @@ export default function App() {
         height: '100dvh',
         width: '100%',
         display: 'flex',
-        flexDirection: isSidebar ? 'row' : 'column',
+        flexDirection: 'row',
         transition: 'background .9s ease, color .9s ease',
       }}
     >
-      {isSidebar && (
-        <nav
-          style={{
-            width: 112,
-            flex: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 5,
-            padding: '16px 0 18px',
-            background: 'var(--card)',
-            borderRight: '1px solid var(--line)',
-          }}
-        >
-          {tabs.map((t) => (
-            <NavButton
-              key={t.id}
-              {...t}
-              active={tab === t.id}
-              rail
-              onClick={() => (t.id === 'settings' ? openSettings() : setTab(t.id))}
-            />
-          ))}
-        </nav>
-      )}
+      <nav
+        style={{
+          width: 112,
+          flex: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 5,
+          padding: '16px 0 18px',
+          background: 'var(--card)',
+          borderRight: '1px solid var(--line)',
+        }}
+      >
+        {tabs.map((t) => (
+          <NavButton
+            key={t.id}
+            {...t}
+            active={tab === t.id}
+            rail
+            onClick={() => (t.id === 'settings' ? openSettings() : setTab(t.id))}
+          />
+        ))}
+        <div style={{ flex: 1 }} />
+        <NavButton label="Sleep" icon="moon" badge={0} active={false} rail onClick={sleep} />
+      </nav>
 
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <header
@@ -358,26 +356,6 @@ export default function App() {
           )}
         </div>
 
-        {!isSidebar && (
-          <nav
-            style={{
-              flex: 'none',
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 10,
-              padding: '10px 20px 18px',
-            }}
-          >
-            {tabs.map((t) => (
-              <NavButton
-                key={t.id}
-                {...t}
-                active={tab === t.id}
-                onClick={() => (t.id === 'settings' ? openSettings() : setTab(t.id))}
-              />
-            ))}
-          </nav>
-        )}
       </main>
 
       {idle && (
@@ -385,6 +363,7 @@ export default function App() {
           now={now}
           events={idleEvents.events}
           people={people}
+          settings={settings}
           onWake={poke}
         />
       )}

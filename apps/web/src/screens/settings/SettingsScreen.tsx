@@ -7,8 +7,8 @@ import {
   type SubscribedCalendar,
   describeRecurrence,
 } from '@dashboard/shared';
-import { useCallback, useEffect, useState } from 'react';
-import { type Board, type PointLedger, type VersionInfo, api } from '../../api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { type Board, type ImmichAlbum, type ImmichHealth, type PointLedger, type VersionInfo, api } from '../../api';
 import { displayVersion } from '../../components/UpdateNotice';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from '../../components/Modal';
 import { Avatar, Button, Icon, Switch, TapButton } from '../../components/ui';
@@ -22,7 +22,7 @@ const SECTIONS: Array<{ id: SettingsSection; label: string; sub: string; icon: I
   { id: 'calendar', label: 'Calendar', sub: 'Google accounts and subscriptions', icon: 'calendar' },
   { id: 'chores', label: 'Chores', sub: 'Boards, streaks, and the chore list', icon: 'check' },
   { id: 'points', label: 'Points', sub: 'Earning, spending, and history', icon: 'gift' },
-  { id: 'display', label: 'Display', sub: 'Theme, frame mode, copy', icon: 'bulb' },
+  { id: 'display', label: 'Display', sub: 'Theme and frame mode', icon: 'bulb' },
   { id: 'security', label: 'Parent PIN', sub: 'Who can change these settings', icon: 'lock' },
 ];
 
@@ -1191,7 +1191,7 @@ function AboutPanel({ say }: { say: (text: string, hue?: number) => void }) {
   );
 }
 
-function DisplaySection({ settings, night, say, onSettingsChange }: Props) {
+function DisplaySection({ settings, say, onSettingsChange }: Props) {
   const patchSettings = async (patch: Partial<Settings>) => {
     onSettingsChange({ ...settings, ...patch });
     try {
@@ -1217,22 +1217,208 @@ function DisplaySection({ settings, night, say, onSettingsChange }: Props) {
         value={settings.idleMin as 1 | 5 | 15 | 30}
         onChange={(idleMin) => void patchSettings({ idleMin })}
       />
-      <ChipRow
-        label="Navigation"
-        options={['sidebar', 'tabs'] as const}
-        value={settings.navModel}
-        onChange={(navModel) => void patchSettings({ navModel })}
-      />
-      <ToggleRow
-        night={night}
-        label="Playful copy"
-        sub="Warmer greetings and cheers"
-        on={settings.playful}
-        onChange={(playful) => void patchSettings({ playful })}
-      />
       </Panel>
+      <ImmichPhotos settings={settings} say={say} onSettingsChange={onSettingsChange} />
       <AboutPanel say={say} />
     </>
+  );
+}
+
+function ImmichPhotos({ settings, say, onSettingsChange }: Pick<Props, 'settings' | 'say' | 'onSettingsChange'>) {
+  const [configured, setConfigured] = useState(false);
+  const [url, setUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [albums, setAlbums] = useState<ImmichAlbum[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingConnection, setEditingConnection] = useState(false);
+  const [pickingAlbum, setPickingAlbum] = useState(false);
+  const [health, setHealth] = useState<ImmichHealth>('disconnected');
+  const latestSettings = useRef(settings);
+  const settingsWrite = useRef<Promise<void>>(Promise.resolve());
+  latestSettings.current = settings;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const status = await api.immichStatus();
+      setConfigured(status.configured);
+      setUrl(status.url ?? '');
+      if (status.configured) {
+        const [available, check] = await Promise.all([api.immichAlbums(), api.immichHealth()]);
+        setAlbums(available);
+        setHealth(check.state);
+      } else {
+        setAlbums([]);
+        setHealth('disconnected');
+      }
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not load Immich', 25);
+    } finally {
+      setLoading(false);
+    }
+  }, [say]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const connect = async () => {
+    setSaving(true);
+    try {
+      await api.saveImmich({ url, apiKey });
+      setApiKey('');
+      setEditingConnection(false);
+      say('Immich connected', 148);
+      await load();
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not connect Immich', 25);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savePhotoSettings = (patch: Partial<Settings>, message: string) => {
+    const optimistic = { ...latestSettings.current, ...patch };
+    latestSettings.current = optimistic;
+    onSettingsChange(optimistic);
+    settingsWrite.current = settingsWrite.current.catch(() => undefined).then(async () => {
+      try {
+        const saved = await api.updateSettings(patch);
+        latestSettings.current = saved;
+        onSettingsChange(saved);
+        if (patch.photoAlbumId !== undefined) setHealth((await api.immichHealth()).state);
+      } catch (err) {
+        say(err instanceof Error ? err.message : message, 25);
+        const restored = await api.settings().catch(() => null);
+        if (restored) {
+          latestSettings.current = restored;
+          onSettingsChange(restored);
+        }
+      }
+    });
+  };
+
+  const choose = (albumId: string) => {
+    const patch: Partial<Settings> = albumId ? { photoProvider: 'immich', photoAlbumId: albumId } : { photoProvider: 'none', photoAlbumId: null };
+    savePhotoSettings(patch, 'Could not save album');
+  };
+
+  const patchPhotoSettings = (patch: Partial<Settings>) => savePhotoSettings(patch, 'Could not save frame photos');
+
+  const disconnect = async () => {
+    try {
+      await api.clearImmich();
+      onSettingsChange({ ...settings, photoProvider: 'none', photoAlbumId: null });
+      setConfigured(false);
+      setAlbums([]);
+      setHealth('disconnected');
+      say('Immich disconnected');
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not disconnect Immich', 25);
+    }
+  };
+
+  return (
+    <Panel title="Frame photos" sub="Show a rotating Immich album behind the clock when the panel is idle">
+      {(!configured || editingConnection) && !loading && (
+        <>
+          <Field label="Immich server URL" sub="For example, http://immich.local:2283">
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://immich.local:2283" style={fieldStyle} inputMode="url" />
+          </Field>
+          <Field label="API key" sub="Create a key with album read and asset view access in Immich">
+            <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste API key" style={fieldStyle} type="password" autoComplete="off" />
+          </Field>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Button variant="primary" onClick={() => void connect()} disabled={saving || !url.trim() || !apiKey.trim()}>
+            {saving ? 'Connecting…' : 'Connect Immich'}
+          </Button>
+          {configured && <Button variant="quiet" onClick={() => { setEditingConnection(false); setApiKey(''); }}>Cancel</Button>}
+          </div>
+        </>
+      )}
+      {configured && !editingConnection && (
+        <>
+          <ItemRow
+            label="Immich server"
+            sub={url}
+            tag="Connected"
+            onClick={() => setEditingConnection(true)}
+          />
+          <ItemRow
+            label="Photo album"
+            sub={settings.photoProvider === 'immich'
+              ? albums.find((album) => album.id === settings.photoAlbumId)?.name ?? 'Selected album'
+              : 'Clock only'}
+            tag={settings.photoProvider === 'immich' ? 'Change' : 'Choose'}
+            onClick={() => setPickingAlbum(true)}
+          />
+          <ChipRow
+            label="Photo duration"
+            options={[10, 20, 30, 60] as const}
+            value={settings.photoDuration}
+            onChange={(photoDuration) => void patchPhotoSettings({ photoDuration })}
+          />
+          {health === 'needs-asset-view' && (
+            <div style={{ fontSize: 15, color: 'var(--danger)', fontWeight: 750 }}>This API key can list albums but cannot display photos. Replace it with one that includes Asset View access.</div>
+          )}
+          {health === 'error' && (
+            <div style={{ fontSize: 15, color: 'var(--danger)', fontWeight: 750 }}>Hearth could not load a photo from Immich. Check the server and API key.</div>
+          )}
+          <ChipRow
+            label="Transition"
+            options={['fade', 'slide', 'zoom', 'none'] as const}
+            value={settings.photoTransition}
+            onChange={(photoTransition) => void patchPhotoSettings({ photoTransition })}
+          />
+          <ChipRow
+            label="Photo order"
+            options={['shuffle', 'album'] as const}
+            value={settings.photoOrder}
+            onChange={(photoOrder) => void patchPhotoSettings({ photoOrder })}
+          />
+          <ChipRow
+            label="Framing"
+            options={['fill', 'fit'] as const}
+            value={settings.photoFit}
+            onChange={(photoFit) => void patchPhotoSettings({ photoFit })}
+          />
+          <ChipRow
+            label="Clock readability"
+            options={['low', 'medium', 'high'] as const}
+            value={settings.photoDim}
+            onChange={(photoDim) => void patchPhotoSettings({ photoDim })}
+          />
+          {albums.length === 0 && <div style={{ fontSize: 15, color: 'var(--ink2)', fontWeight: 650 }}>No albums found. Check the key’s album access.</div>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <Button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh albums'}</Button>
+            <Button variant="quiet" onClick={() => void disconnect()}>Disconnect</Button>
+          </div>
+        </>
+      )}
+      {loading && !configured && <div style={{ fontSize: 15, color: 'var(--ink2)', fontWeight: 650 }}>Checking Immich…</div>}
+      {pickingAlbum && (
+        <Modal
+          title="Choose frame album"
+          sub="Only still photos from this album appear in frame mode"
+          onClose={() => setPickingAlbum(false)}
+        >
+          <ItemRow
+            label="Clock only"
+            sub="Keep frame mode black behind the clock"
+            tag={settings.photoProvider === 'immich' ? undefined : 'Selected'}
+            onClick={() => { choose(''); setPickingAlbum(false); }}
+          />
+          {albums.map((album) => (
+            <ItemRow
+              key={album.id}
+              label={album.name}
+              sub={`${album.assetCount} photos`}
+              tag={settings.photoProvider === 'immich' && settings.photoAlbumId === album.id ? 'Selected' : undefined}
+              onClick={() => { choose(album.id); setPickingAlbum(false); }}
+            />
+          ))}
+        </Modal>
+      )}
+    </Panel>
   );
 }
 

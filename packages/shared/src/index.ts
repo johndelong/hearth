@@ -33,6 +33,10 @@ export const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
 export type ChoreReset = 'Every night' | 'Sunday' | 'Monday';
 
 export type ThemeMode = 'Auto' | 'Day' | 'Night';
+export type PhotoTransition = 'fade' | 'slide' | 'zoom' | 'none';
+export type PhotoOrder = 'shuffle' | 'album';
+export type PhotoFit = 'fill' | 'fit';
+export type PhotoDim = 'low' | 'medium' | 'high';
 export type WeekStart = 'Sunday' | 'Monday';
 export type DayHours = '6a – 10p' | '7a – 9p' | 'All 24';
 export type CalView = 'day' | 'week' | 'month';
@@ -319,8 +323,14 @@ export interface Settings {
   // Display
   theme: ThemeMode;
   idleMin: number;
-  playful: boolean;
-  navModel: 'sidebar' | 'tabs';
+  /** The source used behind the clock in frame mode. Credentials stay server-side. */
+  photoProvider: 'none' | 'immich';
+  photoAlbumId: string | null;
+  photoDuration: 10 | 20 | 30 | 60;
+  photoTransition: PhotoTransition;
+  photoOrder: PhotoOrder;
+  photoFit: PhotoFit;
+  photoDim: PhotoDim;
   // Security
   pinSet: boolean;
 }
@@ -335,8 +345,13 @@ export const DEFAULT_SETTINGS: Settings = {
   choreConfetti: true,
   theme: 'Auto',
   idleMin: 5,
-  playful: true,
-  navModel: 'sidebar',
+  photoProvider: 'none',
+  photoAlbumId: null,
+  photoDuration: 20,
+  photoTransition: 'fade',
+  photoOrder: 'shuffle',
+  photoFit: 'fill',
+  photoDim: 'medium',
   pinSet: false,
 };
 

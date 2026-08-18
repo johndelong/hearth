@@ -32,7 +32,7 @@ function computeNight(theme: Settings['theme']): boolean {
  * Frame mode. After `idleMin` with no touch the dashboard steps back to a clock,
  * which is what a wall panel should show most of the day.
  */
-export function useIdle(idleMin: number): [boolean, () => void] {
+export function useIdle(idleMin: number): [boolean, () => void, () => void] {
   const [idle, setIdle] = useState(false);
   const last = useRef(Date.now());
 
@@ -40,6 +40,8 @@ export function useIdle(idleMin: number): [boolean, () => void] {
     last.current = Date.now();
     setIdle((was) => (was ? false : was));
   }, []);
+
+  const sleep = useCallback(() => setIdle(true), []);
 
   useEffect(() => {
     if (!idleMin) return;
@@ -49,7 +51,7 @@ export function useIdle(idleMin: number): [boolean, () => void] {
     return () => window.clearInterval(timer);
   }, [idleMin]);
 
-  return [idle, poke];
+  return [idle, poke, sleep];
 }
 
 /**

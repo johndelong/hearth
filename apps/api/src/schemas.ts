@@ -103,7 +103,13 @@ export const settingsBody = {
     claimExtras: { type: 'boolean' }, choreConfetti: { type: 'boolean' },
     theme: { enum: ['Auto', 'Day', 'Night'] },
     idleMin: { type: 'integer', minimum: 0, maximum: 1440 },
-    playful: { type: 'boolean' }, navModel: { enum: ['sidebar', 'tabs'] },
+    photoProvider: { enum: ['none', 'immich'] },
+    photoAlbumId: nullableString,
+    photoDuration: { enum: [10, 20, 30, 60] },
+    photoTransition: { enum: ['fade', 'slide', 'zoom', 'none'] },
+    photoOrder: { enum: ['shuffle', 'album'] },
+    photoFit: { enum: ['fill', 'fit'] },
+    photoDim: { enum: ['low', 'medium', 'high'] },
   },
 } as const;
 
