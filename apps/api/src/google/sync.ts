@@ -197,7 +197,14 @@ export async function syncCalendar(calendarRowId: string, list?: ListEvents): Pr
  * that stamp would then decide which day the panel drew it on. The viewer
  * resolves it instead; see `resolveBoundary` in @dashboard/shared.
  */
-function applyEvent(calendarRowId: string, ev: calendar_v3.Schema$Event): number {
+/**
+ * Also called directly by the write paths in `routes/calendar.ts`, right after
+ * an insert or patch: Google's incremental sync has replication lag on writes
+ * you just made yourself, so a `syncCalendar()` immediately afterward can miss
+ * the very copy it was meant to pick up. Applying the response we already have
+ * closes that race instead of hoping the next delta catches up.
+ */
+export function applyEvent(calendarRowId: string, ev: calendar_v3.Schema$Event): number {
   if (!ev.id) return 0;
 
   if (ev.status === 'cancelled') {

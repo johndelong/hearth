@@ -5,12 +5,13 @@ import { type calendar_v3, google } from 'googleapis';
 import { requireParent } from '../auth.js';
 import { id } from '../db/index.js';
 import { SCOPES, calendarApi, googleConfig, oauthClient } from '../google/client.js';
-import { refreshCalendarList, syncAll, syncCalendar } from '../google/sync.js';
+import { applyEvent, refreshCalendarList, syncAll, syncCalendar } from '../google/sync.js';
 import type { CachedEvent } from '../store/calendars.js';
 import {
   accountIdForEmail,
   deleteAccount,
   deleteEvent,
+  deleteEventByGoogleId,
   eventGroupCopies,
   getCachedEvent,
   getCalendar,
@@ -128,7 +129,12 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
             extendedProperties: { private: { hearthGroup: group } },
           },
         });
-        if (res.data.id) created.push(res.data.id);
+        if (res.data.id) {
+          created.push(res.data.id);
+          // Seeded now rather than left to the resync below, which pulls a
+          // delta that may not yet reflect a write this same request just made.
+          applyEvent(target.id, res.data);
+        }
       }
 
       for (const target of targets) await syncCalendar(target.id);
@@ -176,11 +182,12 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         for (const copy of copies) {
           const copyCal = getCalendar(copy.calendarRowId);
           if (!copyCal || copyCal.readOnly) continue;
-          await calendarApi(copyCal.accountId).events.patch({
+          const res = await calendarApi(copyCal.accountId).events.patch({
             calendarId: copyCal.googleCalendarId,
             eventId: wholeSeries && copy.recurringEventId ? copy.recurringEventId : copy.googleId,
             requestBody: patch,
           });
+          if (!wholeSeries) applyEvent(copyCal.id, res.data);
           touched.add(copyCal.id);
         }
 
@@ -334,13 +341,17 @@ async function reshareEvent(
   for (const [calendarRowId, cal] of wanted) {
     if (held.has(calendarRowId)) continue;
     if (!details) return { error: 'That event is no longer cached — sync and try again' };
-    await calendarApi(cal.accountId).events.insert({
+    const res = await calendarApi(cal.accountId).events.insert({
       calendarId: cal.googleCalendarId,
       requestBody: {
         ...toGoogleEvent({ ...details, ...body }),
         extendedProperties: { private: { hearthGroup: group } },
       },
     });
+    // Seeded now: a resync right after this insert pulls a delta from Google
+    // that can still lag behind a write this same request just made, which is
+    // how a newly-added attendee's copy went missing until the next sync.
+    applyEvent(cal.id, res.data);
     touched.push(cal.id);
   }
 
@@ -352,6 +363,7 @@ async function reshareEvent(
       calendarId: cal.googleCalendarId,
       eventId: copy.googleId,
     });
+    deleteEventByGoogleId(cal.id, copy.googleId);
     touched.push(cal.id);
   }
 
