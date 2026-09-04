@@ -51,26 +51,6 @@ export function deep(hue: number, night: boolean): string {
 
 export const CARD_SHADOW = '0 1px 2px rgba(20,24,40,.05),0 16px 34px -22px rgba(20,24,40,.26)';
 
-/** CSS custom properties for the whole app, day or night. */
-export function rootVars(night: boolean): Record<string, string> {
-  return {
-    '--bg': night ? '#12141a' : '#f4f5f8',
-    '--card': night ? '#1d2029' : '#ffffff',
-    '--ink': night ? '#eef0f6' : '#1e2230',
-    '--ink2': night ? 'rgba(238,240,246,.6)' : 'rgba(30,34,48,.58)',
-    '--line': night ? 'rgba(255,255,255,.09)' : 'rgba(30,34,48,.09)',
-    '--chip': night ? 'rgba(255,255,255,.06)' : 'rgba(30,34,48,.05)',
-    '--danger': night ? 'oklch(0.72 0.16 25)' : 'oklch(0.56 0.19 25)',
-    '--success': night ? 'oklch(0.78 0.13 148)' : 'oklch(0.55 0.14 148)',
-    '--focus': night ? 'oklch(0.78 0.13 258)' : 'oklch(0.58 0.16 258)',
-    '--radius-card': '26px',
-    '--radius-control': '16px',
-    '--space-page': 'clamp(14px, 3vw, 30px)',
-    '--shadow-card': CARD_SHADOW,
-    '--font-display': 'ui-rounded, system-ui, -apple-system, sans-serif',
-  };
-}
-
 export const initialOf = (name: string): string => (name || '?').trim().charAt(0).toUpperCase();
 
 /** Icon paths, drawn at 24×24 with a 1.8 stroke. */
@@ -90,6 +70,7 @@ export const ICONS = {
   plus: 'M12 5v14M5 12h14',
   chevronLeft: 'M15 5l-7 7 7 7',
   chevronRight: 'M9 5l7 7-7 7',
+  chevronDown: 'M5 9l7 7 7-7',
   sync: 'M4 12a8 8 0 0113.7-5.7M20 12a8 8 0 01-13.7 5.7M17.5 3.5v3h-3M6.5 20.5v-3h3',
   trash: 'M5 7h14M10 7V5h4v2M6.5 7l1 12h9l1-12',
   x: 'M6 6l12 12M18 6L6 18',

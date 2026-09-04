@@ -1,6 +1,8 @@
 import type { Extra, Person, Reward } from '@dashboard/shared';
-import { GhostButton, Modal } from './Modal';
-import { Avatar, Button, TapButton } from './ui';
+import type { ReactNode } from 'react';
+import { useState } from 'react';
+import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
+import { Avatar, Button, Icon, TapButton } from './ui';
 import { col, deep, soft } from '../theme';
 
 /**
@@ -50,6 +52,222 @@ export function PeoplePicker({
         );
       })}
     </div>
+  );
+}
+
+export interface PickerOption {
+  id: string;
+  label: string;
+  /** An avatar, color swatch, or icon shown before the label — optional. */
+  leading?: ReactNode;
+}
+
+const triggerStyle = {
+  ...fieldStyle,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 10,
+  textAlign: 'left' as const,
+};
+
+/** Marks a field as a picker rather than a plain text input, at a glance. */
+function PickerChevron() {
+  return <Icon name="chevronDown" size={18} style={{ flex: 'none', opacity: 0.55 }} />;
+}
+
+/**
+ * A field that opens a dialog of tappable rows instead of a native `<select>`
+ * or a full-width row of chips — the same choice, with room for an avatar
+ * next to each option and a large touch target, while the field itself stays
+ * one line tall. `PickerField` picks one; `MultiPickerField` picks any number.
+ */
+export function PickerField({
+  label,
+  sub,
+  options,
+  selected,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  sub?: string;
+  options: PickerOption[];
+  selected: string | null;
+  placeholder: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.id === selected);
+  return (
+    <>
+      <Field label={label} sub={sub}>
+        <TapButton onClick={() => setOpen(true)} style={triggerStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            {current?.leading}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {current?.label ?? placeholder}
+            </span>
+          </span>
+          <PickerChevron />
+        </TapButton>
+      </Field>
+      {open && (
+        <PickerDialog
+          title={label}
+          options={options}
+          selected={selected !== null ? [selected] : []}
+          multiple={false}
+          onCancel={() => setOpen(false)}
+          onDone={(ids) => {
+            if (ids[0]) onChange(ids[0]);
+            setOpen(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+export function MultiPickerField({
+  label,
+  sub,
+  options,
+  selected,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  sub?: string;
+  options: PickerOption[];
+  selected: string[];
+  placeholder: string;
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const chosen = options.filter((o) => selected.includes(o.id));
+  return (
+    <>
+      <Field label={label} sub={sub}>
+        <TapButton onClick={() => setOpen(true)} style={triggerStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            {chosen.some((o) => o.leading) && (
+              // Overlapping rather than a row, so five faces still fit on one
+              // line instead of pushing the names off the edge of the field.
+              <span style={{ display: 'flex', flex: 'none' }}>
+                {chosen.map((o, i) => (
+                  <span
+                    key={o.id}
+                    style={{
+                      marginLeft: i === 0 ? 0 : -10,
+                      borderRadius: '50%',
+                      boxShadow: '0 0 0 2px var(--card)',
+                    }}
+                  >
+                    {o.leading}
+                  </span>
+                ))}
+              </span>
+            )}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {chosen.length ? chosen.map((o) => o.label).join(', ') : placeholder}
+            </span>
+          </span>
+          <PickerChevron />
+        </TapButton>
+      </Field>
+      {open && (
+        <PickerDialog
+          title={label}
+          options={options}
+          selected={selected}
+          multiple
+          onCancel={() => setOpen(false)}
+          onDone={(ids) => {
+            onChange(ids);
+            setOpen(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * The dialog itself. A single-select tap picks and closes immediately, the
+ * same snappiness as a native `<select>`; a multi-select tap toggles a draft
+ * that only commits on Done, so a change mid-pick is still cancelable.
+ */
+function PickerDialog({
+  title,
+  options,
+  selected,
+  multiple,
+  onCancel,
+  onDone,
+}: {
+  title: string;
+  options: PickerOption[];
+  selected: string[];
+  multiple: boolean;
+  onCancel: () => void;
+  onDone: (ids: string[]) => void;
+}) {
+  const [draft, setDraft] = useState<string[]>(selected);
+
+  const tap = (id: string) => {
+    if (!multiple) {
+      onDone([id]);
+      return;
+    }
+    setDraft((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+  };
+
+  return (
+    <Modal
+      title={title}
+      onClose={onCancel}
+      width={440}
+      footer={
+        multiple ? (
+          <>
+            <GhostButton onClick={onCancel}>Cancel</GhostButton>
+            <PrimaryButton onClick={() => onDone(draft)}>Done</PrimaryButton>
+          </>
+        ) : (
+          <GhostButton onClick={onCancel}>Cancel</GhostButton>
+        )
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {options.map((opt) => {
+          const on = multiple ? draft.includes(opt.id) : selected[0] === opt.id;
+          return (
+            <TapButton
+              key={opt.id}
+              onClick={() => tap(opt.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                minHeight: 58,
+                padding: '10px 16px',
+                borderRadius: 16,
+                textAlign: 'left',
+                background: on ? 'var(--chip)' : 'transparent',
+              }}
+            >
+              {opt.leading}
+              <span style={{ flex: 1, minWidth: 0, fontSize: 17, fontWeight: 700 }}>{opt.label}</span>
+              {on && <Icon name="check" size={20} style={{ flex: 'none' }} />}
+            </TapButton>
+          );
+        })}
+        {options.length === 0 && (
+          <div style={{ color: 'var(--ink2)', fontWeight: 700, padding: '8px 4px' }}>Nothing to pick from yet.</div>
+        )}
+      </div>
+    </Modal>
   );
 }
 

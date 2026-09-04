@@ -12,9 +12,9 @@ import {
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
-import { PeoplePicker } from './pickers';
+import { MultiPickerField, PickerField } from './pickers';
 import { RecurrenceDialog } from './RepeatPicker';
-import { Button, TapButton } from './ui';
+import { Avatar, Button, Icon, TapButton } from './ui';
 
 /** `YYYY-MM-DD` and `HH:MM` in local time, which is what date/time inputs want. */
 const dateValue = (d: Date) =>
@@ -228,17 +228,11 @@ export function EventEditor({
         ? describeRecurrence(recurrence)
         : 'Does not repeat';
 
-  // A dialog is stacked on top whenever either of these is open, so the main
-  // form beneath suspends its own Escape/outside-click handling until it is
-  // the topmost thing on screen again.
-  const stacked = recurrenceOpen || confirming !== null;
-
   return (
     <>
       <Modal
         title={event ? 'Edit event' : 'New event'}
         onClose={onClose}
-        active={!stacked}
         footer={
           <>
             {event && (
@@ -309,18 +303,17 @@ export function EventEditor({
             }}
           >
             {repeatsSummary}
+            <Icon name="chevronDown" size={18} style={{ flex: 'none', opacity: 0.55 }} />
           </TapButton>
         </Field>
 
-        <Field label="Calendar">
-          <select value={calendarId} onChange={(e) => setCalendarId(e.target.value)} style={fieldStyle}>
-            {calendars.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.summary}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <PickerField
+          label="Calendar"
+          options={calendars.map((c) => ({ id: c.id, label: c.summary }))}
+          selected={calendarId || null}
+          placeholder="Choose a calendar"
+          onChange={setCalendarId}
+        />
 
         <Field label="Where (optional)">
           <input value={location} onChange={(e) => setLocation(e.target.value)} style={fieldStyle} />
@@ -331,16 +324,22 @@ export function EventEditor({
           written — a "Who:" line in its description, so it reads the same
           from Google.
         */}
-        <Field
+        <MultiPickerField
           label="Who is going"
           sub={
             personIds.length
               ? 'Written into the description, so it reads right from Google too'
               : 'Pick nobody and Hearth guesses from the calendar and title instead'
           }
-        >
-          <PeoplePicker people={people} selected={personIds} night={night} onChange={setPersonIds} />
-        </Field>
+          options={people.map((p) => ({
+            id: p.id,
+            label: p.name,
+            leading: <Avatar name={p.name} hue={p.hue} night={night} size={30} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />,
+          }))}
+          selected={personIds}
+          placeholder="Nobody tagged"
+          onChange={setPersonIds}
+        />
 
         <Field label="Notes (optional)">
           <textarea

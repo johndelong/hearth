@@ -1,7 +1,17 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { EASE } from '../theme';
 import { Button } from './ui';
+
+/**
+ * Every currently-mounted Modal, in the order they opened. A dialog opened
+ * from inside another one's content (a picker's own dialog, say) has no way
+ * to tell its parent it exists, so instead of trusting callers to track and
+ * pass down "is something on top of me", each Modal registers itself here
+ * and only the last one in the stack answers Escape or an outside click.
+ */
+let stack: symbol[] = [];
 
 export function Modal({
   title,
@@ -10,7 +20,6 @@ export function Modal({
   children,
   footer,
   width = 520,
-  active = true,
 }: {
   title: string;
   sub?: string;
@@ -18,23 +27,24 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   width?: number;
-  /**
-   * False while a second dialog is stacked on top of this one — Escape and
-   * outside-click are suspended so they answer the dialog someone can
-   * actually see, rather than both firing on the same keypress or tap.
-   */
-  active?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const idRef = useRef<symbol>();
+  if (!idRef.current) idRef.current = Symbol('modal');
   const titleId = useId();
+
   useEffect(() => {
-    if (!active) return;
+    const id = idRef.current!;
+    stack.push(id);
+    const isTop = () => stack[stack.length - 1] === id;
+
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = dialogRef.current;
     const focusable = () => [...(dialog?.querySelectorAll<HTMLElement>('button, input, textarea, select, a[href], [tabindex]:not([tabindex="-1"])') ?? [])]
       .filter((node) => !node.hasAttribute('disabled'));
     (focusable()[0] ?? dialog)?.focus();
     const onKey = (e: KeyboardEvent) => {
+      if (!isTop()) return;
       if (e.key === 'Escape') onClose();
       if (e.key === 'Tab') {
         const nodes = focusable();
@@ -48,13 +58,20 @@ export function Modal({
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
+      stack = stack.filter((s) => s !== id);
       previous?.focus();
     };
-  }, [onClose, active]);
+  }, [onClose]);
 
-  return (
+  // Portaled to the document body rather than rendered where the JSX sits: a
+  // picker field's own dialog can otherwise end up nested inside another
+  // Modal's tree, and that Modal's backdrop-filter makes it a containing
+  // block for `position: fixed` descendants — clipping the nested dialog's
+  // overlay to the outer card's rounded box instead of the real viewport,
+  // which is what painted dark triangles at its corners.
+  return createPortal(
     <div
-      onClick={active ? onClose : undefined}
+      onClick={() => stack[stack.length - 1] === idRef.current && onClose()}
       style={{
         position: 'fixed',
         inset: 0,
@@ -104,7 +121,8 @@ export function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

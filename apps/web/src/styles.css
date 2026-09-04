@@ -1,3 +1,39 @@
+/*
+  The whole app's theme tokens, day and night, defined once on the document
+  root rather than injected by React as an inline style on the app's own
+  container — a Modal portals its dialog straight to `document.body`, which
+  sits outside that container's subtree and would otherwise never inherit
+  them. Toggled by `data-theme` on `<html>`, set from `night` in App.tsx.
+*/
+:root {
+  --bg: #f4f5f8;
+  --card: #ffffff;
+  --ink: #1e2230;
+  --ink2: rgba(30, 34, 48, .58);
+  --line: rgba(30, 34, 48, .09);
+  --chip: rgba(30, 34, 48, .05);
+  --danger: oklch(0.56 0.19 25);
+  --success: oklch(0.55 0.14 148);
+  --focus: oklch(0.58 0.16 258);
+  --radius-card: 26px;
+  --radius-control: 16px;
+  --space-page: clamp(14px, 3vw, 30px);
+  --shadow-card: 0 1px 2px rgba(20, 24, 40, .05), 0 16px 34px -22px rgba(20, 24, 40, .26);
+  --font-display: ui-rounded, system-ui, -apple-system, sans-serif;
+}
+
+[data-theme='night'] {
+  --bg: #12141a;
+  --card: #1d2029;
+  --ink: #eef0f6;
+  --ink2: rgba(238, 240, 246, .6);
+  --line: rgba(255, 255, 255, .09);
+  --chip: rgba(255, 255, 255, .06);
+  --danger: oklch(0.72 0.16 25);
+  --success: oklch(0.78 0.13 148);
+  --focus: oklch(0.78 0.13 258);
+}
+
 html,
 body,
 #root {

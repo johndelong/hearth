@@ -15,7 +15,7 @@ import { ChoresScreen } from './screens/chores/ChoresScreen';
 import { PrizeCatalog } from './screens/chores/PrizeCatalog';
 import { SettingsScreen, type SettingsSection } from './screens/settings/SettingsScreen';
 import { type Tab, useAppData, useClock, useIdle, useNight, useToast } from './state';
-import { EASE, type IconName, MONTHS_LONG, rootVars } from './theme';
+import { EASE, type IconName, MONTHS_LONG } from './theme';
 
 type Editor =
   | { kind: 'person'; person: Person | null }
@@ -39,6 +39,14 @@ export default function App() {
 
   useEffect(() => {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', night ? '#12141a' : '#f4f5f8');
+  }, [night]);
+
+  // The theme tokens themselves live in styles.css, keyed off this attribute
+  // on `<html>` — set once, at the true document root, so anything that
+  // inherits from there gets them, a Modal's portaled dialog included.
+  useEffect(() => {
+    if (night) document.documentElement.setAttribute('data-theme', 'night');
+    else document.documentElement.removeAttribute('data-theme');
   }, [night]);
 
   const [tab, setTab] = useState<Tab>('today');
@@ -139,7 +147,6 @@ export default function App() {
       onPointerDown={poke}
       onPointerMove={poke}
       style={{
-        ...rootVars(night),
         background: 'var(--bg)',
         color: 'var(--ink)',
         height: '100dvh',
@@ -672,7 +679,6 @@ function Splash({ text, night, tone }: { text: string; night: boolean; tone?: 'e
   return (
     <div
       style={{
-        ...rootVars(night),
         background: 'var(--bg)',
         color: tone === 'error' ? 'oklch(0.62 0.19 25)' : 'var(--ink2)',
         height: '100vh',

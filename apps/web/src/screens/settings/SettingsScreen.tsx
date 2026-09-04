@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Board, type ImmichAlbum, type ImmichHealth, type PointLedger, type VersionInfo, api } from '../../api';
 import { displayVersion } from '../../components/UpdateNotice';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from '../../components/Modal';
+import { PickerField } from '../../components/pickers';
 import { Avatar, Button, Icon, Switch, TapButton } from '../../components/ui';
 import { EASE, type IconName, col, deep, soft } from '../../theme';
 import { ChipRow, ItemRow, Panel, ToggleRow, rowStyle } from './controls';
@@ -323,28 +324,33 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
               </div>
             </div>
 
-            <select
-              value={cal.personId ? `p:${cal.personId}` : cal.group ? `g:${cal.group}` : ''}
-              onChange={async (e) => {
-                const v = e.target.value;
-                const patch = v === '' ? { personId: null, group: null }
-                  : v.startsWith('p:') ? { personId: v.slice(2), group: null }
-                  : { personId: null, group: v.slice(2) as CalendarGroup };
-                const updated = await api.updateCalendar(cal.id, patch);
-                setCalendars((cs) => cs.map((c) => (c.id === cal.id ? updated : c)));
-              }}
-              style={selectStyle}
-            >
-              <option value="">Unassigned</option>
-              {people.map((p) => (
-                <option key={p.id} value={`p:${p.id}`}>
-                  {p.name}
-                </option>
-              ))}
-              <option value="g:parent">Parents</option>
-              <option value="g:kid">Kids</option>
-              <option value="g:all">All</option>
-            </select>
+            <div style={{ flex: '1 1 220px', minWidth: 180 }}>
+              <PickerField
+                label="Assigned to"
+                options={[
+                  { id: '', label: 'Unassigned' },
+                  ...people.map((p) => ({
+                    id: `p:${p.id}`,
+                    label: p.name,
+                    leading: <Avatar name={p.name} hue={p.hue} night={night} size={30} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />,
+                  })),
+                  { id: 'g:parent', label: 'Parents' },
+                  { id: 'g:kid', label: 'Kids' },
+                  { id: 'g:all', label: 'All' },
+                ]}
+                selected={cal.personId ? `p:${cal.personId}` : cal.group ? `g:${cal.group}` : ''}
+                placeholder="Unassigned"
+                onChange={async (v) => {
+                  const patch = v === ''
+                    ? { personId: null, group: null }
+                    : v.startsWith('p:')
+                      ? { personId: v.slice(2), group: null }
+                      : { personId: null, group: v.slice(2) as CalendarGroup };
+                  const updated = await api.updateCalendar(cal.id, patch);
+                  setCalendars((cs) => cs.map((c) => (c.id === cal.id ? updated : c)));
+                }}
+              />
+            </div>
 
             <Switch
               night={night}
@@ -1527,14 +1533,3 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
 };
 
-const selectStyle: React.CSSProperties = {
-  flex: 'none',
-  minHeight: 50,
-  padding: '12px 16px',
-  borderRadius: 16,
-  border: '1px solid var(--line)',
-  background: 'transparent',
-  color: 'var(--ink)',
-  fontSize: 16,
-  fontWeight: 800,
-};
