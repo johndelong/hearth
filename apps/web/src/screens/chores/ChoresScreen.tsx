@@ -11,7 +11,7 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Board, api } from '../../api';
 import { GhostButton, Modal, PrimaryButton } from '../../components/Modal';
-import { Avatar, Card, Icon, TapButton } from '../../components/ui';
+import { Avatar, Card, Icon, Pill, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
 import { ChoreDetails } from './ChoreDetails';
 import { ChoreRow } from './ChoreRow';
@@ -45,7 +45,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
         alignItems: 'center',
         gap: 9,
         marginTop: 3,
-        fontSize: 12.5,
+        fontSize: 'var(--text-xs)',
         fontWeight: 800,
         letterSpacing: '.06em',
         textTransform: 'uppercase',
@@ -322,13 +322,13 @@ export function ChoresScreen({
         return (
           <Card
             key={person.id}
-            padding="19px 19px 17px"
+            padding="var(--space-5) var(--space-5) var(--space-4)"
             delay={bi * 55}
             style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14 }}
           >
             {bursting === person.id && <CardConfetti hue={person.hue} night={night} />}
 
-            <header style={{ display: 'flex', alignItems: 'flex-start', gap: 13 }}>
+            <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
               <TapButton
                 onClick={() => onOpenProfile(person)}
                 title={`${person.name}'s points`}
@@ -340,7 +340,7 @@ export function ChoresScreen({
                 <div
                   style={{
                     fontFamily: 'var(--font-display)',
-                    fontSize: 21,
+                    fontSize: 'var(--text-section)',
                     fontWeight: 600,
                     letterSpacing: '-.01em',
                     whiteSpace: 'nowrap',
@@ -362,7 +362,7 @@ export function ChoresScreen({
                 read as one control rather than two pills in a row.
               */}
               {isKid && (
-                <div style={{ flex: 'none', position: 'relative', paddingBottom: 13 }}>
+                <div style={{ flex: 'none', position: 'relative', paddingBottom: 'var(--space-3)' }}>
                   <GoalRing
                     person={person}
                     goal={goal}
@@ -386,31 +386,25 @@ export function ChoresScreen({
                       transform: 'translateX(-50%)',
                     }}
                   >
-                    <span
+                    <Pill
+                      tone={{ background: soft(person.hue, night), color: deep(person.hue, night) }}
                       style={{
-                        display: 'block',
-                        padding: '3px 11px',
-                        borderRadius: 999,
-                        fontSize: 13.5,
-                        fontWeight: 800,
                         whiteSpace: 'nowrap',
-                        background: soft(person.hue, night),
-                        color: deep(person.hue, night),
                         // Lifted off the ring it overlaps, so the arc reads behind it.
                         boxShadow: `0 0 0 3px var(--card)`,
                         animation: cheering === person.id ? `ptsPop .6s ${EASE} both` : undefined,
                       }}
                     >
                       {points} pts
-                    </span>
+                    </Pill>
                   </span>
                 </div>
               )}
             </header>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               {sectionsFor(rows).map((section) => (
-                <div key={section.id} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <div key={section.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                   {section.label && <SectionLabel>{section.label}</SectionLabel>}
                   {section.rows.map((row) => (
                     <ChoreRow
@@ -440,7 +434,7 @@ export function ChoresScreen({
               ))}
 
               {rows.length === 0 && (
-                <div style={{ padding: '10px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
+                <div style={{ padding: 'var(--space-3) 2px', color: 'var(--ink2)', fontWeight: 700 }}>
                   {board.today ? 'Nothing on the board today.' : 'Nothing was on the board that day.'}
                 </div>
               )}
@@ -459,16 +453,16 @@ export function ChoresScreen({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 8,
-                  padding: 11,
-                  borderRadius: 16,
+                  padding: 'var(--space-3)',
+                  borderRadius: 'var(--radius-control)',
                   border: `1px dashed ${col(68, night)}`,
                   color: deep(68, night),
-                  fontSize: 14.5,
+                  fontSize: 'var(--text-sm)',
                   fontWeight: 800,
                   opacity: 0.85,
                 }}
               >
-                <Icon name="star" size={17} />
+                <Icon name="star" size={17} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
                 Pick an extra job
               </TapButton>
             )}
@@ -541,13 +535,13 @@ function BlockedRowDialog({
         <>
           <GhostButton onClick={onClose}>Close</GhostButton>
           <PrimaryButton onClick={onOverride}>
-            <Icon name="lock" size={17} />
+            <Icon name="lock" size={17} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
             Override
           </PrimaryButton>
         </>
       }
     >
-      <div style={{ fontSize: 15.5, color: 'var(--ink2)', fontWeight: 600 }}>
+      <div style={{ fontSize: 'var(--text-md)', color: 'var(--ink2)', fontWeight: 600 }}>
         If it really was done, a parent can override this with the PIN.
       </div>
     </Modal>

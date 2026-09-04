@@ -1,7 +1,7 @@
 import { homeAlertActive, homeCategoryFor, homeDashboardAlertActive, type HomeCandidate, type HomeCategory, type HomeDashboard, type HomeDashboardItem, type HomeDashboardSelection, type HomeDeviceCandidate, type HomeEntityState } from '@dashboard/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode } from 'react';
 import { api } from '../../api';
-import { Button, Card, Icon, Switch, TapButton } from '../../components/ui';
+import { Button, Card, Icon, IconBadge, Pill, Switch, TapButton } from '../../components/ui';
 import { Modal } from '../../components/Modal';
 import { CARD_SHADOW, type IconName, deep, homeTone, soft } from '../../theme';
 import { useOnWake } from '../../state';
@@ -84,8 +84,8 @@ export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
       <div style={{ height: '100%', display: 'grid', placeItems: 'center', textAlign: 'center', color: 'var(--ink2)' }}>
         <div>
           <Icon name="home" size={52} style={{ opacity: 0.35 }} />
-          <div style={{ marginTop: 16, fontSize: 23, fontWeight: 800, color: 'var(--ink)' }}>Your home, at a glance</div>
-          <div style={{ marginTop: 7, fontSize: 16, fontWeight: 650 }}>
+          <div style={{ marginTop: 16, fontSize: 'var(--text-section)', fontWeight: 800, color: 'var(--ink)' }}>Your home, at a glance</div>
+          <div style={{ marginTop: 7, fontSize: 'var(--text-md)', fontWeight: 650 }}>
             {dashboard.connection === 'disconnected' ? 'Connect Home Assistant in Settings, then use Edit to choose devices.' : 'Use Edit to choose the devices shown here.'}
           </div>
         </div>
@@ -96,7 +96,7 @@ export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
       {dashboard.stale && (
-        <div role="status" style={{ marginBottom: 14, padding: '11px 16px', borderRadius: 16, background: 'var(--chip)', color: 'var(--ink2)', fontWeight: 750 }}>
+        <div role="status" style={{ marginBottom: 14, padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-control)', background: 'var(--chip)', color: 'var(--ink2)', fontWeight: 750, fontSize: 'var(--text-md)' }}>
           Home Assistant is {dashboard.connection === 'connecting' ? 'reconnecting' : 'unavailable'} · showing last known states
         </div>
       )}
@@ -111,9 +111,9 @@ export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
           return (
             <section key={section.id}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 2px 11px' }}>
-                <span style={{ width: 38, height: 38, display: 'grid', placeItems: 'center', borderRadius: 12, background: tone.background, color: tone.ink }}><Icon name={section.icon} size={19} /></span>
-                <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 650 }}>{section.label}</h2>
-                <span style={{ color: 'var(--ink2)', fontSize: 15, fontWeight: 750 }}>{active ? `${active} active · ` : ''}{items.length}</span>
+                <IconBadge icon={section.icon} size="xs" tone={{ background: tone.background, color: tone.ink }} />
+                <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-section)', fontWeight: 650 }}>{section.label}</h2>
+                <span style={{ color: 'var(--ink2)', fontSize: 'var(--text-sm)', fontWeight: 750 }}>{active ? `${active} active · ` : ''}{items.length}</span>
               </div>
               <div className={`home-grid${section.id === 'climate' ? ' home-grid-climate' : ''}`}>
                 {items.map((item) => item.domain === 'climate'
@@ -231,16 +231,18 @@ function AttentionPanel({ items, night, onOpen }: { items: HomeDashboardItem[]; 
   if (!alerts.length) return null;
   const warning = homeTone(25, night);
   return (
-    <section aria-label="Things that need attention" style={{ marginBottom: 22, padding: '17px 20px 19px', borderRadius: 24, background: warning.background }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, color: 'var(--danger)', fontSize: 14, fontWeight: 900, letterSpacing: '.06em', textTransform: 'uppercase' }}>
-        <Icon name="alert" size={18} />
+    <section aria-label="Things that need attention" style={{ marginBottom: 22, padding: 'var(--space-5) var(--space-6)', borderRadius: 'var(--radius-lg)', background: warning.background }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, color: 'var(--danger)', fontSize: 'var(--text-sm)', fontWeight: 900, letterSpacing: '.06em', textTransform: 'uppercase' }}>
+        <Icon name="alert" size={18} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
         {alerts.length} {alerts.length === 1 ? 'thing needs' : 'things need'} attention
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
         {alerts.map((item) => (
-          <TapButton key={item.entityId} title={`View ${item.displayName}`} onClick={() => onOpen(item)} style={{ minHeight: 48, padding: '9px 15px', display: 'flex', alignItems: 'center', gap: 10, borderRadius: 999, background: 'var(--card)', color: 'var(--ink)', boxShadow: '0 8px 20px -18px rgba(20,24,40,.65)', fontSize: 15.5, fontWeight: 825 }}>
-            <Icon name={attentionIconFor(item)} size={19} style={{ color: 'var(--danger)' }} />
-            <span>{item.displayName}</span>
+          <TapButton key={item.entityId} title={`View ${item.displayName}`} onClick={() => onOpen(item)}>
+            <Pill size="lg" tone={{ background: 'var(--card)', color: 'var(--ink)' }} style={{ boxShadow: '0 8px 20px -18px rgba(20,24,40,.65)' }}>
+              <Icon name={attentionIconFor(item)} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)', color: 'var(--danger)' }} />
+              <span>{item.displayName}</span>
+            </Pill>
           </TapButton>
         ))}
       </div>
@@ -258,10 +260,10 @@ function HomeSummary({ items }: { items: HomeDashboardItem[] }) {
   return (
     <div style={{ display: 'flex', gap: 9, overflowX: 'auto', paddingBottom: 24 }}>
       {summaries.map((summary) => (
-        <div key={summary.label} style={{ flex: 'none', minHeight: 42, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 9, borderRadius: 999, background: 'var(--chip)', color: 'var(--ink2)', fontSize: 14.5, fontWeight: 750 }}>
-          <Icon name={summary.icon} size={17} />
+        <Pill key={summary.label} size="lg" style={{ flex: 'none' }}>
+          <Icon name={summary.icon} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
           <strong style={{ color: 'var(--ink)' }}>{summary.value}</strong> {summary.label}
-        </div>
+        </Pill>
       ))}
     </div>
   );
@@ -288,13 +290,13 @@ function HomeCard({ item, night, busy, onOpen, onAction }: HomeCardProps) {
     <div className="home-device-card" style={{ border: alerts.length ? `1.5px solid ${warning.accent}` : '1px solid transparent', background: alerts.length ? warning.background : active ? tone.background : 'var(--card)', boxShadow: CARD_SHADOW, opacity: item.available ? 1 : .58 }}>
       <TapButton className="home-card-hit-area" title={`View ${item.displayName} details`} onClick={onOpen}><span /></TapButton>
       <div className="home-card-content">
-        <TapButton disabled={!item.available || busy} title={action ? (action.risky ? `Open ${item.displayName} controls` : action.label) : `View ${item.displayName}`} onClick={() => { if (action && !action.risky) onAction(action.action); else onOpen(); }} style={{ pointerEvents: 'auto', width: 52, height: 52, display: 'grid', placeItems: 'center', borderRadius: 17, background: alerts.length ? warning.accent : active ? tone.accent : 'var(--chip)', color: alerts.length || active ? '#fff' : 'var(--ink2)' }}>
-          <Icon name={iconFor(item)} size={24} />
+        <TapButton disabled={!item.available || busy} title={action ? (action.risky ? `Open ${item.displayName} controls` : action.label) : `View ${item.displayName}`} onClick={() => { if (action && !action.risky) onAction(action.action); else onOpen(); }} style={{ pointerEvents: 'auto', padding: 0 }}>
+          <IconBadge icon={iconFor(item)} size="md" tone={{ background: alerts.length ? warning.accent : active ? tone.accent : 'var(--chip)', color: alerts.length || active ? '#fff' : 'var(--ink2)' }} />
         </TapButton>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 16.5, fontWeight: 850, color: !alerts.length && active ? tone.ink : 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.displayName}</div>
-          <div style={{ marginTop: 3, fontSize: 14.5, lineHeight: 1.2, fontWeight: 800, color: alerts.length ? warning.ink : active ? tone.ink : 'var(--ink2)' }}>{alerts.length ? alerts.join(' · ') : tileState(item)}</div>
-          {(item.area || !item.available) && <div style={{ marginTop: 2, fontSize: 13.5, fontWeight: 650, color: 'var(--ink2)', opacity: 0.75 }}>{item.available ? item.area : 'Not responding'}</div>}
+          <div style={{ fontSize: 'var(--text-md)', fontWeight: 850, color: !alerts.length && active ? tone.ink : 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.displayName}</div>
+          <div style={{ marginTop: 3, fontSize: 'var(--text-sm)', lineHeight: 1.2, fontWeight: 800, color: alerts.length ? warning.ink : active ? tone.ink : 'var(--ink2)' }}>{alerts.length ? alerts.join(' · ') : tileState(item)}</div>
+          {(item.area || !item.available) && <div style={{ marginTop: 2, fontSize: 'var(--text-xs)', fontWeight: 650, color: 'var(--ink2)', opacity: 0.75 }}>{item.available ? item.area : 'Not responding'}</div>}
         </div>
       </div>
       <div style={{ flex: 1 }} />
@@ -332,29 +334,29 @@ function ClimateCard({ item, night, busy, onOpen, onAction }: HomeCardProps) {
     <div className="home-climate-card" style={{ boxShadow: CARD_SHADOW, opacity: item.available ? 1 : .58 }}>
       <TapButton className="home-card-hit-area" title={`View ${item.displayName} details`} onClick={onOpen}><span /></TapButton>
       <div className="home-climate-header">
-        <div><div style={{ fontSize: 20, fontWeight: 850 }}>{item.displayName}</div><div style={{ marginTop: 3, color: 'var(--ink2)', fontSize: 15, fontWeight: 700 }}>{target === null ? 'Off' : `${mode === 'cool' ? 'Cool' : mode === 'heat' ? 'Heat' : 'Set'} to ${target}°`}</div></div>
-        <div style={{ minHeight: 36, padding: '0 13px', display: 'flex', alignItems: 'center', gap: 7, borderRadius: 999, background: mode === 'off' ? 'var(--chip)' : tone.background, color: mode === 'off' ? 'var(--ink2)' : tone.ink, fontWeight: 825 }}><Icon name={statusIcon} size={17} />{status}</div>
+        <div><div style={{ fontSize: 'var(--text-section)', fontWeight: 850 }}>{item.displayName}</div><div style={{ marginTop: 3, color: 'var(--ink2)', fontSize: 'var(--text-sm)', fontWeight: 700 }}>{target === null ? 'Off' : `${mode === 'cool' ? 'Cool' : mode === 'heat' ? 'Heat' : 'Set'} to ${target}°`}</div></div>
+        <Pill size="lg" tone={{ background: mode === 'off' ? 'var(--chip)' : tone.background, color: mode === 'off' ? 'var(--ink2)' : tone.ink }}><Icon name={statusIcon} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />{status}</Pill>
       </div>
       <div className="home-climate-dial-wrap">
         <div className="home-climate-dial" style={{ background: `conic-gradient(from 225deg, ${mode === 'off' ? 'var(--line)' : accent} 0deg ${sweep}deg, var(--line) ${sweep}deg 270deg, transparent 270deg 360deg)` }}>
           <div className="home-climate-dial-inner">
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-hero)', lineHeight: 1, fontWeight: 650 }}>{Number.isFinite(current) ? `${current}°` : '—'}</div>
-            <div style={{ marginTop: 8, color: 'var(--ink2)', fontSize: 14, fontWeight: 750 }}>{target === null ? 'Off' : mode === 'heat' ? `Heating to ${target}°` : mode === 'cool' ? `Cooling to ${target}°` : `Holding ${target}°`}</div>
+            <div style={{ marginTop: 8, color: 'var(--ink2)', fontSize: 'var(--text-sm)', fontWeight: 750 }}>{target === null ? 'Off' : mode === 'heat' ? `Heating to ${target}°` : mode === 'cool' ? `Cooling to ${target}°` : `Holding ${target}°`}</div>
           </div>
         </div>
       </div>
       <div className="home-climate-controls">
         <ClimateButton label={`Lower ${item.displayName} temperature`} disabled={!item.available || busy || target === null} onClick={() => { if (target !== null) onAction('set_temperature', target - 1); }}>−</ClimateButton>
-        <div style={{ textAlign: 'center', color: 'var(--ink2)', fontSize: 13, fontWeight: 750 }}><strong style={{ display: 'block', color: mode === 'off' ? 'var(--ink2)' : tone.ink, fontSize: 21 }}>{target === null ? '—' : `${target}°`}</strong>{Number.isFinite(humidity) ? `${humidity}% humidity` : item.area ?? ''}</div>
+        <div style={{ textAlign: 'center', color: 'var(--ink2)', fontSize: 'var(--text-xs)', fontWeight: 750 }}><strong style={{ display: 'block', color: mode === 'off' ? 'var(--ink2)' : tone.ink, fontSize: 'var(--text-section)' }}>{target === null ? '—' : `${target}°`}</strong>{Number.isFinite(humidity) ? `${humidity}% humidity` : item.area ?? ''}</div>
         <ClimateButton label={`Raise ${item.displayName} temperature`} disabled={!item.available || busy || target === null} onClick={() => { if (target !== null) onAction('set_temperature', target + 1); }}>+</ClimateButton>
-        <ClimateButton label={`${active ? 'Turn off' : 'Turn on'} ${item.displayName}`} disabled={!item.available || busy} active={mode === 'off'} onClick={() => onAction(active ? 'turn_off' : 'turn_on')}><Icon name="power" size={23} /></ClimateButton>
+        <ClimateButton label={`${active ? 'Turn off' : 'Turn on'} ${item.displayName}`} disabled={!item.available || busy} active={mode === 'off'} onClick={() => onAction(active ? 'turn_off' : 'turn_on')}><Icon name="power" size={23} style={{ width: 'var(--icon-sm)', height: 'var(--icon-sm)' }} /></ClimateButton>
       </div>
     </div>
   );
 }
 
 function ClimateButton({ label, disabled, active = false, onClick, children }: { label: string; disabled: boolean; active?: boolean; onClick: () => void; children: ReactNode }) {
-  return <TapButton title={label} disabled={disabled} onClick={onClick} style={{ width: 'var(--control-xl)', height: 'var(--control-xl)', display: 'grid', placeItems: 'center', borderRadius: '50%', background: active ? 'var(--ink2)' : 'var(--chip)', color: active ? 'var(--card)' : 'var(--ink)', fontSize: 27, fontWeight: 500 }}>{children}</TapButton>;
+  return <TapButton title={label} disabled={disabled} onClick={onClick} style={{ width: 'var(--control-xl)', height: 'var(--control-xl)', display: 'grid', placeItems: 'center', borderRadius: '50%', background: active ? 'var(--ink2)' : 'var(--chip)', color: active ? 'var(--card)' : 'var(--ink)', fontSize: 'var(--text-xl)', fontWeight: 500 }}>{children}</TapButton>;
 }
 
 function HomeLevelControl({ value, night, disabled, onToggle, onCommit }: { value: number; night: boolean; disabled: boolean; onToggle: () => void; onCommit: (value: number) => void }) {
@@ -450,8 +452,8 @@ function HomeDetail({ item, night, busy, onAction, onClose }: Omit<HomeCardProps
   return (
     <Modal title={item.displayName} sub={[prettyState(item), item.area].filter(Boolean).join(' · ')} onClose={onClose} width={820} footer={<Button onClick={onClose}>Close</Button>}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '4px 0 8px' }}>
-        <div style={{ width: 64, height: 64, display: 'grid', placeItems: 'center', borderRadius: 20, background: criticalLabels(item).length ? warning.accent : isVisuallyActive(item) ? tone.accent : 'var(--chip)', color: criticalLabels(item).length || isVisuallyActive(item) ? '#fff' : 'var(--ink2)' }}><Icon name={iconFor(item)} size={31} /></div>
-        <div><div style={{ fontSize: 18, fontWeight: 850, color: criticalLabels(item).length ? 'var(--danger)' : 'var(--ink)' }}>{criticalLabels(item).join(' · ') || prettyState(item)}</div><div style={{ marginTop: 3, color: 'var(--ink2)', fontWeight: 700 }}>{item.available ? 'Connected' : 'Not responding'}</div></div>
+        <IconBadge icon={iconFor(item)} size="lg" tone={{ background: criticalLabels(item).length ? warning.accent : isVisuallyActive(item) ? tone.accent : 'var(--chip)', color: criticalLabels(item).length || isVisuallyActive(item) ? '#fff' : 'var(--ink2)' }} />
+        <div><div style={{ fontSize: 'var(--text-lg)', fontWeight: 850, color: criticalLabels(item).length ? 'var(--danger)' : 'var(--ink)' }}>{criticalLabels(item).join(' · ') || prettyState(item)}</div><div style={{ marginTop: 3, color: 'var(--ink2)', fontWeight: 700 }}>{item.available ? 'Connected' : 'Not responding'}</div></div>
       </div>
 
       {brightness !== null && (
@@ -460,9 +462,9 @@ function HomeDetail({ item, night, busy, onAction, onClose }: Omit<HomeCardProps
 
       {item.domain === 'climate' && item.details.targetTemperature !== null && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 12 }}>
-          <Button disabled={busy || !item.available} onClick={() => onAction('set_temperature', item.details.targetTemperature! - 1)} style={{ minHeight: 52, fontSize: 22 }}>−</Button>
-          <strong style={{ fontSize: 22 }}>{item.details.targetTemperature}°</strong>
-          <Button disabled={busy || !item.available} onClick={() => onAction('set_temperature', item.details.targetTemperature! + 1)} style={{ minHeight: 52, fontSize: 22 }}>+</Button>
+          <Button disabled={busy || !item.available} onClick={() => onAction('set_temperature', item.details.targetTemperature! - 1)} style={{ minHeight: 52, fontSize: 'var(--text-section)' }}>−</Button>
+          <strong style={{ fontSize: 'var(--text-section)' }}>{item.details.targetTemperature}°</strong>
+          <Button disabled={busy || !item.available} onClick={() => onAction('set_temperature', item.details.targetTemperature! + 1)} style={{ minHeight: 52, fontSize: 'var(--text-section)' }}>+</Button>
         </div>
       )}
 
@@ -480,7 +482,7 @@ function HomeDetail({ item, night, busy, onAction, onClose }: Omit<HomeCardProps
 
       <div style={{ height: 1, background: 'var(--line)', marginTop: 4 }} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px 34px' }}>
-        {facts.map(([label, value]) => <div key={label}><div style={{ color: 'var(--ink2)', fontSize: 12.5, fontWeight: 850, letterSpacing: '.06em', textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: 3, fontSize: 16, fontWeight: 800 }}>{value}</div></div>)}
+        {facts.map(([label, value]) => <div key={label}><div style={{ color: 'var(--ink2)', fontSize: 'var(--text-xs)', fontWeight: 850, letterSpacing: '.06em', textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: 3, fontSize: 'var(--text-md)', fontWeight: 800 }}>{value}</div></div>)}
       </div>
     </Modal>
   );

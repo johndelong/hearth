@@ -51,6 +51,20 @@
   --home-climate-min-height: 405px;
   --home-climate-ring: 208px;
   --home-climate-stroke: 22px;
+  --text-xs: 13px;
+  --icon-2xs: 14px;
+  --icon-xs: 19px;
+  --icon-sm: 24px;
+  --icon-lg: 31px;
+  --icon-box-xs: 38px;
+  --icon-box-lg: 64px;
+  /*
+    Not derived from another token: a deliberate accessibility floor (a kid
+    taps this a dozen times a day) rather than a stand-in for shared sizing.
+    The tap target's width is `--control-sm` plus a `--space-4` margin on each
+    side instead, computed inline at its one call site.
+  */
+  --chore-tap-height: 74px;
   --frame-clock-size: clamp(90px, 15vw, 190px);
 }
 
@@ -88,6 +102,14 @@
   --home-climate-min-height: 342px;
   --home-climate-ring: 176px;
   --home-climate-stroke: 18px;
+  --text-xs: 12px;
+  --icon-2xs: 12px;
+  --icon-xs: 17px;
+  --icon-sm: 21px;
+  --icon-lg: 27px;
+  --icon-box-xs: 34px;
+  --icon-box-lg: 56px;
+  --chore-tap-height: 64px;
   --frame-clock-size: clamp(76px, 13vw, 164px);
 }
 
@@ -126,6 +148,14 @@
   --home-climate-min-height: 450px;
   --home-climate-ring: 228px;
   --home-climate-stroke: 24px;
+  --text-xs: 14px;
+  --icon-2xs: 16px;
+  --icon-xs: 21px;
+  --icon-sm: 27px;
+  --icon-lg: 35px;
+  --icon-box-xs: 42px;
+  --icon-box-lg: 72px;
+  --chore-tap-height: 82px;
   --frame-clock-size: clamp(104px, 17vw, 216px);
 }
 

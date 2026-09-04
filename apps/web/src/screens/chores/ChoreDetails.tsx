@@ -1,7 +1,6 @@
 import type { Person } from '@dashboard/shared';
-import type { ReactNode } from 'react';
 import { Modal } from '../../components/Modal';
-import { Button, Icon } from '../../components/ui';
+import { Button, Icon, Pill } from '../../components/ui';
 import { deep, soft } from '../../theme';
 
 /**
@@ -62,13 +61,13 @@ export function ChoreDetails({
                 onClose();
               }}
             >
-              <Icon name="check" size={19} />
+              <Icon name="check" size={19} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
               {done ? 'Mark not done' : 'Check it off'}
             </Button>
           )}
           {readOnly && onOverride && (
             <Button size="lg" onClick={onOverride}>
-              <Icon name="lock" size={17} />
+              <Icon name="lock" size={17} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
               Override
             </Button>
           )}
@@ -76,26 +75,24 @@ export function ChoreDetails({
       }
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: -4 }}>
-        <Pill background={soft(person.hue, night)} color={deep(person.hue, night)}>
+        <Pill tone={{ background: soft(person.hue, night), color: deep(person.hue, night) }}>
           {person.name}
         </Pill>
-        <Pill background="var(--chip)" color="var(--ink2)">
-          {frequency}
-        </Pill>
+        <Pill>{frequency}</Pill>
         {points !== null && (
-          <Pill background={soft(68, night)} color={deep(68, night)}>
+          <Pill tone={{ background: soft(68, night), color: deep(68, night) }}>
             +{points} points
           </Pill>
         )}
         {done && (
-          <Pill background={soft(148, night)} color={deep(148, night)}>
+          <Pill tone={{ background: soft(148, night), color: deep(148, night) }}>
             Done
           </Pill>
         )}
       </div>
 
       {readOnly && (
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink2)' }}>
+        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--ink2)' }}>
           {readOnlyHint ?? 'This day is a record and cannot be changed.'}
         </div>
       )}
@@ -109,10 +106,10 @@ export function ChoreDetails({
 function Section({ label, body, empty }: { label: string; body: string | null; empty: string }) {
   return (
     <div>
-      <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--ink2)', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--ink2)', marginBottom: 6 }}>{label}</div>
       <div
         style={{
-          fontSize: 17,
+          fontSize: 'var(--text-lg)',
           fontWeight: 600,
           lineHeight: 1.5,
           // Instructions are typed as prose with line breaks; keep them.
@@ -124,26 +121,5 @@ function Section({ label, body, empty }: { label: string; body: string | null; e
         {body || empty}
       </div>
     </div>
-  );
-}
-
-function Pill({
-  children,
-  background,
-  color,
-}: { children: ReactNode; background: string; color: string }) {
-  return (
-    <span
-      style={{
-        padding: '5px 13px',
-        borderRadius: 999,
-        fontSize: 14.5,
-        fontWeight: 800,
-        background,
-        color,
-      }}
-    >
-      {children}
-    </span>
   );
 }

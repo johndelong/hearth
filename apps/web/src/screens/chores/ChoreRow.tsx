@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Icon } from '../../components/ui';
+import { Icon, IconBadge, Pill } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
 
 /**
@@ -136,7 +136,7 @@ export function ChoreRow({
       style={{
         position: 'relative',
         overflow: 'hidden',
-        borderRadius: 18,
+        borderRadius: 'var(--radius-control)',
         // Collapsing the row as it leaves keeps the list from jumping.
         maxHeight: leaving ? 0 : 400,
         opacity: leaving ? 0 : 1,
@@ -158,8 +158,8 @@ export function ChoreRow({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
-            paddingRight: 26,
-            borderRadius: 18,
+            paddingRight: 'var(--space-6)',
+            borderRadius: 'var(--radius-control)',
             background: col(25, night),
             color: night ? '#14161c' : '#fff',
           }}
@@ -175,10 +175,10 @@ export function ChoreRow({
             style={{
               display: 'grid',
               placeItems: 'center',
-              width: 48,
-              height: 48,
+              width: 'var(--control-sm)',
+              height: 'var(--control-sm)',
               border: 'none',
-              borderRadius: 14,
+              borderRadius: 'var(--radius-sm)',
               background: 'transparent',
               color: 'inherit',
               cursor: 'pointer',
@@ -187,7 +187,7 @@ export function ChoreRow({
               opacity: Math.min(1, Math.abs(dx) / REVEAL),
             }}
           >
-            <Icon name="trash" size={26} />
+            <Icon name="trash" size={26} style={{ width: 'var(--icon-sm)', height: 'var(--icon-sm)' }} />
           </button>
         </div>
       )}
@@ -198,7 +198,7 @@ export function ChoreRow({
           display: 'flex',
           alignItems: 'stretch',
           gap: 4,
-          borderRadius: 18,
+          borderRadius: 'var(--radius-control)',
           border: '1px solid var(--line)',
           background: done ? soft(hue, night) : 'var(--card)',
           transform: `translateX(${dx}px)`,
@@ -214,7 +214,7 @@ export function ChoreRow({
               bottom: 0,
               left: 0,
               width: '42%',
-              borderRadius: 18,
+              borderRadius: 'var(--radius-control)',
               background: `linear-gradient(100deg, transparent, ${
                 night ? 'rgba(255,255,255,.16)' : 'rgba(255,255,255,.92)'
               }, transparent)`,
@@ -248,32 +248,28 @@ export function ChoreRow({
             flex: 'none',
             display: 'grid',
             placeItems: 'center',
-            width: 78,
-            minHeight: 74,
+            // The checkbox's own box (--control-sm, matching IconBadge's "sm"
+            // size) plus a comfortable --space-4 margin on each side.
+            width: 'calc(var(--control-sm) + var(--space-4) * 2)',
+            minHeight: 'var(--chore-tap-height)',
             padding: 0,
             border: 'none',
-            borderRadius: '18px 0 0 18px',
+            borderRadius: 'var(--radius-control) 0 0 var(--radius-control)',
             background: 'transparent',
             cursor: busy ? 'default' : 'pointer',
             opacity: readOnly ? 0.75 : 1,
           }}
         >
-          <span
+          <IconBadge
+            icon="check"
+            size="sm"
+            tone={{ background: done ? col(hue, night) : 'var(--chip)', color: done ? (night ? '#14161c' : '#fff') : 'transparent' }}
+            border={done ? 'none' : '2px solid var(--line)'}
             style={{
-              display: 'grid',
-              placeItems: 'center',
-              width: 46,
-              height: 46,
-              borderRadius: 15,
-              background: done ? col(hue, night) : 'var(--chip)',
-              color: done ? (night ? '#14161c' : '#fff') : 'transparent',
-              border: done ? 'none' : '2px solid var(--line)',
               transition: `background .25s ${EASE}, color .25s ${EASE}`,
               animation: done ? `popIn .36s cubic-bezier(.2,.9,.3,1.35) both` : undefined,
             }}
-          >
-            <Icon name="check" size={27} />
-          </span>
+          />
         </button>
 
         <button
@@ -292,9 +288,9 @@ export function ChoreRow({
             flex: 1,
             minWidth: 0,
             display: 'block',
-            padding: '13px 16px 13px 2px',
+            padding: 'var(--space-3) var(--space-4) var(--space-3) 2px',
             border: 'none',
-            borderRadius: '0 18px 18px 0',
+            borderRadius: '0 var(--radius-control) var(--radius-control) 0',
             background: 'transparent',
             textAlign: 'left',
             cursor: 'pointer',
@@ -307,7 +303,7 @@ export function ChoreRow({
               style={{
                 flex: 1,
                 minWidth: 0,
-                fontSize: 17.5,
+                fontSize: 'var(--text-lg)',
                 fontWeight: 800,
                 color: done ? deep(hue, night) : 'var(--ink)',
                 textDecoration: done ? 'line-through' : 'none',
@@ -318,32 +314,21 @@ export function ChoreRow({
             </span>
 
             {points !== null && (
-              <span
+              <Pill
                 title={pointsLocked ? 'These land once the day’s chores are done' : undefined}
-                style={{
-                  flex: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '3px 10px',
-                  borderRadius: 999,
-                  fontSize: 14,
-                  fontWeight: 800,
-                  // Held points read as waiting, not as lost — the amber comes
-                  // back the moment the board is finished.
-                  background: pointsLocked ? 'var(--chip)' : soft(68, night),
-                  color: pointsLocked ? 'var(--ink2)' : deep(68, night),
-                  transition: `background .3s ${EASE}, color .3s ${EASE}`,
-                }}
+                style={{ flex: 'none', gap: 4, transition: `background .3s ${EASE}, color .3s ${EASE}` }}
+                // Held points read as waiting, not as lost — the amber comes
+                // back the moment the board is finished.
+                tone={{ background: pointsLocked ? 'var(--chip)' : soft(68, night), color: pointsLocked ? 'var(--ink2)' : deep(68, night) }}
               >
-                {pointsLocked && <Icon name="lock" size={12} />}
+                {pointsLocked && <Icon name="lock" size={12} style={{ width: 'var(--icon-2xs)', height: 'var(--icon-2xs)' }} />}
                 +{points}
-              </span>
+              </Pill>
             )}
 
           </span>
 
-          <span style={{ display: 'block', fontSize: 13.5, color: 'var(--ink2)', marginTop: 2 }}>{sub}</span>
+          <span style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--ink2)', marginTop: 2 }}>{sub}</span>
         </button>
       </div>
     </div>

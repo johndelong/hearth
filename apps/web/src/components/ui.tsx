@@ -28,6 +28,99 @@ export function Icon({
   );
 }
 
+export type BadgeSize = 'xs' | 'sm' | 'md' | 'lg';
+
+const BADGE_SIZES: Record<BadgeSize, { box: string; icon: string; radius: string }> = {
+  xs: { box: 'var(--icon-box-xs)', icon: 'var(--icon-xs)', radius: 'var(--radius-sm)' },
+  sm: { box: 'var(--control-sm)', icon: 'var(--icon-sm)', radius: 'var(--radius-control)' },
+  md: { box: 'var(--control-lg)', icon: 'var(--icon-sm)', radius: 'var(--radius-control)' },
+  lg: { box: 'var(--icon-box-lg)', icon: 'var(--icon-lg)', radius: 'var(--radius-lg)' },
+};
+
+/**
+ * An icon centered in a colored box — the one shape behind a section header's
+ * category glyph, a tile's tap-to-act button, a detail view's hero icon, and
+ * a chore's checkbox. Distinct features, same component, so a size or radius
+ * change made here shows up everywhere at once.
+ */
+export function IconBadge({
+  icon,
+  size = 'sm',
+  tone,
+  border,
+  style,
+}: {
+  icon: IconName;
+  size?: BadgeSize;
+  tone?: { background: string; color: string };
+  /** An outline instead of a fill — a chore's "not yet done" checkbox. */
+  border?: string;
+  style?: CSSProperties;
+}) {
+  const dims = BADGE_SIZES[size];
+  return (
+    <span
+      style={{
+        flex: 'none',
+        display: 'grid',
+        placeItems: 'center',
+        width: dims.box,
+        height: dims.box,
+        borderRadius: dims.radius,
+        background: tone?.background ?? 'var(--chip)',
+        color: tone?.color ?? 'var(--ink2)',
+        border,
+        ...style,
+      }}
+    >
+      <Icon name={icon} style={{ width: dims.icon, height: dims.icon }} />
+    </span>
+  );
+}
+
+export type PillSize = 'sm' | 'lg';
+
+/**
+ * A rounded icon+text badge — a status chip, a streak or progress counter, a
+ * points tally. `size="lg"` is the tappable, touch-target-height variant used
+ * for chip-style buttons; `size="sm"` is the tight inline label.
+ */
+export function Pill({
+  size = 'sm',
+  tone,
+  children,
+  style,
+  title,
+}: {
+  size?: PillSize;
+  tone?: { background: string; color: string };
+  children: ReactNode;
+  style?: CSSProperties;
+  title?: string;
+}) {
+  const lg = size === 'lg';
+  return (
+    <span
+      title={title}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: lg ? 9 : 5,
+        minHeight: lg ? 'var(--control-sm)' : undefined,
+        padding: lg ? '0 var(--space-4)' : 'var(--space-1) var(--space-3)',
+        borderRadius: 999,
+        fontSize: 'var(--text-sm)',
+        fontWeight: 800,
+        background: tone?.background ?? 'var(--chip)',
+        color: tone?.color ?? 'var(--ink2)',
+        ...style,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 /**
  * Round avatar, in order of preference: a photo, a face from the built-in
  * pack, then the person's initial. A photo outranks a pack face so that

@@ -1,5 +1,5 @@
 import type { Streak } from '@dashboard/shared';
-import { Icon } from '../../components/ui';
+import { Icon, Pill } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
 
 /**
@@ -15,23 +15,13 @@ export function ProgressPill({
 }: { done: number; total: number; night: boolean }) {
   const complete = total > 0 && done === total;
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '4px 12px',
-        borderRadius: 999,
-        fontSize: 14,
-        fontWeight: 800,
-        background: complete ? soft(148, night) : 'var(--chip)',
-        color: complete ? deep(148, night) : 'var(--ink2)',
-        transition: `background .4s ${EASE}, color .4s ${EASE}`,
-      }}
+    <Pill
+      style={{ gap: 6, transition: `background .4s ${EASE}, color .4s ${EASE}` }}
+      tone={{ background: complete ? soft(148, night) : 'var(--chip)', color: complete ? deep(148, night) : 'var(--ink2)' }}
     >
-      <Icon name="check" size={14} />
+      <Icon name="check" size={14} style={{ width: 'var(--icon-2xs)', height: 'var(--icon-2xs)' }} />
       {done}/{total}
-    </span>
+    </Pill>
   );
 }
 
@@ -53,24 +43,10 @@ const TIERS: Array<{ min: number; hue: number; label: string }> = [
 export function StreakPill({ streak, night }: { streak: Streak; night: boolean }) {
   if (streak.paused) {
     return (
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '4px 12px',
-          borderRadius: 999,
-          fontSize: 14,
-          fontWeight: 800,
-          background: 'var(--chip)',
-          color: 'var(--ink2)',
-          opacity: 0.8,
-        }}
-        title={`Streak paused at ${streak.length}`}
-      >
-        <Icon name="moon" size={14} />
+      <Pill style={{ gap: 6, opacity: 0.8 }} title={`Streak paused at ${streak.length}`}>
+        <Icon name="moon" size={14} style={{ width: 'var(--icon-2xs)', height: 'var(--icon-2xs)' }} />
         {streak.length} · paused
-      </span>
+      </Pill>
     );
   }
 
@@ -85,26 +61,19 @@ export function StreakPill({ streak, night }: { streak: Streak; night: boolean }
   const heat = Math.min(1, streak.length / 30);
 
   return (
-    <span
+    <Pill
       title={tier ? `${streak.length} in a row — ${tier.label}` : 'No streak yet — finish today to start one'}
+      tone={{ background: tier ? soft(tier.hue, night) : 'var(--chip)', color: tier ? deep(tier.hue, night) : 'var(--ink2)' }}
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
         gap: 5,
-        padding: '4px 12px',
-        borderRadius: 999,
-        fontSize: 14,
-        fontWeight: 800,
-        background: tier ? soft(tier.hue, night) : 'var(--chip)',
-        color: tier ? deep(tier.hue, night) : 'var(--ink2)',
         boxShadow:
           tier && heat > 0.4 ? `0 0 0 2px ${col(tier.hue, night)}${heat > 0.85 ? '' : '66'}` : 'none',
         transition: `background .5s ${EASE}, box-shadow .5s ${EASE}`,
         animation: streak.length >= 14 ? `ptsPop 2.6s ${EASE} infinite` : undefined,
       }}
     >
-      <Icon name="flame" size={15} />
+      <Icon name="flame" size={15} style={{ width: 'var(--icon-2xs)', height: 'var(--icon-2xs)' }} />
       {streak.length}
-    </span>
+    </Pill>
   );
 }
