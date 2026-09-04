@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { beforeEach, describe, test } from 'node:test';
 import {
   dueOn,
+  everyDay,
   extractWhoNames,
   fromRRule,
   normalizeRecurrence,
@@ -15,6 +16,7 @@ import {
   whoFromTitle,
 } from '@dashboard/shared';
 import Fastify from 'fastify';
+import cookie from '@fastify/cookie';
 
 process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), 'hearth-core-')), 'test.db');
 
@@ -22,19 +24,37 @@ const { db } = await import('./db/index.js');
 const { clearPin, pinIsSet, setPin, verifyPin } = await import('./auth.js');
 const { getSettings, setRaw } = await import('./store/settings.js');
 const { createPerson } = await import('./store/people.js');
-const { createExtra, createReward, redeemReward, adjustPoints, pointsFor, listPointEvents } = await import(
-  './store/chores.js'
-);
+const {
+  createChore,
+  createExtra,
+  createReward,
+  redeemReward,
+  adjustPoints,
+  pointsFor,
+  listPointEvents,
+  setChoreDone,
+  CompletionOutOfRange,
+} = await import('./store/chores.js');
 const { peopleRoutes } = await import('./routes/people.js');
 const { choreRoutes } = await import('./routes/chores.js');
+const { settingsRoutes } = await import('./routes/settings.js');
 
 const app = Fastify();
+await app.register(cookie, { secret: 'test-secret' });
 await app.register(peopleRoutes);
 await app.register(choreRoutes);
+await app.register(settingsRoutes);
 await app.ready();
 
+/** `YYYY-MM-DD` in local time, for a date that must land on a specific day regardless of timezone. */
+const ymd = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 beforeEach(() => {
-  db.exec('DELETE FROM point_events; DELETE FROM redemptions; DELETE FROM rewards; DELETE FROM extras; DELETE FROM people;');
+  db.exec(
+    'DELETE FROM point_events; DELETE FROM redemptions; DELETE FROM rewards; DELETE FROM extras; DELETE FROM people; ' +
+      'DELETE FROM chore_completions; DELETE FROM chore_people; DELETE FROM chores;',
+  );
   clearPin();
 });
 
@@ -155,6 +175,78 @@ describe('manual point adjustment over HTTP', () => {
     assert.equal(body.points, 30);
     assert.equal(body.events.length, 1);
     assert.equal((await app.inject({ method: 'GET', url: '/api/points/pe_nobody/history' })).statusCode, 404);
+  });
+});
+
+describe('completing a chore outside its writable range', () => {
+  test('a past day is refused', () => {
+    const person = createPerson({ name: 'Kid' });
+    // Due every day since well before "yesterday" — otherwise the chore's own
+    // start date, not the range check, is what refuses the completion.
+    const chore = createChore({ title: 'Sweep', personIds: [person.id], recurrence: everyDay('2020-01-01') });
+    const yesterday = new Date(Date.now() - 86_400_000);
+    assert.throws(() => setChoreDone(chore.id, person.id, true, yesterday), CompletionOutOfRange);
+  });
+
+  test('force bypasses the range check entirely', () => {
+    const person = createPerson({ name: 'Kid' });
+    // Due every day since well before "yesterday" — otherwise the chore's own
+    // start date, not the range check, is what refuses the completion.
+    const chore = createChore({ title: 'Sweep', personIds: [person.id], recurrence: everyDay('2020-01-01') });
+    const yesterday = new Date(Date.now() - 86_400_000);
+    const result = setChoreDone(chore.id, person.id, true, yesterday, { force: true });
+    assert.equal(result?.done, true);
+  });
+
+  test('the route requires the PIN for a forced completion once one is set', async () => {
+    const person = createPerson({ name: 'Kid' });
+    // Due every day since well before "yesterday" — otherwise the chore's own
+    // start date, not the range check, is what refuses the completion.
+    const chore = createChore({ title: 'Sweep', personIds: [person.id], recurrence: everyDay('2020-01-01') });
+    setPin('123456');
+    const yesterday = ymd(new Date(Date.now() - 86_400_000));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/chores/${chore.id}/done`,
+      payload: { personId: person.id, done: true, date: yesterday, force: true },
+    });
+    assert.equal(response.statusCode, 401);
+  });
+
+  test('an unlocked session can force it through', async () => {
+    const person = createPerson({ name: 'Kid' });
+    // Due every day since well before "yesterday" — otherwise the chore's own
+    // start date, not the range check, is what refuses the completion.
+    const chore = createChore({ title: 'Sweep', personIds: [person.id], recurrence: everyDay('2020-01-01') });
+    setPin('123456');
+    const login = await app.inject({ method: 'POST', url: '/api/session', payload: { pin: '123456' } });
+    const session = login.cookies[0]!;
+    const yesterday = ymd(new Date(Date.now() - 86_400_000));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/chores/${chore.id}/done`,
+      cookies: { [session.name]: session.value },
+      payload: { personId: person.id, done: true, date: yesterday, force: true },
+    });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().chore.done, true);
+  });
+
+  test('without force, the same day is refused over the route with no PIN involved', async () => {
+    const person = createPerson({ name: 'Kid' });
+    // Due every day since well before "yesterday" — otherwise the chore's own
+    // start date, not the range check, is what refuses the completion.
+    const chore = createChore({ title: 'Sweep', personIds: [person.id], recurrence: everyDay('2020-01-01') });
+    const yesterday = ymd(new Date(Date.now() - 86_400_000));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/chores/${chore.id}/done`,
+      payload: { personId: person.id, done: true, date: yesterday },
+    });
+    assert.equal(response.statusCode, 400);
   });
 });
 

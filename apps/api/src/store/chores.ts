@@ -265,15 +265,17 @@ export class CompletionOutOfRange extends Error {}
  * Sunday's period, so the streak finds it when Sunday comes, while `completed_at`
  * still records the Friday it actually happened.
  *
- * Forward only, and no further than a week. The past stays a record — if
- * yesterday could be edited, a broken streak would always be one tap from being
- * un-broken, and the whole thing would stop meaning anything.
+ * Forward only, and no further than a week, unless `force` is set — a parent's
+ * correction for a chore that really was done, gated behind the PIN at the
+ * route layer rather than here. Without that escape hatch a broken streak
+ * would never be fixable, but without the PIN it would never mean anything.
  */
 export function setChoreDone(
   choreId: string,
   personId: string,
   done: boolean,
   on = new Date(),
+  opts: { force?: boolean } = {},
 ): BoardChore | null {
   const assigned = db
     .prepare<[string, string], { n: number }>(
@@ -288,8 +290,8 @@ export function setChoreDone(
   const { choreReset } = getSettings();
 
   // The current period is always writable, however the board is reset; beyond
-  // it, only the week ahead is.
-  if (periodKey(choreReset) !== periodKey(choreReset, on)) {
+  // it, only the week ahead is — or any day at all, forced.
+  if (!opts.force && periodKey(choreReset) !== periodKey(choreReset, on)) {
     const ahead = daysAhead(on);
     if (ahead < 0) {
       throw new CompletionOutOfRange('That day is a record and cannot be changed');

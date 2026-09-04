@@ -3,15 +3,14 @@ import {
   type Chore,
   type GoogleAccount,
   type Person,
-  type PointEvent,
   type Settings,
   type SubscribedCalendar,
   describeRecurrence,
 } from '@dashboard/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type Board, type ImmichAlbum, type ImmichHealth, type PointLedger, type VersionInfo, api } from '../../api';
+import { type Board, type ImmichAlbum, type ImmichHealth, type VersionInfo, api } from '../../api';
 import { displayVersion } from '../../components/UpdateNotice';
-import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from '../../components/Modal';
+import { Field, Modal, fieldStyle } from '../../components/Modal';
 import { PickerField } from '../../components/pickers';
 import { Avatar, Button, Icon, Switch, TapButton } from '../../components/ui';
 import { EASE, type IconName, col, deep, soft } from '../../theme';
@@ -23,7 +22,7 @@ const SECTIONS: Array<{ id: SettingsSection; label: string; sub: string; icon: I
   { id: 'family', label: 'Family', sub: 'Everyone in the house', icon: 'star' },
   { id: 'calendar', label: 'Calendar', sub: 'Google accounts and subscriptions', icon: 'calendar' },
   { id: 'chores', label: 'Chores', sub: 'Boards, streaks, and the chore list', icon: 'check' },
-  { id: 'points', label: 'Points', sub: 'Earning, spending, and history', icon: 'gift' },
+  { id: 'points', label: 'Points', sub: 'Extra jobs and rewards', icon: 'gift' },
   { id: 'display', label: 'Display', sub: 'Theme and frame mode', icon: 'bulb' },
   { id: 'security', label: 'Parent PIN', sub: 'Who can change these settings', icon: 'lock' },
 ];
@@ -419,7 +418,6 @@ function ChoresSection({
   say,
   onSettingsChange,
   onPeopleChange,
-  onBoardChange,
   onEditChore,
 }: Props) {
   const patchSettings = async (patch: Partial<Settings>) => {
@@ -453,7 +451,7 @@ function ChoresSection({
       <Panel
         title="Chore boards"
         delay={40}
-        sub="Parents can be left off entirely. Pause a streak while someone is away and it neither grows nor breaks."
+        sub="Parents can be left off entirely. Freeze a streak from their profile on the Chores tab while someone is away."
       >
         {people.map((p) => {
           const streak = board.streaks.find((s) => s.personId === p.id);
@@ -481,25 +479,6 @@ function ChoresSection({
                   try {
                     await api.updatePerson(p.id, { onChores });
                     await onPeopleChange();
-                  } catch (err) {
-                    say(err instanceof Error ? err.message : 'Could not save', 25);
-                  }
-                }}
-              />
-              {/* Reads as "the streak is running", so both toggles mean the
-                  same thing when they are on. Someone with no board has no
-                  streak to run, so theirs is shown but cannot be moved. */}
-              <SwitchCell
-                caption="Streak"
-                night={night}
-                label={`Keep ${p.name}'s streak running`}
-                disabled={!p.onChores}
-                on={p.onChores && !streak?.paused}
-                onChange={async (running) => {
-                  try {
-                    await api.setStreakPaused(p.id, !running);
-                    await onBoardChange();
-                    say(running ? `${p.name}'s streak resumes` : `${p.name}'s streak is paused`, p.hue);
                   } catch (err) {
                     say(err instanceof Error ? err.message : 'Could not save', 25);
                   }
@@ -695,13 +674,6 @@ function AvatarStack({ people, night }: { people: Person[]; night: boolean }) {
 
 // ---------- points ----------
 
-/** What each kind of ledger entry is called in front of a parent. */
-const LEDGER_KIND: Record<PointEvent['refType'], string> = {
-  claim: 'Extra job',
-  redemption: 'Reward claimed',
-  manual: 'Manual adjustment',
-};
-
 /**
  * Everything that moves a balance, in the order points travel: earned on an
  * extra job, spent on a reward, recorded on the ledger.
@@ -710,7 +682,6 @@ const LEDGER_KIND: Record<PointEvent['refType'], string> = {
  * nothing, so the only work in this section is work that pays.
  */
 function PointsSection({
-  people,
   board,
   settings,
   night,
@@ -718,7 +689,6 @@ function PointsSection({
   onSettingsChange,
   onEditExtra,
   onEditReward,
-  onBoardChange,
 }: Props) {
   const patchSettings = async (patch: Partial<Settings>) => {
     onSettingsChange({ ...settings, ...patch });
@@ -737,6 +707,20 @@ function PointsSection({
         sub="The only work that earns — kids pick these up for points"
         addLabel="+ New extra job"
         onAdd={() => onEditExtra(null)}
+        headerAction={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 'none' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 14.5, fontWeight: 800 }}>Claimable</div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink2)', fontWeight: 600 }}>Shows in kids&rsquo; lists</div>
+            </div>
+            <Switch
+              night={night}
+              on={settings.claimExtras}
+              label="Kids can claim extra jobs"
+              onChange={(claimExtras) => void patchSettings({ claimExtras })}
+            />
+          </div>
+        }
       >
         {board.extras.map((extra) => (
           <ItemRow
@@ -752,13 +736,6 @@ function PointsSection({
             No extra jobs yet. Add the first one below.
           </div>
         )}
-        <ToggleRow
-          night={night}
-          label="Kids can claim extra jobs"
-          sub="Extra jobs show in the kid's own list"
-          on={settings.claimExtras}
-          onChange={(claimExtras) => void patchSettings({ claimExtras })}
-        />
       </Panel>
 
       <Panel
@@ -783,308 +760,8 @@ function PointsSection({
           </div>
         )}
       </Panel>
-
-      <LedgerPanel people={people} night={night} say={say} onBoardChange={onBoardChange} />
     </>
   );
-}
-
-/**
- * One person's points: what they have, how it got there, and a way to correct
- * it by hand.
- *
- * The ledger is read from the server rather than assembled from the board,
- * because the board only carries a balance and the most recent redemptions —
- * the history a parent needs to answer "where did those points go" lives in
- * `point_events` and nowhere else.
- */
-function LedgerPanel({
-  people,
-  night,
-  say,
-  onBoardChange,
-}: {
-  people: Person[];
-  night: boolean;
-  say: (text: string, hue?: number) => void;
-  onBoardChange: () => Promise<void>;
-}) {
-  const [personId, setPersonId] = useState<string | null>(null);
-  const [ledger, setLedger] = useState<PointLedger | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [adjusting, setAdjusting] = useState(false);
-
-  // Whoever is selected has to stay someone who still exists, so deleting a
-  // person cannot leave this panel reading an empty history forever.
-  const selected = people.find((p) => p.id === personId) ?? people[0] ?? null;
-
-  useEffect(() => {
-    if (!selected) return;
-    let live = true;
-    setStatus('loading');
-    api
-      .pointHistory(selected.id)
-      .then((data) => {
-        if (!live) return;
-        setLedger(data);
-        setStatus('ready');
-      })
-      .catch(() => live && setStatus('error'));
-    return () => {
-      live = false;
-    };
-  }, [selected]);
-
-  /** Reports whether it saved, so the dialog stays open on a failure. */
-  const adjust = async (delta: number, reason: string): Promise<boolean> => {
-    if (!selected) return false;
-    try {
-      const next = await api.adjustPoints(selected.id, delta, reason || 'Manual adjustment');
-      setLedger(next);
-      setStatus('ready');
-      // Every other balance on screen is the board's copy of this number.
-      await onBoardChange();
-      say(`${delta > 0 ? '+' : '−'}${Math.abs(delta)} for ${selected.name}`, selected.hue);
-      return true;
-    } catch (err) {
-      say(err instanceof Error ? err.message : 'That did not save', 25);
-      return false;
-    }
-  };
-
-  if (people.length === 0) {
-    return (
-      <Panel title="History" sub="Add someone in Family first" delay={80}>
-        <div style={{ padding: '6px 2px', color: 'var(--ink2)', fontWeight: 700 }}>Nobody to show yet.</div>
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel
-      title="History"
-      sub="Everything that has moved this person's balance, newest first"
-      delay={80}
-    >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-        {people.map((p) => {
-          const on = p.id === selected?.id;
-          return (
-            <TapButton
-              key={p.id}
-              onClick={() => setPersonId(p.id)}
-              aria-pressed={on}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                minHeight: 56,
-                padding: '8px 16px 8px 8px',
-                borderRadius: 18,
-                border: `1px solid ${on ? 'transparent' : 'var(--line)'}`,
-                background: on ? soft(p.hue, night) : 'transparent',
-                color: on ? deep(p.hue, night) : 'var(--ink2)',
-                fontSize: 16.5,
-                fontWeight: 800,
-              }}
-            >
-              <Avatar name={p.name} hue={p.hue} night={night} size={38} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
-              {p.name}
-            </TapButton>
-          );
-        })}
-      </div>
-
-      {selected && (
-        <div style={rowStyle}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>{selected.name}&rsquo;s balance</div>
-            <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
-              {status === 'ready' ? 'Sum of every entry below' : emptyNote(status, '')}
-            </div>
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: deep(148, night) }}>
-            {status === 'ready' && ledger ? `${ledger.points} pts` : '—'}
-          </div>
-        </div>
-      )}
-
-      {selected && (
-        <div style={rowStyle}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>Adjust by hand</div>
-            <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
-              Goes on the history with today&rsquo;s date, so it can always be explained
-            </div>
-          </div>
-          <Button
-            variant="primary"
-            disabled={status !== 'ready'}
-            onClick={() => setAdjusting(true)}
-            style={{ flex: 'none' }}
-          >
-            Adjust points
-          </Button>
-        </div>
-      )}
-
-      {status !== 'ready' && (
-        <div style={{ padding: '6px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
-          {emptyNote(status, '')}
-        </div>
-      )}
-      {status === 'ready' && ledger?.events.length === 0 && (
-        <div style={{ padding: '6px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
-          Nothing has moved {selected?.name}&rsquo;s points yet.
-        </div>
-      )}
-      {status === 'ready' &&
-        ledger?.events.map((event) => {
-          const up = event.delta > 0;
-          return (
-            <div key={event.id} style={rowStyle}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 17, fontWeight: 800 }}>{event.reason}</div>
-                <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
-                  {LEDGER_KIND[event.refType]} ·{' '}
-                  <time dateTime={event.createdAt}>{stamp(event.createdAt)}</time>
-                </div>
-              </div>
-              <div
-                style={{
-                  flex: 'none',
-                  fontSize: 18,
-                  fontWeight: 800,
-                  color: up ? deep(148, night) : deep(25, night),
-                }}
-              >
-                {up ? '+' : '−'}
-                {Math.abs(event.delta)}
-              </div>
-            </div>
-          );
-        })}
-
-      {adjusting && selected && (
-        <AdjustPointsDialog
-          person={selected}
-          balance={ledger?.points ?? 0}
-          night={night}
-          onClose={() => setAdjusting(false)}
-          onSave={adjust}
-        />
-      )}
-    </Panel>
-  );
-}
-
-/**
- * The manual adjustment, as a dialog.
- *
- * One signed number rather than an amount plus a direction: a parent taking
- * points away writes `-10`, which is also how it reads back on the ledger.
- */
-function AdjustPointsDialog({
-  person,
-  balance,
-  night,
-  onClose,
-  onSave,
-}: {
-  person: Person;
-  balance: number;
-  night: boolean;
-  onClose: () => void;
-  onSave: (delta: number, reason: string) => Promise<boolean>;
-}) {
-  const [amount, setAmount] = useState('');
-  const [reason, setReason] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  // `-` on its own parses as NaN, which is what keeps Save disabled while
-  // somebody is still typing the number after the sign.
-  const delta = /^-?\d+$/.test(amount) ? Number(amount) : Number.NaN;
-  const valid = Number.isInteger(delta) && delta !== 0;
-
-  const submit = async () => {
-    if (!valid || saving) return;
-    setSaving(true);
-    if (await onSave(delta, reason.trim())) onClose();
-    else setSaving(false);
-  };
-
-  return (
-    <Modal
-      title={`Adjust ${person.name}'s points`}
-      sub="A negative number takes points away"
-      onClose={onClose}
-      width={460}
-      footer={
-        <>
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton onClick={() => void submit()} disabled={!valid || saving}>
-            {saving ? 'Saving…' : 'Save adjustment'}
-          </PrimaryButton>
-        </>
-      }
-    >
-      <Field label="Points" sub="For example 10, or -10 to take ten away">
-        <input
-          // `text`, not `number`: a number spinner on a wall tablet is a
-          // three-pixel target, and it lets a stray `e` or `.` through.
-          type="text"
-          inputMode="text"
-          autoComplete="off"
-          placeholder="0"
-          value={amount}
-          onChange={(e) => setAmount(signedDigits(e.target.value))}
-          onKeyDown={(e) => e.key === 'Enter' && void submit()}
-          style={{ ...fieldStyle, fontSize: 22 }}
-        />
-      </Field>
-
-      <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--ink2)' }}>
-        {valid ? (
-          <>
-            {balance} → <span style={{ color: deep(delta > 0 ? 148 : 25, night) }}>{balance + delta}</span> pts
-          </>
-        ) : (
-          <>Balance is {balance} pts</>
-        )}
-      </div>
-
-      <Field label="Why" sub="Optional, but it is what makes the entry mean something later">
-        <input
-          type="text"
-          placeholder="Manual adjustment"
-          value={reason}
-          onChange={(e) => setReason(e.target.value.slice(0, 200))}
-          onKeyDown={(e) => e.key === 'Enter' && void submit()}
-          style={fieldStyle}
-        />
-      </Field>
-    </Modal>
-  );
-}
-
-/** Digits with at most one leading minus — anything else never reaches state. */
-function signedDigits(raw: string): string {
-  const negative = raw.trimStart().startsWith('-');
-  const digits = raw.replace(/\D/g, '').slice(0, 6);
-  return digits || negative ? `${negative ? '-' : ''}${digits}` : '';
-}
-
-/** A ledger entry's moment, at the precision a parent actually reads. */
-function stamp(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return 'Unknown date';
-  return at.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: at.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 }
 
 // ---------- display ----------

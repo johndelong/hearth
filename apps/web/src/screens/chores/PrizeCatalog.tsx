@@ -1,5 +1,5 @@
 import type { Person, Redemption, Reward } from '@dashboard/shared';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Avatar, Button, Icon, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
 
@@ -32,8 +32,7 @@ export function PrizeCatalog({
   onClose: () => void;
 }) {
   const kids = people.filter((p) => p.role === 'kid');
-  const [personId, setPersonId] = useState(initialPersonId);
-  const person = kids.find((p) => p.id === personId) ?? kids[0];
+  const person = kids.find((p) => p.id === initialPersonId) ?? kids[0];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -105,37 +104,6 @@ export function PrizeCatalog({
             <Icon name="x" size={17} />
           </TapButton>
         </header>
-
-        {/* Switch between kids without closing the sheet. */}
-        {kids.length > 1 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
-            {kids.map((kid) => {
-              const on = kid.id === person.id;
-              return (
-                <TapButton
-                  key={kid.id}
-                  onClick={() => setPersonId(kid.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '8px 14px 8px 8px',
-                    borderRadius: 999,
-                    border: on ? '1px solid transparent' : '1px solid var(--line)',
-                    background: on ? soft(kid.hue, night) : 'transparent',
-                    color: on ? deep(kid.hue, night) : 'var(--ink2)',
-                  }}
-                >
-                  <Avatar name={kid.name} hue={kid.hue} night={night} size={30} avatarUrl={kid.avatarUrl} avatarKey={kid.avatarKey} />
-                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.15 }}>
-                    <span style={{ fontSize: 15, fontWeight: 800 }}>{kid.name}</span>
-                    <span style={{ fontSize: 12, fontWeight: 800, opacity: 0.7 }}>{pointsFor(kid.id)} pts</span>
-                  </span>
-                </TapButton>
-              );
-            })}
-          </div>
-        )}
 
         <div
           style={{

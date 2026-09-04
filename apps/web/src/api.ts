@@ -152,12 +152,17 @@ export const api = {
   board: (date?: string) => call<Board>(`/api/chores/board${date ? `?date=${date}` : ''}`),
   setStreakPaused: (personId: string, paused: boolean) =>
     post<Streak>(`/api/people/${personId}/streak-pause`, { paused }),
-  /** `date` names the occurrence being satisfied — omit it to mean today. */
-  setChoreDone: (id: string, personId: string, done: boolean, date?: string) =>
+  /**
+   * `date` names the occurrence being satisfied — omit it to mean today.
+   * `force` skips the writable-range check for a parent's correction, and
+   * needs the PIN — the server enforces that, this is just the ask.
+   */
+  setChoreDone: (id: string, personId: string, done: boolean, date?: string, force?: boolean) =>
     post<{ chore: BoardChore; points: PointsBalance[] }>(`/api/chores/${id}/done`, {
       personId,
       done,
       date,
+      force,
     }),
   /** Every chore, including ones not due today. Settings manages against this. */
   allChores: () => call<Chore[]>('/api/chores'),

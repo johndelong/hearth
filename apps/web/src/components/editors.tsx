@@ -12,6 +12,7 @@ import {
 import { useState } from 'react';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
 import { AVATAR_PACK, AvatarArt, avatarLabel, isAvatarKey } from './AvatarArt';
+import { EmojiField } from './EmojiPicker';
 import { PeoplePicker } from './pickers';
 import { RepeatPicker } from './RepeatPicker';
 import { Avatar, Button, TapButton } from './ui';
@@ -425,9 +426,6 @@ export function ExtraEditor({
   );
 }
 
-/** A quick palette so a prize can be given a face without hunting for a URL. */
-const PRIZE_ICONS = ['🍦', '🎬', '🛼', '🧪', '📓', '🎮', '🍕', '🎨', '🧸', '⚽', '🎧', '🚲', '🍪', '🎪'];
-
 export function RewardEditor({
   reward,
   onSave,
@@ -481,26 +479,12 @@ export function RewardEditor({
         />
       </Field>
 
-      <Field label="Icon">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {PRIZE_ICONS.map((choice) => (
-            <TapButton
-              key={choice}
-              onClick={() => setIcon(icon === choice ? '' : choice)}
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 16,
-                fontSize: 26,
-                lineHeight: 1,
-                border: icon === choice ? '2px solid var(--ink)' : '1px solid var(--line)',
-              }}
-            >
-              {choice}
-            </TapButton>
-          ))}
-        </div>
-      </Field>
+      <EmojiField
+        label="Icon"
+        value={icon}
+        placeholder="Choose an emoji"
+        onChange={setIcon}
+      />
 
       <Field label="Photo URL (optional — used instead of the icon)">
         <input

@@ -13,6 +13,7 @@ import type { CalView } from './screens/calendar/useEvents';
 import { rangeFor, useEvents } from './screens/calendar/useEvents';
 import { ChoresScreen } from './screens/chores/ChoresScreen';
 import { PrizeCatalog } from './screens/chores/PrizeCatalog';
+import { ProfileDialog } from './screens/chores/ProfileDialog';
 import { SettingsScreen, type SettingsSection } from './screens/settings/SettingsScreen';
 import { type Tab, useAppData, useClock, useIdle, useNight, useToast } from './state';
 import { EASE, type IconName, MONTHS_LONG } from './theme';
@@ -25,6 +26,7 @@ type Editor =
   | { kind: 'event'; event: CalendarEvent | null }
   | { kind: 'pickExtra'; person: Person }
   | { kind: 'catalog'; person: Person }
+  | { kind: 'profile'; person: Person }
   | null;
 
 export default function App() {
@@ -56,7 +58,7 @@ export default function App() {
   const [editor, setEditor] = useState<Editor>(null);
   const [confetti, setConfetti] = useState<number[] | null>(null);
   const [unlocked, setUnlocked] = useState(true);
-  const [pinPrompt, setPinPrompt] = useState(false);
+  const [pinPrompt, setPinPrompt] = useState<{ onReady: () => void } | null>(null);
   const [calendarNonce, setCalendarNonce] = useState(0);
 
   // Frame mode needs today's events regardless of which tab is open.
@@ -110,14 +112,21 @@ export default function App() {
     window.setTimeout(() => setConfetti(null), 3200);
   }, []);
 
-  /** Settings is the one tab that can be locked behind the parent PIN. */
-  const openSettings = () => {
+  /**
+   * Runs `onReady` now if the parent PIN is already unlocked, or prompts for
+   * it first — used both to enter Settings and for parent-only actions
+   * reachable from a kid-facing screen, like adjusting a point balance.
+   */
+  const requireParent = (onReady: () => void) => {
     if (settings.pinSet && !unlocked) {
-      setPinPrompt(true);
+      setPinPrompt({ onReady });
       return;
     }
-    setTab('settings');
+    onReady();
   };
+
+  /** Settings is the one tab that can be locked behind the parent PIN. */
+  const openSettings = () => requireParent(() => setTab('settings'));
 
   // Only today's board can have anything "left" — a past day is a record.
   const openChores = useMemo(() => {
@@ -334,6 +343,8 @@ export default function App() {
               }}
               onPickExtra={(person) => setEditor({ kind: 'pickExtra', person })}
               onOpenCatalog={(person) => setEditor({ kind: 'catalog', person })}
+              onOpenProfile={(person) => setEditor({ kind: 'profile', person })}
+              onRequireUnlock={requireParent}
             />
           )}
 
@@ -386,10 +397,11 @@ export default function App() {
         <PinPad
           onUnlocked={() => {
             setUnlocked(true);
-            setPinPrompt(false);
-            setTab('settings');
+            const { onReady } = pinPrompt;
+            setPinPrompt(null);
+            onReady();
           }}
-          onCancel={() => setPinPrompt(false)}
+          onCancel={() => setPinPrompt(null)}
         />
       )}
 
@@ -408,7 +420,7 @@ export default function App() {
       } catch (err) {
         if (err instanceof ApiError && err.needsPin) {
           setUnlocked(false);
-          setPinPrompt(true);
+          setPinPrompt({ onReady: () => setTab('settings') });
           say('Settings locked — enter the PIN', 25);
           return;
         }
@@ -591,6 +603,21 @@ export default function App() {
             }
           />
         );
+
+      case 'profile': {
+        const profilePerson = people.find((p) => p.id === editor.person.id) ?? editor.person;
+        return (
+          <ProfileDialog
+            person={profilePerson}
+            streak={board.streaks.find((s) => s.personId === profilePerson.id) ?? null}
+            night={night}
+            say={say}
+            onClose={close}
+            onBoardChange={data.reloadBoard}
+            onRequireUnlock={requireParent}
+          />
+        );
+      }
     }
   }
 }

@@ -35,6 +35,7 @@ export function ChoreRow({
   readOnly,
   readOnlyHint,
   onToggle,
+  onBlocked,
   onOpen,
   onRemove,
 }: {
@@ -53,6 +54,8 @@ export function ChoreRow({
   /** Why it cannot be tapped — a past day reads differently from one too far off. */
   readOnlyHint?: string;
   onToggle: () => void;
+  /** A read-only row is still tappable — this is what a tap does instead of toggling. */
+  onBlocked?: () => void;
   onOpen: () => void;
   /** Bonus items only. Its absence is what makes a row un-swipeable. */
   onRemove?: () => void;
@@ -230,11 +233,15 @@ export function ChoreRow({
           type="button"
           aria-label={done ? `Uncheck ${title}` : `Check off ${title}`}
           aria-pressed={done}
-          disabled={busy || readOnly}
+          disabled={busy}
           title={readOnly ? (readOnlyHint ?? 'This day is a record — it cannot be changed') : undefined}
           onClick={(e) => {
             e.stopPropagation();
-            if (swiping || readOnly) return;
+            if (swiping) return;
+            if (readOnly) {
+              onBlocked?.();
+              return;
+            }
             onToggle();
           }}
           style={{
@@ -247,7 +254,7 @@ export function ChoreRow({
             border: 'none',
             borderRadius: '18px 0 0 18px',
             background: 'transparent',
-            cursor: busy || readOnly ? 'default' : 'pointer',
+            cursor: busy ? 'default' : 'pointer',
             opacity: readOnly ? 0.75 : 1,
           }}
         >

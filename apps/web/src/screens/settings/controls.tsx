@@ -7,6 +7,7 @@ export function Panel({
   children,
   addLabel,
   onAdd,
+  headerAction,
   delay = 0,
 }: {
   title: string;
@@ -14,6 +15,8 @@ export function Panel({
   children: ReactNode;
   addLabel?: string;
   onAdd?: () => void;
+  /** A control that belongs to the section as a whole, not to any one row — a switch, say. */
+  headerAction?: ReactNode;
   delay?: number;
 }) {
   return (
@@ -22,9 +25,12 @@ export function Panel({
       delay={delay}
       style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
     >
-      <div>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 21, fontWeight: 600 }}>{title}</div>
-        {sub && <div style={{ marginTop: 3, fontSize: 15, color: 'var(--ink2)', fontWeight: 600 }}>{sub}</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 21, fontWeight: 600 }}>{title}</div>
+          {sub && <div style={{ marginTop: 3, fontSize: 15, color: 'var(--ink2)', fontWeight: 600 }}>{sub}</div>}
+        </div>
+        {headerAction}
       </div>
       {children}
       {addLabel && onAdd && (

@@ -78,8 +78,10 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
   //
   // `date` names the occurrence being satisfied rather than the day of the tap,
   // which is how a chore gets done ahead of time. The store decides how far
-  // ahead is allowed.
-  app.post<{ Params: { id: string }; Body: { personId?: string; done?: boolean; date?: string } }>(
+  // ahead is allowed — `force` asks it to skip that check entirely, for a
+  // parent correcting a day the board already closed the book on, and is the
+  // one thing here that still needs the PIN.
+  app.post<{ Params: { id: string }; Body: { personId?: string; done?: boolean; date?: string; force?: boolean } }>(
     '/api/chores/:id/done',
     async (request, reply) => {
       const personId = request.body?.personId;
@@ -92,9 +94,16 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
       const on = raw ? new Date(`${raw}T00:00:00`) : new Date();
       if (Number.isNaN(on.getTime())) return reply.code(400).send({ error: 'Unparseable date' });
 
+      const force = request.body?.force === true;
+      if (force) {
+        await requireParent(request, reply);
+        if (reply.sent) return;
+      }
+
       try {
-        const chore = setChoreDone(request.params.id, personId, request.body?.done ?? true, on);
+        const chore = setChoreDone(request.params.id, personId, request.body?.done ?? true, on, { force });
         if (!chore) return reply.code(404).send({ error: 'Unknown chore for that person that day' });
+        if (force) recordActivity('chore.done_override', request.params.id, { personId, date: raw ?? null, done: request.body?.done ?? true });
         return { chore, points: listPoints() };
       } catch (err) {
         if (err instanceof CompletionOutOfRange) return reply.code(400).send({ error: err.message });
@@ -137,6 +146,22 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
       throw err;
     }
   });
+
+  // Reading a balance is a normal kid interaction, same as the prize catalog —
+  // only adjusting one by hand is a parent's call.
+  app.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+    '/api/points/:id/history',
+    async (request, reply) => {
+      if (!getPerson(request.params.id)) return reply.code(404).send({ error: 'Unknown person' });
+      const asked = Number(request.query.limit ?? 100);
+      const limit = Number.isFinite(asked) ? Math.min(Math.max(Math.trunc(asked), 1), 500) : 100;
+      return {
+        personId: request.params.id,
+        points: pointsFor(request.params.id),
+        events: listPointEvents(request.params.id, limit),
+      };
+    },
+  );
 
   // --- everything below changes the rules, so it sits behind the PIN ---
 
@@ -205,21 +230,6 @@ export async function choreRoutes(app: FastifyInstance): Promise<void> {
         else pauseStreak(request.params.id);
         recordActivity(request.body?.paused === false ? 'streak.resumed' : 'streak.paused', request.params.id);
         return listStreaks([request.params.id])[0];
-      },
-    );
-
-    // One person's ledger, so a parent can account for the number on the board.
-    guarded.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
-      '/api/points/:id/history',
-      async (request, reply) => {
-        if (!getPerson(request.params.id)) return reply.code(404).send({ error: 'Unknown person' });
-        const asked = Number(request.query.limit ?? 100);
-        const limit = Number.isFinite(asked) ? Math.min(Math.max(Math.trunc(asked), 1), 500) : 100;
-        return {
-          personId: request.params.id,
-          points: pointsFor(request.params.id),
-          events: listPointEvents(request.params.id, limit),
-        };
       },
     );
 

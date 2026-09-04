@@ -21,7 +21,9 @@ export function ChoreDetails({
   person,
   night,
   readOnly,
+  readOnlyHint,
   onToggle,
+  onOverride,
   onClose,
 }: {
   title: string;
@@ -34,7 +36,11 @@ export function ChoreDetails({
   person: Person;
   night: boolean;
   readOnly?: boolean;
+  /** Why it cannot be tapped — shown next to the override, so the ask makes sense. */
+  readOnlyHint?: string;
   onToggle: () => void;
+  /** A parent's PIN-gated way through `readOnly`, when there is one to offer. */
+  onOverride?: () => void;
   onClose: () => void;
 }) {
   return (
@@ -60,6 +66,12 @@ export function ChoreDetails({
               {done ? 'Mark not done' : 'Check it off'}
             </Button>
           )}
+          {readOnly && onOverride && (
+            <Button size="lg" onClick={onOverride}>
+              <Icon name="lock" size={17} />
+              Override
+            </Button>
+          )}
         </>
       }
     >
@@ -81,6 +93,12 @@ export function ChoreDetails({
           </Pill>
         )}
       </div>
+
+      {readOnly && (
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink2)' }}>
+          {readOnlyHint ?? 'This day is a record and cannot be changed.'}
+        </div>
+      )}
 
       <Section label="What it is" body={description} empty="No description yet." />
       <Section label="How to do it" body={instructions} empty="No special instructions for this one." />

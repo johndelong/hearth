@@ -10,6 +10,7 @@ import {
 } from '@dashboard/shared';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Board, api } from '../../api';
+import { GhostButton, Modal, PrimaryButton } from '../../components/Modal';
 import { Avatar, Card, Icon, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
 import { ChoreDetails } from './ChoreDetails';
@@ -27,6 +28,8 @@ interface Props {
   onRemoveClaim: (claimId: string, person: Person) => void;
   onPickExtra: (person: Person) => void;
   onOpenCatalog: (person: Person) => void;
+  onOpenProfile: (person: Person) => void;
+  onRequireUnlock: (onReady: () => void) => void;
 }
 
 /**
@@ -100,6 +103,8 @@ export function ChoresScreen({
   onRemoveClaim,
   onPickExtra,
   onOpenCatalog,
+  onOpenProfile,
+  onRequireUnlock,
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   /**
@@ -107,6 +112,8 @@ export function ChoresScreen({
    * checking it off from inside the modal updates what the modal is showing.
    */
   const [opened, setOpened] = useState<{ personId: string; rowKey: string } | null>(null);
+  /** A tap that couldn't check anything off — why, and what it was trying to do. */
+  const [blocked, setBlocked] = useState<{ person: Person; row: Row } | null>(null);
   /** Which card is throwing confetti, which row is shimmering, who just scored. */
   const [bursting, setBursting] = useState<string | null>(null);
   const [shimmer, setShimmer] = useState<string | null>(null);
@@ -140,6 +147,11 @@ export function ChoresScreen({
   );
 
   const boards = useMemo(() => people.filter((p) => p.onChores), [people]);
+
+  /** Why today's tap didn't land — the same reason whether it's a tooltip or a popup. */
+  const readOnlyReason = board.daysAhead > 0
+    ? 'Too far off — chores can be done up to a week ahead'
+    : 'This day is a record and cannot be changed';
 
   const pointsFor = (personId: string) => board.points.find((p) => p.personId === personId)?.points ?? 0;
 
@@ -183,8 +195,9 @@ export function ChoresScreen({
       })),
   ];
 
-  const toggle = async (person: Person, row: Row) => {
-    if (busy || board.readOnly) return;
+  const toggle = async (person: Person, row: Row, opts: { force?: boolean } = {}) => {
+    if (busy) return;
+    if (board.readOnly && !opts.force) return;
     setBusy(row.key);
     const next = !row.done;
 
@@ -213,7 +226,7 @@ export function ChoresScreen({
     try {
       const res =
         row.kind === 'chore'
-          ? await api.setChoreDone(row.id, person.id, next, board.today ? undefined : board.date)
+          ? await api.setChoreDone(row.id, person.id, next, board.today ? undefined : board.date, opts.force)
           : await api.setClaimDone(row.id, next);
       onBoardChange({ ...optimistic, points: res.points });
 
@@ -316,7 +329,13 @@ export function ChoresScreen({
             {bursting === person.id && <CardConfetti hue={person.hue} night={night} />}
 
             <header style={{ display: 'flex', alignItems: 'flex-start', gap: 13 }}>
-              <Avatar name={person.name} hue={person.hue} night={night} size={56} avatarUrl={person.avatarUrl} avatarKey={person.avatarKey} ring />
+              <TapButton
+                onClick={() => onOpenProfile(person)}
+                title={`${person.name}'s points`}
+                style={{ flex: 'none', padding: 0, borderRadius: '50%' }}
+              >
+                <Avatar name={person.name} hue={person.hue} night={night} size={56} avatarUrl={person.avatarUrl} avatarKey={person.avatarKey} ring />
+              </TapButton>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div
                   style={{
@@ -406,12 +425,9 @@ export function ChoresScreen({
                       busy={busy === row.key}
                       shimmer={shimmer === row.key}
                       readOnly={board.readOnly}
-                      readOnlyHint={
-                        board.daysAhead > 0
-                          ? 'Too far off — chores can be done up to a week ahead'
-                          : 'This day is a record — it cannot be changed'
-                      }
+                      readOnlyHint={readOnlyReason}
                       onToggle={() => void toggle(person, row)}
+                      onBlocked={() => setBlocked({ person, row })}
                       onOpen={() => setOpened({ personId: person.id, rowKey: row.key })}
                       onRemove={
                         row.kind === 'claim' && !board.readOnly
@@ -472,10 +488,68 @@ export function ChoresScreen({
         person={openedPerson}
         night={night}
         readOnly={board.readOnly}
+        readOnlyHint={readOnlyReason}
         onToggle={() => void toggle(openedPerson, openedRow)}
+        onOverride={() =>
+          onRequireUnlock(() => {
+            void toggle(openedPerson, openedRow, { force: true });
+            setOpened(null);
+          })
+        }
         onClose={() => setOpened(null)}
       />
     )}
+
+    {blocked && (
+      <BlockedRowDialog
+        title={blocked.row.title}
+        reason={readOnlyReason}
+        onClose={() => setBlocked(null)}
+        onOverride={() => {
+          const { person, row } = blocked;
+          setBlocked(null);
+          onRequireUnlock(() => void toggle(person, row, { force: true }));
+        }}
+      />
+    )}
     </>
+  );
+}
+
+/**
+ * Why a tap didn't check anything off, since a disabled row with no
+ * explanation just looks broken. The override is a parent's call — a chore
+ * that really was done shouldn't stay wrong just because the day closed.
+ */
+function BlockedRowDialog({
+  title,
+  reason,
+  onOverride,
+  onClose,
+}: {
+  title: string;
+  reason: string;
+  onOverride: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      title={`Can't check off "${title}"`}
+      sub={reason}
+      onClose={onClose}
+      footer={
+        <>
+          <GhostButton onClick={onClose}>Close</GhostButton>
+          <PrimaryButton onClick={onOverride}>
+            <Icon name="lock" size={17} />
+            Override
+          </PrimaryButton>
+        </>
+      }
+    >
+      <div style={{ fontSize: 15.5, color: 'var(--ink2)', fontWeight: 600 }}>
+        If it really was done, a parent can override this with the PIN.
+      </div>
+    </Modal>
   );
 }
