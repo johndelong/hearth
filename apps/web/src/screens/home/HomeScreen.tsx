@@ -102,7 +102,7 @@ export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
       )}
       <AttentionPanel items={dashboard.items} night={night} onOpen={(item) => setDetailEntityId(item.entityId)} />
       <HomeSummary items={dashboard.items} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 32, paddingBottom: 12 }}>
+      <div className="home-sections">
         {DASHBOARD_SECTIONS.map((section) => {
           const items = dashboard.items.filter(section.includes);
           if (!items.length) return null;
@@ -115,7 +115,7 @@ export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
                 <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 650 }}>{section.label}</h2>
                 <span style={{ color: 'var(--ink2)', fontSize: 15, fontWeight: 750 }}>{active ? `${active} active · ` : ''}{items.length}</span>
               </div>
-              <div className="home-grid" style={{ display: 'grid', gridTemplateColumns: section.id === 'climate' ? 'repeat(auto-fill, minmax(300px, 1fr))' : 'repeat(auto-fill, minmax(228px, 1fr))', gap: 14 }}>
+              <div className={`home-grid${section.id === 'climate' ? ' home-grid-climate' : ''}`}>
                 {items.map((item) => item.domain === 'climate'
                   ? <ClimateCard key={item.entityId} item={item} night={night} busy={busyEntityId === item.entityId} onOpen={() => setDetailEntityId(item.entityId)} onAction={(action, value) => void runAction(item, action, value)} />
                   : <HomeCard key={item.entityId} item={item} night={night} busy={busyEntityId === item.entityId} onOpen={() => setDetailEntityId(item.entityId)} onAction={(action, value) => void runAction(item, action, value)} />)}
@@ -209,6 +209,11 @@ function criticalLabels(item: HomeDashboardItem): string[] {
   return [...new Set([item, ...item.related].filter(homeAlertActive).map(criticalLabel))];
 }
 
+function attentionIconFor(item: HomeDashboardItem): IconName {
+  const alert = [item, ...item.related].find(homeAlertActive) ?? item;
+  return homeCategoryFor(alert) === 'batteries' ? 'batteryLow' : iconFor(alert);
+}
+
 function batteryFor(item: HomeDashboardItem): { entity: HomeEntityState; level: number | null } | null {
   const entity = homeCategoryFor(item) === 'batteries' ? item : item.related.find((related) => homeCategoryFor(related) === 'batteries');
   if (!entity) return null;
@@ -234,9 +239,8 @@ function AttentionPanel({ items, night, onOpen }: { items: HomeDashboardItem[]; 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
         {alerts.map((item) => (
           <TapButton key={item.entityId} title={`View ${item.displayName}`} onClick={() => onOpen(item)} style={{ minHeight: 48, padding: '9px 15px', display: 'flex', alignItems: 'center', gap: 10, borderRadius: 999, background: 'var(--card)', color: 'var(--ink)', boxShadow: '0 8px 20px -18px rgba(20,24,40,.65)', fontSize: 15.5, fontWeight: 825 }}>
-            <Icon name={iconFor(item)} size={19} style={{ color: 'var(--danger)' }} />
+            <Icon name={attentionIconFor(item)} size={19} style={{ color: 'var(--danger)' }} />
             <span>{item.displayName}</span>
-            <span style={{ color: 'var(--danger)' }}>{criticalLabels(item).join(' · ')}</span>
           </TapButton>
         ))}
       </div>
@@ -281,9 +285,9 @@ function HomeCard({ item, night, busy, onOpen, onAction }: HomeCardProps) {
   const tone = homeTone(hue, night);
   const warning = homeTone(25, night);
   return (
-    <div style={{ position: 'relative', minHeight: 136, padding: 16, display: 'flex', flexDirection: 'column', gap: 11, borderRadius: 'var(--radius-card)', border: alerts.length ? `1.5px solid ${warning.accent}` : '1px solid transparent', background: alerts.length ? warning.background : active ? tone.background : 'var(--card)', boxShadow: CARD_SHADOW, opacity: item.available ? 1 : .58 }}>
-      <TapButton title={`View ${item.displayName} details`} onClick={onOpen} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: 'var(--radius-card)', zIndex: 0 }}><span /></TapButton>
-      <div style={{ position: 'relative', zIndex: 1, pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', gap: 13 }}>
+    <div className="home-device-card" style={{ border: alerts.length ? `1.5px solid ${warning.accent}` : '1px solid transparent', background: alerts.length ? warning.background : active ? tone.background : 'var(--card)', boxShadow: CARD_SHADOW, opacity: item.available ? 1 : .58 }}>
+      <TapButton className="home-card-hit-area" title={`View ${item.displayName} details`} onClick={onOpen}><span /></TapButton>
+      <div className="home-card-content">
         <TapButton disabled={!item.available || busy} title={action ? (action.risky ? `Open ${item.displayName} controls` : action.label) : `View ${item.displayName}`} onClick={() => { if (action && !action.risky) onAction(action.action); else onOpen(); }} style={{ pointerEvents: 'auto', width: 52, height: 52, display: 'grid', placeItems: 'center', borderRadius: 17, background: alerts.length ? warning.accent : active ? tone.accent : 'var(--chip)', color: alerts.length || active ? '#fff' : 'var(--ink2)' }}>
           <Icon name={iconFor(item)} size={24} />
         </TapButton>
@@ -325,21 +329,21 @@ function ClimateCard({ item, night, busy, onOpen, onAction }: HomeCardProps) {
   const status = mode === 'heat' ? 'Heating' : mode === 'cool' ? 'Cooling' : mode === 'off' ? 'Off' : 'At target';
   const statusIcon: IconName = mode === 'heat' ? 'flame' : mode === 'cool' ? 'snow' : mode === 'off' ? 'power' : 'check';
   return (
-    <div style={{ position: 'relative', minHeight: 405, padding: '24px 26px', display: 'flex', flexDirection: 'column', borderRadius: 32, background: 'var(--card)', boxShadow: CARD_SHADOW, opacity: item.available ? 1 : .58 }}>
-      <TapButton title={`View ${item.displayName} details`} onClick={onOpen} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: 'var(--radius-card)', zIndex: 0 }}><span /></TapButton>
-      <div style={{ position: 'relative', zIndex: 1, pointerEvents: 'none', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+    <div className="home-climate-card" style={{ boxShadow: CARD_SHADOW, opacity: item.available ? 1 : .58 }}>
+      <TapButton className="home-card-hit-area" title={`View ${item.displayName} details`} onClick={onOpen}><span /></TapButton>
+      <div className="home-climate-header">
         <div><div style={{ fontSize: 20, fontWeight: 850 }}>{item.displayName}</div><div style={{ marginTop: 3, color: 'var(--ink2)', fontSize: 15, fontWeight: 700 }}>{target === null ? 'Off' : `${mode === 'cool' ? 'Cool' : mode === 'heat' ? 'Heat' : 'Set'} to ${target}°`}</div></div>
         <div style={{ minHeight: 36, padding: '0 13px', display: 'flex', alignItems: 'center', gap: 7, borderRadius: 999, background: mode === 'off' ? 'var(--chip)' : tone.background, color: mode === 'off' ? 'var(--ink2)' : tone.ink, fontWeight: 825 }}><Icon name={statusIcon} size={17} />{status}</div>
       </div>
-      <div style={{ position: 'relative', zIndex: 1, pointerEvents: 'none', flex: 1, display: 'grid', placeItems: 'center', padding: '14px 0 8px' }}>
-        <div style={{ width: 208, height: 208, display: 'grid', placeItems: 'center', borderRadius: '50%', background: `conic-gradient(from 225deg, ${mode === 'off' ? 'var(--line)' : accent} 0deg ${sweep}deg, var(--line) ${sweep}deg 270deg, transparent 270deg 360deg)` }}>
-          <div style={{ width: 164, height: 164, display: 'grid', placeItems: 'center', alignContent: 'center', borderRadius: '50%', background: 'var(--card)' }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 58, lineHeight: 1, fontWeight: 650 }}>{Number.isFinite(current) ? `${current}°` : '—'}</div>
+      <div className="home-climate-dial-wrap">
+        <div className="home-climate-dial" style={{ background: `conic-gradient(from 225deg, ${mode === 'off' ? 'var(--line)' : accent} 0deg ${sweep}deg, var(--line) ${sweep}deg 270deg, transparent 270deg 360deg)` }}>
+          <div className="home-climate-dial-inner">
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-hero)', lineHeight: 1, fontWeight: 650 }}>{Number.isFinite(current) ? `${current}°` : '—'}</div>
             <div style={{ marginTop: 8, color: 'var(--ink2)', fontSize: 14, fontWeight: 750 }}>{target === null ? 'Off' : mode === 'heat' ? `Heating to ${target}°` : mode === 'cool' ? `Cooling to ${target}°` : `Holding ${target}°`}</div>
           </div>
         </div>
       </div>
-      <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '60px 1fr 60px 60px', alignItems: 'center', gap: 10 }}>
+      <div className="home-climate-controls">
         <ClimateButton label={`Lower ${item.displayName} temperature`} disabled={!item.available || busy || target === null} onClick={() => { if (target !== null) onAction('set_temperature', target - 1); }}>−</ClimateButton>
         <div style={{ textAlign: 'center', color: 'var(--ink2)', fontSize: 13, fontWeight: 750 }}><strong style={{ display: 'block', color: mode === 'off' ? 'var(--ink2)' : tone.ink, fontSize: 21 }}>{target === null ? '—' : `${target}°`}</strong>{Number.isFinite(humidity) ? `${humidity}% humidity` : item.area ?? ''}</div>
         <ClimateButton label={`Raise ${item.displayName} temperature`} disabled={!item.available || busy || target === null} onClick={() => { if (target !== null) onAction('set_temperature', target + 1); }}>+</ClimateButton>
@@ -350,7 +354,7 @@ function ClimateCard({ item, night, busy, onOpen, onAction }: HomeCardProps) {
 }
 
 function ClimateButton({ label, disabled, active = false, onClick, children }: { label: string; disabled: boolean; active?: boolean; onClick: () => void; children: ReactNode }) {
-  return <TapButton title={label} disabled={disabled} onClick={onClick} style={{ width: 60, height: 60, display: 'grid', placeItems: 'center', borderRadius: '50%', background: active ? 'var(--ink2)' : 'var(--chip)', color: active ? 'var(--card)' : 'var(--ink)', fontSize: 27, fontWeight: 500 }}>{children}</TapButton>;
+  return <TapButton title={label} disabled={disabled} onClick={onClick} style={{ width: 'var(--control-xl)', height: 'var(--control-xl)', display: 'grid', placeItems: 'center', borderRadius: '50%', background: active ? 'var(--ink2)' : 'var(--chip)', color: active ? 'var(--card)' : 'var(--ink)', fontSize: 27, fontWeight: 500 }}>{children}</TapButton>;
 }
 
 function HomeLevelControl({ value, night, disabled, onToggle, onCommit }: { value: number; night: boolean; disabled: boolean; onToggle: () => void; onCommit: (value: number) => void }) {

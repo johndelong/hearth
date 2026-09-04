@@ -87,6 +87,7 @@ export function TapButton({
   children,
   onClick,
   onHold,
+  className,
   style,
   disabled,
   title,
@@ -95,6 +96,7 @@ export function TapButton({
   /** Gets the event so a button inside a tappable surface can claim the tap. */
   onClick?: (e: MouseEvent) => void;
   onHold?: () => void;
+  className?: string;
   style?: CSSProperties;
   disabled?: boolean;
   title?: string;
@@ -126,6 +128,7 @@ export function TapButton({
   return (
     <button
       type="button"
+      className={className}
       title={title}
       aria-label={title}
       disabled={disabled}
@@ -281,9 +284,9 @@ export type ButtonVariant = 'primary' | 'ghost' | 'quiet';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const SIZES: Record<ButtonSize, CSSProperties> = {
-  sm: { minHeight: 46, padding: '11px 22px', fontSize: 16 },
-  md: { minHeight: 50, padding: '12px 22px', fontSize: 16.5 },
-  lg: { minHeight: 52, padding: '13px 26px', fontSize: 17 },
+  sm: { minHeight: 'var(--control-sm)', padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-md)' },
+  md: { minHeight: 'var(--control-md)', padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-md)' },
+  lg: { minHeight: 'var(--control-lg)', padding: 'var(--space-3) var(--space-6)', fontSize: 'var(--text-lg)' },
 };
 
 /**
@@ -355,7 +358,7 @@ export function IconButton({
   title?: string;
   style?: CSSProperties;
 }) {
-  const box = SIZES[size].minHeight as number;
+  const box = SIZES[size].minHeight;
   return (
     <TapButton
       onClick={onClick}
@@ -403,8 +406,8 @@ export function Switch({
       style={{
         flex: 'none',
         position: 'relative',
-        width: 66,
-        height: 38,
+        width: 'calc(var(--control-lg) + var(--space-3))',
+        height: 'calc(var(--control-sm) - var(--space-2))',
         borderRadius: 999,
         border: on ? '1px solid transparent' : '1px solid var(--line)',
         padding: 0,
@@ -417,10 +420,10 @@ export function Switch({
       <span
         style={{
           position: 'absolute',
-          top: 4,
-          left: on ? 32 : 4,
-          width: 28,
-          height: 28,
+          top: 'var(--space-1)',
+          left: on ? 'calc(100% - (var(--control-sm) - var(--space-4) - 2px) - var(--space-1) - 1px)' : 'var(--space-1)',
+          width: 'calc(var(--control-sm) - var(--space-4) - 2px)',
+          height: 'calc(var(--control-sm) - var(--space-4) - 2px)',
           borderRadius: '50%',
           background: night ? '#0f1116' : '#fff',
           boxShadow: '0 2px 5px rgba(20,24,40,.3)',

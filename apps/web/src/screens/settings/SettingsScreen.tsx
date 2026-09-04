@@ -50,73 +50,40 @@ export function SettingsScreen(props: Props) {
   const { section, onSection, night } = props;
 
   return (
-    <div className="settings-layout" style={{ display: 'flex', gap: 20, height: '100%', minHeight: 0 }}>
-      <nav
-        className="settings-nav"
-        style={{
-          flex: 'none',
-          width: 268,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          overflowY: 'auto',
-        }}
-      >
+    <div className="settings-layout">
+      <nav className="settings-nav">
         {SECTIONS.map((s) => {
           const on = s.id === section;
           return (
             <TapButton
               key={s.id}
+              className="settings-nav-item"
               onClick={() => onSection(s.id)}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 15,
-                width: '100%',
-                minHeight: 82,
-                padding: '16px 18px',
-                borderRadius: 22,
-                textAlign: 'left',
                 background: on ? 'var(--card)' : 'transparent',
                 color: on ? 'var(--ink)' : 'var(--ink2)',
                 boxShadow: on ? '0 1px 2px rgba(20,24,40,.05),0 14px 28px -20px rgba(20,24,40,.3)' : 'none',
               }}
             >
               <span
+                className="settings-nav-icon"
                 style={{
-                  flex: 'none',
-                  width: 46,
-                  height: 46,
-                  borderRadius: 16,
-                  display: 'grid',
-                  placeItems: 'center',
                   background: on ? soft(258, night) : 'var(--chip)',
                   color: on ? deep(258, night) : 'var(--ink2)',
                 }}
               >
                 <Icon name={s.icon} size={22} />
               </span>
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 17.5, fontWeight: 800 }}>{s.label}</span>
-                <span style={{ display: 'block', fontSize: 14, fontWeight: 600, opacity: 0.8 }}>{s.sub}</span>
+              <span className="settings-nav-copy">
+                <span className="settings-nav-label">{s.label}</span>
+                <span className="settings-nav-subtitle">{s.sub}</span>
               </span>
             </TapButton>
           );
         })}
       </nav>
 
-      <div
-        className="settings-content"
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-          paddingBottom: 8,
-        }}
-      >
+      <div className="settings-content">
         {section === 'family' && <FamilySection {...props} />}
         {section === 'calendar' && <CalendarSection {...props} />}
         {section === 'home' && <HomeSection say={props.say} />}
@@ -992,6 +959,12 @@ function DisplaySection({ settings, say, onSettingsChange }: Props) {
         options={['Auto', 'Day', 'Night'] as const}
         value={settings.theme}
         onChange={(theme) => void patchSettings({ theme })}
+      />
+      <ChipRow
+        label="Interface size"
+        options={['Compact', 'Standard', 'Large'] as const}
+        value={settings.interfaceSize}
+        onChange={(interfaceSize) => void patchSettings({ interfaceSize })}
       />
       <ChipRow
         label="Frame mode after"

@@ -102,6 +102,7 @@ export const settingsBody = {
     choreReset: { enum: ['Every night', 'Sunday', 'Monday'] },
     claimExtras: { type: 'boolean' }, choreConfetti: { type: 'boolean' },
     theme: { enum: ['Auto', 'Day', 'Night'] },
+    interfaceSize: { enum: ['Compact', 'Standard', 'Large'] },
     idleMin: { type: 'integer', minimum: 0, maximum: 1440 },
     photoProvider: { enum: ['none', 'immich'] },
     photoAlbumId: nullableString,

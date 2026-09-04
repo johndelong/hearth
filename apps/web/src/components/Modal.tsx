@@ -78,7 +78,7 @@ export function Modal({
         zIndex: 100,
         display: 'grid',
         placeItems: 'center',
-        padding: 24,
+        padding: 'var(--space-6)',
         background: 'rgba(10,12,20,.42)',
         backdropFilter: 'blur(3px)',
         animation: `fadeIn .22s ${EASE} both`,
@@ -100,11 +100,11 @@ export function Modal({
           flexDirection: 'column',
         }}
       >
-        <div style={{ padding: '26px 28px 6px' }}>
-          <div id={titleId} style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600 }}>{title}</div>
+        <div style={{ padding: 'var(--space-6) var(--space-7) var(--space-2)' }}>
+          <div id={titleId} style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 600 }}>{title}</div>
           {sub && <div style={{ marginTop: 4, color: 'var(--ink2)', fontSize: 15.5 }}>{sub}</div>}
         </div>
-        <div style={{ padding: '14px 28px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ padding: 'var(--space-3) var(--space-7)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           {children}
         </div>
         {footer && (
@@ -114,7 +114,7 @@ export function Modal({
               gap: 12,
               justifyContent: 'flex-end',
               alignItems: 'center',
-              padding: '16px 28px 24px',
+              padding: 'var(--space-4) var(--space-7) var(--space-6)',
             }}
           >
             {footer}
@@ -135,13 +135,13 @@ const cardStyle: CSSProperties = {
 
 export const fieldStyle: CSSProperties = {
   width: '100%',
-  minHeight: 56,
-  padding: '14px 18px',
+  minHeight: 'calc(var(--control-lg) + var(--space-1))',
+  padding: 'var(--space-3) var(--space-4)',
   borderRadius: 16,
   border: '1px solid var(--line)',
   background: 'transparent',
   color: 'var(--ink)',
-  fontSize: 17,
+  fontSize: 'var(--text-lg)',
   fontWeight: 700,
   outline: 'none',
 };

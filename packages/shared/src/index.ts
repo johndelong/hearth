@@ -334,6 +334,7 @@ export interface Settings {
   choreConfetti: boolean;
   // Display
   theme: ThemeMode;
+  interfaceSize: 'Compact' | 'Standard' | 'Large';
   idleMin: number;
   /** The source used behind the clock in frame mode. Credentials stay server-side. */
   photoProvider: 'none' | 'immich';
@@ -462,6 +463,7 @@ export const DEFAULT_SETTINGS: Settings = {
   claimExtras: true,
   choreConfetti: true,
   theme: 'Auto',
+  interfaceSize: 'Standard',
   idleMin: 5,
   photoProvider: 'none',
   photoAlbumId: null,

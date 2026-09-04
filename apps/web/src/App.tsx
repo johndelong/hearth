@@ -52,6 +52,10 @@ export default function App() {
     else document.documentElement.removeAttribute('data-theme');
   }, [night]);
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-interface-size', settings.interfaceSize.toLowerCase());
+  }, [settings.interfaceSize]);
+
   const [tab, setTab] = useState<Tab>('today');
   const [calView, setCalView] = useState<CalView>('day');
   const [anchor, setAnchor] = useState<Date>(() => new Date());
@@ -173,13 +177,13 @@ export default function App() {
     >
       <nav
         style={{
-          width: 112,
+          width: 'var(--nav-width)',
           flex: 'none',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           gap: 5,
-          padding: '16px 0 18px',
+          padding: 'var(--space-4) 0',
           background: 'var(--card)',
           borderRight: '1px solid var(--line)',
         }}
@@ -209,7 +213,7 @@ export default function App() {
             alignItems: 'center',
             gap: 18,
             flexWrap: 'wrap',
-            padding: '22px var(--space-page) 14px',
+            padding: 'var(--space-5) var(--space-page) var(--space-3)',
           }}
         >
           {/*
@@ -219,7 +223,7 @@ export default function App() {
             what that glance is usually for.
           */}
           <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-            <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 600, lineHeight: 1.1 }}>
+            <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-display)', fontWeight: 600, lineHeight: 1.1 }}>
               {heading.title}
             </h1>
             <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>
@@ -326,7 +330,7 @@ export default function App() {
           )}
         </header>
 
-        <div style={{ flex: 1, minHeight: 0, padding: '6px var(--space-page) 24px' }}>
+        <div style={{ flex: 1, minHeight: 0, padding: 'var(--space-2) var(--space-page) var(--space-6)' }}>
           {tab === 'today' && (
             <CalendarScreen
               key={calendarNonce}
@@ -667,14 +671,14 @@ function NavButton({
   const base: React.CSSProperties = rail
     ? {
         position: 'relative',
-        width: 88,
-        height: 72,
+        width: 'var(--nav-item-width)',
+        height: 'var(--nav-item-height)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 5,
-        borderRadius: 22,
+        borderRadius: 'var(--radius-lg)',
         background: active ? 'var(--chip)' : 'transparent',
         color: active ? 'var(--ink)' : 'var(--ink2)',
       }

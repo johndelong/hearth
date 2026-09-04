@@ -29,6 +29,7 @@ beforeEach(() => {
   replaceHomeSelection([]);
   deleteRaw('_homeAssistantUrl');
   deleteRaw('_homeAssistantToken');
+  deleteRaw('interfaceSize');
 });
 
 test('the fresh database includes the Home Assistant tables', () => {
@@ -113,4 +114,13 @@ test('the configured token remains encrypted and is never returned', async () =>
     state: 'disconnected',
   });
   assert.doesNotMatch(response.body, /secret-token/);
+});
+
+test('interface size is persisted and validated at the settings boundary', async () => {
+  const saved = await app.inject({ method: 'PATCH', url: '/api/settings', payload: { interfaceSize: 'Compact' } });
+  assert.equal(saved.statusCode, 200, saved.body);
+  assert.equal(saved.json().interfaceSize, 'Compact');
+
+  const invalid = await app.inject({ method: 'PATCH', url: '/api/settings', payload: { interfaceSize: 'Tiny' } });
+  assert.equal(invalid.statusCode, 400);
 });

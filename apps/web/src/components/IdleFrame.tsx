@@ -216,48 +216,31 @@ export function IdleFrame({
         eatNextClick();
         onWake();
       }}
+      className="idle-frame"
       style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 90,
-        // No scrolling or double-tap zoom to fight the tap for ownership.
-        touchAction: 'none',
         background: '#000',
         color: FRAME_INK,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
-        padding: '62px 70px 56px',
-        overflow: 'hidden',
         animation: `fadeIn .8s ${EASE} both`,
       }}
     >
       <ImmichSlideshow settings={settings} />
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 40 }}>
+      <div className="idle-frame-main">
         <div>
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 'clamp(90px, 15vw, 190px)',
-              fontWeight: 300,
-              lineHeight: 0.92,
-              letterSpacing: -4,
-            }}
-          >
+          <div className="idle-frame-clock">
             {now.getHours() % 12 || 12}
             <span style={{ animation: 'colonPulse 1s ease-in-out infinite' }}>:</span>
             {String(now.getMinutes()).padStart(2, '0')}
           </div>
-          <div style={{ marginTop: 14, fontSize: 26, fontWeight: 700, color: FRAME_INK2 }}>
+          <div className="idle-frame-date" style={{ color: FRAME_INK2 }}>
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 300, maxWidth: '45vw' }}>
+        <div className="idle-frame-schedule">
           {upcoming.map((e) => {
             const p = eventPeople(e, byPerson)[0];
             return (
-              <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div key={e.id} className="idle-frame-event">
                 <span
                   style={{
                     flex: 'none',
@@ -268,32 +251,32 @@ export function IdleFrame({
                     background: col(p?.hue ?? -1, true),
                   }}
                 />
-                <span style={{ flex: 1, minWidth: 0, fontSize: 21, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span className="idle-frame-event-title">
                   {e.title}
                 </span>
-                <span style={{ flex: 'none', fontSize: 19, fontWeight: 700, color: FRAME_INK2 }}>
+                <span className="idle-frame-event-time" style={{ color: FRAME_INK2 }}>
                   {e.allDay ? 'All day' : fmtTime(eventStart(e))}
                 </span>
               </div>
             );
           })}
           {upcoming.length === 0 && (
-            <div style={{ fontSize: 21, fontWeight: 700, color: FRAME_INK2 }}>Nothing else today.</div>
+            <div className="idle-frame-empty" style={{ color: FRAME_INK2 }}>Nothing else today.</div>
           )}
         </div>
       </div>
       {(homeAlerts.length > 0 || homeStale) && (
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '18px 30px', marginTop: 34, minWidth: 0, overflow: 'hidden' }}>
+        <div className="idle-frame-alerts">
           {homeAlerts.slice(0, 6).map((item) => (
-            <div key={item.entityId} title={item.alertLabel ?? undefined} style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 9, color: FRAME_INK, fontSize: 16, fontWeight: 800 }}>
-              <Icon name={frameAlertIcon(item)} size={23} style={{ color: '#ff8278' }} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.displayName}</span>
+            <div key={item.entityId} className="idle-frame-alert" title={item.alertLabel ?? undefined} style={{ color: FRAME_INK }}>
+              <Icon name={frameAlertIcon(item)} style={{ width: 'calc(var(--text-md) + var(--space-2))', height: 'calc(var(--text-md) + var(--space-2))', color: '#ff8278' }} />
+              <span className="idle-frame-alert-name">{item.displayName}</span>
             </div>
           ))}
-          {homeAlerts.length > 6 && <div style={{ flex: 'none', color: FRAME_INK2, fontSize: 15, fontWeight: 750 }}>+{homeAlerts.length - 6} more</div>}
+          {homeAlerts.length > 6 && <div className="idle-frame-alert-overflow">+{homeAlerts.length - 6} more</div>}
           {homeStale && (
-            <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, color: FRAME_INK2, fontSize: 15, fontWeight: 750 }}>
-              <Icon name="alert" size={20} />
+            <div className="idle-frame-stale">
+              <Icon name="alert" style={{ width: 'var(--text-lg)', height: 'var(--text-lg)' }} />
               Home states may be out of date
             </div>
           )}
