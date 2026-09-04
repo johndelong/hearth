@@ -3,7 +3,17 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, test } from 'node:test';
-import { dueOn, fromRRule, normalizeRecurrence, toRRule } from '@dashboard/shared';
+import {
+  dueOn,
+  extractWhoNames,
+  fromRRule,
+  normalizeRecurrence,
+  resolveNames,
+  toRRule,
+  upsertWhoTag,
+  whoFromDescription,
+  whoFromTitle,
+} from '@dashboard/shared';
 import Fastify from 'fastify';
 
 process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), 'hearth-core-')), 'test.db');
@@ -256,5 +266,74 @@ describe('RRULE round trip', () => {
   test('an event with no rule at all is simply not recurring', () => {
     assert.equal(fromRRule(null, '2026-08-10'), null);
     assert.equal(fromRRule(['EXDATE;VALUE=DATE:20260817'], '2026-08-10'), null);
+  });
+});
+
+describe('who tagging', () => {
+  const roster = [
+    { id: 'everly', name: 'Everly' },
+    { id: 'gemma', name: 'Gemma' },
+    { id: 'amanda', name: 'Amanda' },
+  ];
+
+  test('formats and reads back its own canonical line', () => {
+    const description = upsertWhoTag('Bring shin guards', ['Everly', 'Gemma']);
+    assert.equal(description, 'Bring shin guards\n\nWho: Everly, Gemma');
+    assert.deepEqual(extractWhoNames(description), ['Everly', 'Gemma']);
+  });
+
+  test('recognizes the label variants, case-insensitively', () => {
+    assert.deepEqual(extractWhoNames('who: Everly'), ['Everly']);
+    assert.deepEqual(extractWhoNames('Kids: Everly, Gemma'), ['Everly', 'Gemma']);
+    assert.deepEqual(extractWhoNames('PARENTS: Amanda'), ['Amanda']);
+    assert.equal(extractWhoNames('For: snacks and drinks'), null, '"For:" is too generic a word to repurpose');
+  });
+
+  test('splits a name list on commas, "&", and "and"', () => {
+    assert.deepEqual(extractWhoNames('Who: Everly, Gemma & Amanda'), ['Everly', 'Gemma', 'Amanda']);
+    assert.deepEqual(extractWhoNames('Who: Everly and Gemma'), ['Everly', 'Gemma']);
+  });
+
+  test('falls back to bracket groups when there is no labeled line', () => {
+    assert.deepEqual(extractWhoNames('[Everly][Gemma]'), ['Everly', 'Gemma']);
+    assert.deepEqual(extractWhoNames('[Everly, Gemma]'), ['Everly', 'Gemma']);
+    assert.equal(extractWhoNames('No tag here'), null);
+  });
+
+  test('a tag naming no one Hearth recognizes reads the same as no tag', () => {
+    assert.deepEqual(whoFromDescription('Who: Not A Real Person', roster), []);
+    assert.deepEqual(whoFromDescription(null, roster), []);
+  });
+
+  test('a name is matched case-insensitively but never partially', () => {
+    assert.deepEqual(resolveNames(['everly'], roster), ['everly']);
+    assert.deepEqual(resolveNames(['Everlyn'], roster), [], 'a longer name must not match a shorter one inside it');
+  });
+
+  test('a title matches only its leading word(s)', () => {
+    assert.deepEqual(whoFromTitle('Everly’s Basketball Practice', roster), ['everly']);
+    assert.deepEqual(whoFromTitle('Basketball Practice — Everly', roster), [], 'not a name at the end');
+    assert.deepEqual(whoFromTitle('Basketball Practice for Everly', roster), [], 'not a name in the middle');
+  });
+
+  test('a leading list joined by "and" or "&" matches everyone in it', () => {
+    assert.deepEqual(whoFromTitle('Everly and Gemma’s Playdate', roster), ['everly', 'gemma']);
+    assert.deepEqual(whoFromTitle('Everly & Gemma Playdate', roster), ['everly', 'gemma']);
+  });
+
+  test('a title starting with an unrelated word matches no one', () => {
+    assert.deepEqual(whoFromTitle('Dentist for Everly', roster), []);
+  });
+
+  test('re-tagging replaces the old line rather than piling up a second one', () => {
+    const first = upsertWhoTag('Notes here', ['Everly']);
+    const second = upsertWhoTag(first, ['Gemma']);
+    assert.equal(second, 'Notes here\n\nWho: Gemma');
+  });
+
+  test('clearing the tag removes the line and leaves any real notes behind', () => {
+    const tagged = upsertWhoTag('Bring a snack', ['Everly']);
+    assert.equal(upsertWhoTag(tagged, []), 'Bring a snack');
+    assert.equal(upsertWhoTag('Who: Everly', []), null, 'nothing but a tag leaves nothing at all');
   });
 });

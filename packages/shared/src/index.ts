@@ -9,6 +9,7 @@ import type { Recurrence } from './recurrence.js';
 
 export * from './recurrence.js';
 export * from './rrule.js';
+export * from './who.js';
 
 export type Role = 'kid' | 'parent';
 
@@ -201,15 +202,16 @@ export interface PointsBalance {
 export interface CalendarEvent {
   id: string;
   calendarId: string;
-  /** Person the owning calendar is mapped to, or null for unmapped calendars. */
+  /** The first of `personIds`, or null when it is empty. */
   personId: string | null;
   /**
-   * Who is actually going. Tagged in Hearth rather than carried by Google,
-   * because a family event is often some of the house and not all of it, and
-   * the kids have no email address to be an attendee with.
+   * Who is actually going, read out of the event itself rather than carried
+   * by Google — a family event is often some of the house and not all of it,
+   * and the kids have no email address to be a real attendee with.
    *
-   * Falls back to the calendar's own person when nothing has been tagged, so an
-   * untouched per-person calendar keeps meaning what it always did.
+   * Most specific first: a `Who:` tag in the description, then a name in the
+   * title's own leading words, then whoever the calendar itself belongs to.
+   * See `whoFromDescription` and `whoFromTitle`.
    */
   personIds: string[];
   title: string;
@@ -296,14 +298,24 @@ export interface GoogleAccount {
   error: string | null;
 }
 
+/** A calendar assigned to a role rather than one person. */
+export type CalendarGroup = 'parent' | 'kid' | 'all';
+
 export interface SubscribedCalendar {
   id: string;
   accountId: string;
   googleCalendarId: string;
   summary: string;
   description: string | null;
-  /** Which family member's color this calendar's events take on. */
+  /** Exactly one of these is set, or neither for an unassigned calendar. */
   personId: string | null;
+  group: CalendarGroup | null;
+  /**
+   * Whose color this calendar's events take on, and — for an event Hearth
+   * never tagged — who it belongs to: `personId` alone, or every person
+   * `group` currently resolves to against the household's own roster.
+   */
+  personIds: string[];
   enabled: boolean;
   /** Google's accessRole is reader/freeBusyReader — we cannot write events here. */
   readOnly: boolean;

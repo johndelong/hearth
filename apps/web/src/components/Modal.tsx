@@ -10,6 +10,7 @@ export function Modal({
   children,
   footer,
   width = 520,
+  active = true,
 }: {
   title: string;
   sub?: string;
@@ -17,10 +18,17 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   width?: number;
+  /**
+   * False while a second dialog is stacked on top of this one — Escape and
+   * outside-click are suspended so they answer the dialog someone can
+   * actually see, rather than both firing on the same keypress or tap.
+   */
+  active?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useEffect(() => {
+    if (!active) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = dialogRef.current;
     const focusable = () => [...(dialog?.querySelectorAll<HTMLElement>('button, input, textarea, select, a[href], [tabindex]:not([tabindex="-1"])') ?? [])]
@@ -42,11 +50,11 @@ export function Modal({
       window.removeEventListener('keydown', onKey);
       previous?.focus();
     };
-  }, [onClose]);
+  }, [onClose, active]);
 
   return (
     <div
-      onClick={onClose}
+      onClick={active ? onClose : undefined}
       style={{
         position: 'fixed',
         inset: 0,

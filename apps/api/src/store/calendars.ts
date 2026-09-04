@@ -1,6 +1,7 @@
-import type { GoogleAccount, SubscribedCalendar } from '@dashboard/shared';
+import type { CalendarGroup, GoogleAccount, SubscribedCalendar } from '@dashboard/shared';
 import { db, fromBool, id, nowIso, toBool } from '../db/index.js';
 import { protect, unprotect } from '../crypto.js';
+import { listPeople } from './people.js';
 
 /**
  * Every query touching Google accounts, calendars, and the cached event rows.
@@ -133,6 +134,7 @@ const toCalendarRow = (r: {
 });
 
 export function listCalendars(): SubscribedCalendar[] {
+  const people = calendarPeopleMap();
   return db
     .prepare<[], {
       id: string;
@@ -141,6 +143,7 @@ export function listCalendars(): SubscribedCalendar[] {
       summary: string;
       description: string | null;
       person_id: string | null;
+      group_kind: CalendarGroup | null;
       enabled: number;
       read_only: number;
       is_primary: number;
@@ -153,10 +156,36 @@ export function listCalendars(): SubscribedCalendar[] {
       summary: r.summary,
       description: r.description,
       personId: r.person_id,
+      group: r.group_kind,
+      personIds: people.get(r.id) ?? [],
       enabled: toBool(r.enabled),
       readOnly: toBool(r.read_only),
       primary: toBool(r.is_primary),
     }));
+}
+
+/**
+ * Every calendar's people, resolved rather than stored: a calendar assigned
+ * to a role names no one directly, so it stays true to the current roster
+ * without anyone having to come back and update it when that roster changes.
+ */
+export function calendarPeopleMap(): Map<string, string[]> {
+  const people = listPeople();
+  const rows = db
+    .prepare<[], { id: string; person_id: string | null; group_kind: CalendarGroup | null }>(
+      'SELECT id, person_id, group_kind FROM calendars',
+    )
+    .all();
+  const map = new Map<string, string[]>();
+  for (const r of rows) {
+    const ids = r.person_id
+      ? [r.person_id]
+      : r.group_kind
+        ? people.filter((p) => r.group_kind === 'all' || p.role === r.group_kind).map((p) => p.id)
+        : [];
+    map.set(r.id, ids);
+  }
+  return map;
 }
 
 export function getCalendar(calendarRowId: string): CalendarRow | null {
@@ -218,11 +247,17 @@ export function upsertCalendar(params: {
 /** Returns false when the patch had nothing to change. */
 export function updateCalendar(
   calendarRowId: string,
-  patch: { personId?: string | null; enabled?: boolean },
+  patch: { personId?: string | null; group?: CalendarGroup | null; enabled?: boolean },
 ): boolean {
   const sets: string[] = [];
   const values: unknown[] = [];
-  if (patch.personId !== undefined) (sets.push('person_id = ?'), values.push(patch.personId));
+  // A calendar takes a person or a group, never both — a caller assigning one
+  // always sends both fields (the one it means, and null for the other), so
+  // whichever came through wins and the other is cleared alongside it.
+  if (patch.personId !== undefined || patch.group !== undefined) {
+    sets.push('person_id = ?', 'group_kind = ?');
+    values.push(patch.personId ?? null, patch.group ?? null);
+  }
   if (patch.enabled !== undefined) (sets.push('enabled = ?'), values.push(fromBool(patch.enabled)));
   if (!sets.length) return false;
 
@@ -246,24 +281,16 @@ export interface CachedEvent {
   calendarRowId: string;
   /** Set when this row is one occurrence of a series Google expanded. */
   recurringEventId: string | null;
-  /** The fan-out this copy belongs to, when Hearth created it. */
-  hearthGroup: string | null;
 }
 
 export function getCachedEvent(eventId: string): CachedEvent | null {
   const row = db
-    .prepare<
-      [string],
-      { google_id: string; calendar_id: string; recurring_event_id: string | null; hearth_group: string | null }
-    >('SELECT google_id, calendar_id, recurring_event_id, hearth_group FROM events WHERE id = ?')
+    .prepare<[string], { google_id: string; calendar_id: string; recurring_event_id: string | null }>(
+      'SELECT google_id, calendar_id, recurring_event_id FROM events WHERE id = ?',
+    )
     .get(eventId);
   return row
-    ? {
-        googleId: row.google_id,
-        calendarRowId: row.calendar_id,
-        recurringEventId: row.recurring_event_id,
-        hearthGroup: row.hearth_group,
-      }
+    ? { googleId: row.google_id, calendarRowId: row.calendar_id, recurringEventId: row.recurring_event_id }
     : null;
 }
 
@@ -279,14 +306,12 @@ export function upsertEvent(params: {
   status: string | null;
   updatedAt: string;
   recurringEventId: string | null;
-  hearthGroup: string | null;
 }): void {
   db.prepare(
-    `INSERT INTO events (id, calendar_id, google_id, title, location, description, start_utc, end_utc, all_day, status, updated_at, recurring_event_id, hearth_group)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (id, calendar_id, google_id, title, location, description, start_utc, end_utc, all_day, status, updated_at, recurring_event_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(calendar_id, google_id) DO UPDATE SET
        recurring_event_id = excluded.recurring_event_id,
-       hearth_group = excluded.hearth_group,
        title = excluded.title,
        location = excluded.location,
        description = excluded.description,
@@ -308,7 +333,6 @@ export function upsertEvent(params: {
     params.status,
     params.updatedAt,
     params.recurringEventId,
-    params.hearthGroup,
   );
 }
 
@@ -316,12 +340,7 @@ export function deleteEventByGoogleId(calendarRowId: string, googleId: string): 
   db.prepare('DELETE FROM events WHERE calendar_id = ? AND google_id = ?').run(calendarRowId, googleId);
 }
 
-/**
- * Every cached copy of a fanned-out event, newest write order aside — one row
- * per calendar it was placed on. An event Hearth did not create has no group
- * and is only ever itself.
- */
-/** An event's own details, for rebuilding it somewhere else. */
+/** An event's own details, for rebuilding its description elsewhere. */
 export interface EventDetails {
   title: string;
   location: string | null;
@@ -354,36 +373,6 @@ export function getEventDetails(eventId: string): EventDetails | null {
     end: row.end_utc,
     allDay: toBool(row.all_day),
   };
-}
-
-export function eventGroupCopies(group: string): CachedEvent[] {
-  return db
-    .prepare<[string], { google_id: string; calendar_id: string; recurring_event_id: string | null }>(
-      'SELECT google_id, calendar_id, recurring_event_id FROM events WHERE hearth_group = ?',
-    )
-    .all(group)
-    .map((r) => ({
-      googleId: r.google_id,
-      calendarRowId: r.calendar_id,
-      recurringEventId: r.recurring_event_id,
-      hearthGroup: group,
-    }));
-}
-
-/**
- * The calendar an event for this person should be written to: the writable one
- * mapped to them. Someone with none cannot be given a copy, which is why the
- * editor does not offer them.
- */
-export function writableCalendarByPerson(): Map<string, string> {
-  const byPerson = new Map<string, string>();
-  for (const cal of listCalendars()) {
-    if (!cal.personId || cal.readOnly || !cal.enabled) continue;
-    // Primary first, then by name — the same order the list comes back in — so
-    // a person with two writable calendars always gets the same one.
-    if (!byPerson.has(cal.personId)) byPerson.set(cal.personId, cal.id);
-  }
-  return byPerson;
 }
 
 export function deleteEvent(eventId: string): void {

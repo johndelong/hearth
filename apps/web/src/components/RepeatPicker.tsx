@@ -7,7 +7,7 @@ import {
   monthlyOptions,
 } from '@dashboard/shared';
 import { useState } from 'react';
-import { Field, fieldStyle, labelStyle } from './Modal';
+import { Field, GhostButton, Modal, PrimaryButton, fieldStyle, labelStyle } from './Modal';
 import { Button, Switch, TapButton } from './ui';
 import { col, deep, soft } from '../theme';
 
@@ -263,6 +263,58 @@ export function RepeatPicker({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The repeat controls as their own dialog, shaped like Google's "Custom
+ * recurrence" — because an event form otherwise spends most of its height on
+ * a question most events answer "no" to, and folding it away until asked for
+ * keeps the everyday form short.
+ *
+ * A draft, not a live edit: Cancel walks away with nothing changed, and only
+ * Done commits it back. Remounted fresh each time it opens (the caller
+ * conditionally renders it), so the draft always starts from what is true now.
+ */
+export function RecurrenceDialog({
+  repeats,
+  recurrence,
+  night,
+  onCancel,
+  onDone,
+}: {
+  repeats: boolean;
+  recurrence: Recurrence;
+  night: boolean;
+  onCancel: () => void;
+  onDone: (repeats: boolean, recurrence: Recurrence) => void;
+}) {
+  const [draftRepeats, setDraftRepeats] = useState(repeats);
+  const [draftRecurrence, setDraftRecurrence] = useState(recurrence);
+
+  return (
+    <Modal
+      title="Repeats"
+      onClose={onCancel}
+      width={460}
+      footer={
+        <>
+          <GhostButton onClick={onCancel}>Cancel</GhostButton>
+          <PrimaryButton onClick={() => onDone(draftRepeats, draftRecurrence)}>Done</PrimaryButton>
+        </>
+      }
+    >
+      <label style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 17, fontWeight: 800 }}>
+        <input
+          type="checkbox"
+          checked={draftRepeats}
+          onChange={(e) => setDraftRepeats(e.target.checked)}
+          style={{ width: 22, height: 22 }}
+        />
+        Repeats
+      </label>
+      {draftRepeats && <RepeatPicker value={draftRecurrence} onChange={setDraftRecurrence} night={night} variant="event" />}
+    </Modal>
   );
 }
 

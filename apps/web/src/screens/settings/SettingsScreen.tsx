@@ -1,4 +1,5 @@
 import {
+  type CalendarGroup,
   type Chore,
   type GoogleAccount,
   type Person,
@@ -309,7 +310,7 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
 
       <Panel
         title="Subscribed calendars"
-        sub="Assign a calendar to a person to give its events their color"
+        sub="Assign a calendar to a person, or to Parents, Kids, or All, to give its events their color"
         delay={60}
       >
         {calendars.map((cal) => (
@@ -323,20 +324,26 @@ function CalendarSection({ settings, people, night, say, onSettingsChange }: Pro
             </div>
 
             <select
-              value={cal.personId ?? ''}
+              value={cal.personId ? `p:${cal.personId}` : cal.group ? `g:${cal.group}` : ''}
               onChange={async (e) => {
-                const personId = e.target.value || null;
-                setCalendars((cs) => cs.map((c) => (c.id === cal.id ? { ...c, personId } : c)));
-                await api.updateCalendar(cal.id, { personId });
+                const v = e.target.value;
+                const patch = v === '' ? { personId: null, group: null }
+                  : v.startsWith('p:') ? { personId: v.slice(2), group: null }
+                  : { personId: null, group: v.slice(2) as CalendarGroup };
+                const updated = await api.updateCalendar(cal.id, patch);
+                setCalendars((cs) => cs.map((c) => (c.id === cal.id ? updated : c)));
               }}
               style={selectStyle}
             >
               <option value="">Unassigned</option>
               {people.map((p) => (
-                <option key={p.id} value={p.id}>
+                <option key={p.id} value={`p:${p.id}`}>
                   {p.name}
                 </option>
               ))}
+              <option value="g:parent">Parents</option>
+              <option value="g:kid">Kids</option>
+              <option value="g:all">All</option>
             </select>
 
             <Switch
@@ -1504,17 +1511,6 @@ function SecuritySection({ settings, say, onSettingsChange, onLock }: Props) {
   );
 }
 
-const selectStyle: React.CSSProperties = {
-  flex: 'none',
-  minHeight: 50,
-  padding: '12px 16px',
-  borderRadius: 16,
-  border: '1px solid var(--line)',
-  background: 'transparent',
-  color: 'var(--ink)',
-  fontSize: 16,
-  fontWeight: 800,
-};
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -1529,4 +1525,16 @@ const inputStyle: React.CSSProperties = {
   fontWeight: 800,
   letterSpacing: 4,
   outline: 'none',
+};
+
+const selectStyle: React.CSSProperties = {
+  flex: 'none',
+  minHeight: 50,
+  padding: '12px 16px',
+  borderRadius: 16,
+  border: '1px solid var(--line)',
+  background: 'transparent',
+  color: 'var(--ink)',
+  fontSize: 16,
+  fontWeight: 800,
 };

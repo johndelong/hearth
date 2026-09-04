@@ -1,6 +1,7 @@
 import type {
   BoardChore,
   CalendarEvent,
+  CalendarGroup,
   Chore,
   Claim,
   Extra,
@@ -199,7 +200,7 @@ export const api = {
 
   calendars: () =>
     call<{ accounts: GoogleAccount[]; calendars: SubscribedCalendar[]; configured: boolean }>('/api/calendars'),
-  updateCalendar: (id: string, body: { personId?: string | null; enabled?: boolean }) =>
+  updateCalendar: (id: string, body: { personId?: string | null; group?: CalendarGroup | null; enabled?: boolean }) =>
     patch<SubscribedCalendar>(`/api/calendars/${id}`, body),
   syncCalendars: () => post<{ calendars: number; changed: number }>('/api/calendars/sync'),
   googleAuthUrl: () => call<{ url: string }>('/api/google/auth-url'),

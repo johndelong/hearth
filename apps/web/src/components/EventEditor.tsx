@@ -7,13 +7,14 @@ import {
   eventEnd,
   eventStart,
   everyDay,
+  upsertWhoTag,
 } from '@dashboard/shared';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
 import { PeoplePicker } from './pickers';
-import { RepeatPicker } from './RepeatPicker';
-import { Button } from './ui';
+import { RecurrenceDialog } from './RepeatPicker';
+import { Button, TapButton } from './ui';
 
 /** `YYYY-MM-DD` and `HH:MM` in local time, which is what date/time inputs want. */
 const dateValue = (d: Date) =>
@@ -45,7 +46,9 @@ export function EventEditor({
   const [calendarId, setCalendarId] = useState(event?.calendarId ?? '');
   const [title, setTitle] = useState(event?.title ?? '');
   const [location, setLocation] = useState(event?.location ?? '');
-  const [description, setDescription] = useState(event?.description ?? '');
+  // The Who: tag Hearth reads people out of is not a note anyone wrote, so it
+  // is stripped from what shows here — the picker above already says who.
+  const [description, setDescription] = useState(visibleNotes(event?.description ?? null));
   const [personIds, setPersonIds] = useState<string[]>(event?.personIds ?? []);
   const [repeats, setRepeats] = useState(false);
   const [recurrence, setRecurrence] = useState<Recurrence>(() => everyDay(dateValue(start)));
@@ -59,6 +62,7 @@ export function EventEditor({
   /** Which of a repeating event the pending action means. */
   const [scope, setScope] = useState<'this' | 'all'>('this');
   const [confirming, setConfirming] = useState<'save' | 'delete' | null>(null);
+  const [recurrenceOpen, setRecurrenceOpen] = useState(false);
   const [allDay, setAllDay] = useState(event?.allDay ?? false);
   const [date, setDate] = useState(dateValue(start));
   const [from, setFrom] = useState(timeValue(start));
@@ -100,12 +104,6 @@ export function EventEditor({
   // Narrowed so the read-only branch below can lean on `event` being present.
   const readOnlyEvent = event?.readOnly ? event : null;
 
-  // Only somebody with a writable calendar can be given a copy, so only they
-  // are offered — and the rest are named, rather than quietly left out.
-  const owns = new Set(calendars.map((c) => c.personId).filter(Boolean));
-  const canAttend = people.filter((p) => owns.has(p.id));
-  const missing = people.filter((p) => !owns.has(p.id));
-
   const save = async (pickedScope: 'this' | 'all' = scope) => {
     setSaving(true);
     try {
@@ -139,14 +137,12 @@ export function EventEditor({
         await api.updateEvent(event.id, {
           ...body,
           ...repeatPatch,
-          // Only sent when it changed: every other save leaves the copies where
-          // they are rather than re-deciding who is going.
+          // Only sent when it changed: every other save leaves the tag in the
+          // description where it is rather than re-deciding who is going.
           ...(samePeople(personIds, event.personIds) ? {} : { personIds }),
           scope: pickedScope,
         });
       } else {
-        // A new event has no Hearth id to tag until it has been pulled back, so
-        // the create carries its people and the server files them after the sync.
         await api.createEvent({
           ...body,
           personIds,
@@ -193,11 +189,11 @@ export function EventEditor({
             : `${new Date(readOnlyEvent.start).toLocaleString()} – ${new Date(readOnlyEvent.end).toLocaleTimeString()}`}
           {readOnlyEvent.location ? ` · ${readOnlyEvent.location}` : ''}
         </div>
-        {readOnlyEvent.description && (
+        {visibleNotes(readOnlyEvent.description) && (
           // Google returns this as authored, newlines and all, so it is rendered
           // as text rather than markup — an event body can contain anything.
           <div style={{ fontSize: 16, fontWeight: 600, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-            {readOnlyEvent.description}
+            {visibleNotes(readOnlyEvent.description)}
           </div>
         )}
       </Modal>
@@ -219,27 +215,157 @@ export function EventEditor({
     );
   }
 
+  // The rule lives behind an async fetch (see the effect above), so the row
+  // that opens it is always here from the first render — disabled and saying
+  // so — rather than appearing only once the answer arrives.
+  const loadingSeries = Boolean(event?.seriesId) && series === null;
+  const lockedSeries = Boolean(series && !series.editable);
+  const repeatsSummary = loadingSeries
+    ? 'Loading…'
+    : lockedSeries
+      ? 'Set in Google — cannot be changed here'
+      : repeats
+        ? describeRecurrence(recurrence)
+        : 'Does not repeat';
+
+  // A dialog is stacked on top whenever either of these is open, so the main
+  // form beneath suspends its own Escape/outside-click handling until it is
+  // the topmost thing on screen again.
+  const stacked = recurrenceOpen || confirming !== null;
+
   return (
-    <Modal
-      title={event ? 'Edit event' : 'New event'}
-      onClose={onClose}
-      footer={
-        <>
-          {event && (
-            <GhostButton onClick={() => (event.seriesId ? setConfirming('delete') : void remove())} danger>
-              Delete
-            </GhostButton>
-          )}
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton
-            onClick={() => (event?.seriesId ? setConfirming('save') : void save())}
-            disabled={!title.trim() || !calendarId || saving}
+    <>
+      <Modal
+        title={event ? 'Edit event' : 'New event'}
+        onClose={onClose}
+        active={!stacked}
+        footer={
+          <>
+            {event && (
+              <GhostButton onClick={() => (event.seriesId ? setConfirming('delete') : void remove())} danger>
+                Delete
+              </GhostButton>
+            )}
+            <GhostButton onClick={onClose}>Cancel</GhostButton>
+            <PrimaryButton
+              onClick={() => (event?.seriesId ? setConfirming('save') : void save())}
+              disabled={!title.trim() || !calendarId || saving}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </PrimaryButton>
+          </>
+        }
+      >
+        <Field label="What">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} style={fieldStyle} autoFocus />
+        </Field>
+
+        <Field label="Day">
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+        </Field>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 17, fontWeight: 800 }}>
+          <input
+            type="checkbox"
+            checked={allDay}
+            onChange={(e) => setAllDay(e.target.checked)}
+            style={{ width: 22, height: 22 }}
+          />
+          All day
+        </label>
+
+        {!allDay && (
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <Field label="Starts">
+                <input type="time" value={from} onChange={(e) => setFrom(e.target.value)} style={fieldStyle} />
+              </Field>
+            </div>
+            <div style={{ flex: 1 }}>
+              <Field label="Ends">
+                <input type="time" value={to} onChange={(e) => setTo(e.target.value)} style={fieldStyle} />
+              </Field>
+            </div>
+          </div>
+        )}
+
+        <Field label="Repeats">
+          <TapButton
+            disabled={loadingSeries || lockedSeries}
+            onClick={() => {
+              // The rule counts from the event's own day, so opening the
+              // dialog to turn it on seeds that day now, matching whatever
+              // the Day field currently says rather than a stale default.
+              if (!repeats) setRecurrence((r) => ({ ...r, startsOn: date }));
+              setRecurrenceOpen(true);
+            }}
+            style={{
+              ...fieldStyle,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              textAlign: 'left',
+              opacity: loadingSeries || lockedSeries ? 0.6 : 1,
+            }}
           >
-            {saving ? 'Saving…' : 'Save'}
-          </PrimaryButton>
-        </>
-      }
-    >
+            {repeatsSummary}
+          </TapButton>
+        </Field>
+
+        <Field label="Calendar">
+          <select value={calendarId} onChange={(e) => setCalendarId(e.target.value)} style={fieldStyle}>
+            {calendars.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.summary}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Where (optional)">
+          <input value={location} onChange={(e) => setLocation(e.target.value)} style={fieldStyle} />
+        </Field>
+
+        {/*
+          Who is going is text on the event itself now, not where it is
+          written — a "Who:" line in its description, so it reads the same
+          from Google.
+        */}
+        <Field
+          label="Who is going"
+          sub={
+            personIds.length
+              ? 'Written into the description, so it reads right from Google too'
+              : 'Pick nobody and Hearth guesses from the calendar and title instead'
+          }
+        >
+          <PeoplePicker people={people} selected={personIds} night={night} onChange={setPersonIds} />
+        </Field>
+
+        <Field label="Notes (optional)">
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            style={{ ...fieldStyle, minHeight: 92, padding: '14px 18px', resize: 'vertical', lineHeight: 1.45 }}
+          />
+        </Field>
+      </Modal>
+
+      {recurrenceOpen && (
+        <RecurrenceDialog
+          repeats={repeats}
+          recurrence={recurrence}
+          night={night}
+          onCancel={() => setRecurrenceOpen(false)}
+          onDone={(nextRepeats, nextRecurrence) => {
+            setRepeats(nextRepeats);
+            setRecurrence(nextRecurrence);
+            setRecurrenceOpen(false);
+          }}
+        />
+      )}
+
       {/*
         A repeating event has to say which of itself is meant. Asked once, at
         the moment of acting, rather than as a mode the whole form sits in —
@@ -259,129 +385,15 @@ export function EventEditor({
           }}
         />
       )}
-      <Field label="What">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} style={fieldStyle} autoFocus />
-      </Field>
-
-      {/* With people named, their calendars are the answer and this is noise. */}
-      {personIds.length === 0 && (
-        <Field label="Calendar">
-          <select value={calendarId} onChange={(e) => setCalendarId(e.target.value)} style={fieldStyle}>
-            {calendars.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.summary}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
-
-      <Field label="Day">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
-      </Field>
-
-      <label style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 17, fontWeight: 800 }}>
-        <input
-          type="checkbox"
-          checked={allDay}
-          onChange={(e) => setAllDay(e.target.checked)}
-          style={{ width: 22, height: 22 }}
-        />
-        All day
-      </label>
-
-      {!allDay && (
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <Field label="Starts">
-              <input type="time" value={from} onChange={(e) => setFrom(e.target.value)} style={fieldStyle} />
-            </Field>
-          </div>
-          <div style={{ flex: 1 }}>
-            <Field label="Ends">
-              <input type="time" value={to} onChange={(e) => setTo(e.target.value)} style={fieldStyle} />
-            </Field>
-          </div>
-        </div>
-      )}
-
-      <Field label="Where (optional)">
-        <input value={location} onChange={(e) => setLocation(e.target.value)} style={fieldStyle} />
-      </Field>
-
-      {series && !series.editable && (
-        <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--ink2)' }}>
-          This repeats on a rule Hearth cannot show — change how it repeats in Google.
-        </div>
-      )}
-
-      {(!event || !event.seriesId || series?.editable) && (
-        <>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 17, fontWeight: 800 }}>
-            <input
-              type="checkbox"
-              checked={repeats}
-              onChange={(e) => {
-                setRepeats(e.target.checked);
-                // The rule counts from the event's own day, so a start that no
-                // longer matches would silently shift which days it lands on.
-                if (e.target.checked) setRecurrence((r) => ({ ...r, startsOn: date }));
-              }}
-              style={{ width: 22, height: 22 }}
-            />
-            Repeats
-            {repeats && (
-              <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink2)' }}>
-                · {describeRecurrence(recurrence)}
-              </span>
-            )}
-          </label>
-
-          {repeats && (
-            <RepeatPicker value={recurrence} onChange={setRecurrence} night={night} variant="event" />
-          )}
-        </>
-      )}
-
-      {/*
-        Who is going is where the event is written: everyone named gets a real
-        copy on their own calendar, so Google reads the way the panel does.
-      */}
-      <Field
-        label="Who is going"
-        sub={
-          personIds.length
-            ? 'It goes on their calendars, so it reads right in Google too'
-            : 'Pick nobody and it goes on the calendar below'
-        }
-      >
-        <PeoplePicker people={canAttend} selected={personIds} night={night} onChange={setPersonIds} />
-        {missing.length > 0 && (
-          <div style={{ marginTop: 8, fontSize: 14.5, fontWeight: 600, color: 'var(--ink2)' }}>
-            {missing.map((p) => p.name).join(' and ')}{' '}
-            {missing.length === 1 ? 'has no calendar' : 'have no calendars'} yet — give{' '}
-            {missing.length === 1 ? 'them one' : 'them one each'} in Settings › Calendar to add{' '}
-            {missing.length === 1 ? 'them' : 'them'} here.
-          </div>
-        )}
-      </Field>
-
-      <Field label="Notes (optional)">
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          style={{ ...fieldStyle, minHeight: 92, padding: '14px 18px', resize: 'vertical', lineHeight: 1.45 }}
-        />
-      </Field>
-    </Modal>
+    </>
   );
 }
 
 /**
  * "This event, or all of them?" — the question Google and Apple both ask, in
  * the same words, because a repeating event is two things at once and only the
- * person tapping knows which one they mean.
+ * person tapping knows which one they mean — asked in its own dialog, on top
+ * of the form, rather than as a box that appears inline within it.
  */
 function ScopePrompt({
   action,
@@ -394,36 +406,32 @@ function ScopePrompt({
 }) {
   const verb = action === 'delete' ? 'Delete' : 'Change';
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-        padding: 16,
-        borderRadius: 18,
-        border: '1px solid var(--line)',
-        background: 'var(--chip)',
-      }}
+    <Modal
+      title={`${verb} which of these?`}
+      onClose={onCancel}
+      width={420}
+      footer={<GhostButton onClick={onCancel}>Cancel</GhostButton>}
     >
-      <div style={{ fontSize: 16.5, fontWeight: 800 }}>{verb} which of these?</div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <Button size="lg" onClick={() => onPick('this')} style={{ flex: '1 1 150px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <Button size="lg" onClick={() => onPick('this')} style={{ width: '100%' }}>
           This event
         </Button>
-        <Button size="lg" onClick={() => onPick('all')} style={{ flex: '1 1 150px' }}>
+        <Button size="lg" onClick={() => onPick('all')} style={{ width: '100%' }}>
           All events
         </Button>
-        <Button size="lg" onClick={onCancel} style={{ flex: '0 0 auto' }}>
-          Cancel
-        </Button>
       </div>
-    </div>
+    </Modal>
   );
 }
 
 /** Order is not meaningful in a set of attendees, so it is not compared. */
 function samePeople(a: string[], b: string[]): boolean {
   return a.length === b.length && [...a].sort().join() === [...b].sort().join();
+}
+
+/** A description with any Who: tag stripped out, for showing as a note. */
+function visibleNotes(description: string | null): string {
+  return upsertWhoTag(description, []) ?? '';
 }
 
 /** Next half hour, so a new event does not default to an awkward time. */
