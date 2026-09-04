@@ -6,6 +6,10 @@ import type {
   Claim,
   Extra,
   GoogleAccount,
+  HomeCandidate,
+  HomeDashboard,
+  HomeDashboardSelection,
+  HomeDeviceCandidate,
   Person,
   PointEvent,
   Recurrence,
@@ -137,6 +141,12 @@ export interface ImmichPhotoStatus {
   url: string | null;
 }
 
+export interface HomeAssistantStatus {
+  configured: boolean;
+  url: string | null;
+  state: HomeDashboard['connection'];
+}
+
 export type ImmichHealth = 'ready' | 'disconnected' | 'no-album' | 'needs-asset-view' | 'error';
 
 export const api = {
@@ -219,6 +229,15 @@ export const api = {
   clearImmich: () => del<{ ok: true }>('/api/photos/immich'),
   immichHealth: () => call<{ state: ImmichHealth }>('/api/photos/immich/health'),
   immichPhotos: () => call<{ photos: Array<{ id: string; url: string }> }>('/api/photos/immich/assets'),
+
+  home: () => call<HomeDashboard>('/api/home'),
+  homeConfig: () => call<HomeAssistantStatus>('/api/home/config'),
+  saveHomeConfig: (body: { url: string; token: string }) => call<HomeAssistantStatus>('/api/home/config', { method: 'PUT', body: JSON.stringify(body) }),
+  clearHomeConfig: () => del<{ ok: true }>('/api/home/config'),
+  homeEntities: () => call<HomeCandidate[]>('/api/home/entities'),
+  homeDevices: () => call<HomeDeviceCandidate[]>('/api/home/devices'),
+  saveHomeDashboard: (items: HomeDashboardSelection[]) => call<HomeDashboard>('/api/home/dashboard', { method: 'PUT', body: JSON.stringify({ items }) }),
+  homeAction: (entityId: string, action: string, value?: number) => post<{ ok: true }>(`/api/home/entities/${encodeURIComponent(entityId)}/action`, { action, ...(value === undefined ? {} : { value }) }),
 
   session: () => call<{ unlocked: boolean; pinSet: boolean }>('/api/session'),
   unlock: (pin: string) => post<{ unlocked: boolean }>('/api/session', { pin }),

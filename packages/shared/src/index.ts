@@ -347,6 +347,112 @@ export interface Settings {
   pinSet: boolean;
 }
 
+export type HomeConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type HomeCategory = 'security' | 'covers' | 'climate' | 'lights' | 'batteries' | 'media' | 'other';
+
+export interface HomeEntityDetails {
+  currentTemperature: number | null;
+  targetTemperature: number | null;
+  humidity: number | null;
+  brightness: number | null;
+  position: number | null;
+  batteryLevel: number | null;
+}
+
+/** The small, stable slice of a Home Assistant state that Hearth renders. */
+export interface HomeEntityState {
+  entityId: string;
+  state: string;
+  name: string;
+  domain: string;
+  deviceClass: string | null;
+  deviceId: string | null;
+  area: string | null;
+  unit: string | null;
+  lastChanged: string | null;
+  available: boolean;
+  details: HomeEntityDetails;
+}
+
+export function homeCategoryFor(entity: Pick<HomeEntityState, 'domain' | 'deviceClass' | 'name'>): HomeCategory {
+  const kind = entity.deviceClass ?? '';
+  const name = entity.name.toLowerCase();
+  if (kind === 'battery' || name.includes('battery') || name.includes('charge level')) return 'batteries';
+  if (entity.domain === 'alarm_control_panel' || entity.domain === 'lock' ||
+      ['door', 'window', 'opening', 'garage_door', 'smoke', 'gas', 'carbon_monoxide', 'moisture', 'safety', 'tamper', 'problem'].includes(kind)) return 'security';
+  if (entity.domain === 'cover') return 'covers';
+  if (entity.domain === 'climate' || ['temperature', 'humidity'].includes(kind)) return 'climate';
+  if (entity.domain === 'light' || (entity.domain === 'switch' && /light|lamp|dimmer/i.test(name))) return 'lights';
+  if (['media_player', 'camera'].includes(entity.domain)) return 'media';
+  return 'other';
+}
+
+export function defaultHomeFrameAlert(entity: Pick<HomeEntityState, 'domain' | 'deviceClass' | 'name'>): boolean {
+  const kind = entity.deviceClass ?? '';
+  return entity.domain === 'lock' || entity.domain === 'alarm_control_panel' ||
+    ['door', 'window', 'opening', 'garage_door', 'battery', 'smoke', 'gas', 'carbon_monoxide', 'moisture', 'safety', 'tamper', 'problem'].includes(kind) ||
+    /battery low|low battery|replace battery|charge battery/i.test(entity.name);
+}
+
+export function homeAlertActive(entity: Pick<HomeEntityState, 'domain' | 'deviceClass' | 'name' | 'state' | 'available'>): boolean {
+  if (!entity.available) return false;
+  if (entity.domain === 'lock') return entity.state !== 'locked';
+  if (entity.domain === 'alarm_control_panel') return entity.state === 'triggered' || entity.state === 'pending';
+  if (entity.domain === 'cover') return entity.state === 'open' || entity.state === 'opening';
+  if (entity.domain === 'binary_sensor') return entity.state === 'on';
+  if (homeCategoryFor(entity) === 'batteries') {
+    const level = Number.parseFloat(entity.state);
+    return Number.isFinite(level) && level <= 20;
+  }
+  return ['open', 'opening', 'unlocked', 'jammed', 'triggered', 'on', 'detected', 'problem'].includes(entity.state);
+}
+
+export interface HomeDashboardItem extends HomeEntityState {
+  displayName: string;
+  sortOrder: number;
+  frameAlert: boolean;
+  alertActive: boolean;
+  alertLabel: string | null;
+  related: HomeEntityState[];
+}
+
+/** The single alert gate shared by the Home dashboard and idle frame. */
+export function homeDashboardAlertActive(item: Pick<HomeDashboardItem, 'frameAlert' | 'alertActive'>): boolean {
+  return item.frameAlert && item.alertActive;
+}
+
+export interface HomeDashboard {
+  connection: HomeConnectionState;
+  stale: boolean;
+  items: HomeDashboardItem[];
+}
+
+export interface HomeCandidate extends HomeEntityState {
+  selected: boolean;
+  displayName: string;
+  frameAlert: boolean;
+}
+
+export interface HomeDashboardSelection {
+  entityId: string;
+  deviceId?: string | null;
+  displayName: string | null;
+  frameAlert: boolean;
+}
+
+export interface HomeDeviceCandidate {
+  deviceId: string;
+  name: string;
+  area: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  primaryEntityId: string;
+  category: HomeCategory;
+  frameAlert: boolean;
+  selected: boolean;
+  entities: HomeCandidate[];
+}
+
 export const DEFAULT_SETTINGS: Settings = {
   weekStart: 'Sunday',
   dayHours: '6a – 10p',

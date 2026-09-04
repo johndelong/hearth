@@ -2,7 +2,7 @@ import { DEFAULT_SETTINGS, type Person, type Settings } from '@dashboard/shared'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Board, api } from './api';
 
-export type Tab = 'today' | 'chores' | 'settings';
+export type Tab = 'today' | 'chores' | 'home' | 'settings';
 
 export interface Toast {
   text: string;

@@ -1,7 +1,8 @@
-import { type CalendarEvent, type Person, type Settings, eventEnd, eventStart } from '@dashboard/shared';
+import { type CalendarEvent, type HomeDashboardItem, type Person, type Settings, eventEnd, eventStart, homeDashboardAlertActive } from '@dashboard/shared';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { EASE, col } from '../theme';
+import { Icon } from './ui';
+import { EASE, type IconName, col } from '../theme';
 import { eventPeople, fmtTime } from '../screens/calendar/useEvents';
 
 /**
@@ -17,6 +18,16 @@ import { eventPeople, fmtTime } from '../screens/calendar/useEvents';
 /** Deliberately below pure white: a wall panel at 2am is in someone's hallway. */
 const FRAME_INK = '#e4e7ee';
 const FRAME_INK2 = '#767c88';
+
+function frameAlertIcon(item: HomeDashboardItem): IconName {
+  if (item.domain === 'lock') return 'lockOpen';
+  if (item.deviceClass === 'battery' || /battery/i.test(item.alertLabel ?? '')) return 'batteryLow';
+  if (item.deviceClass === 'garage_door') return 'garage';
+  if (['door', 'window', 'opening'].includes(item.deviceClass ?? '')) return 'door';
+  if (item.deviceClass === 'moisture') return 'droplet';
+  if (item.domain === 'cover') return item.deviceClass === 'garage' ? 'garage' : 'shades';
+  return 'alert';
+}
 
 function ImmichSlideshow({ settings }: { settings: Settings }) {
   const [photos, setPhotos] = useState<Array<{ id: string; url: string }>>([]);
@@ -163,6 +174,27 @@ export function IdleFrame({
   settings: Settings;
   onWake: () => void;
 }) {
+  const [homeAlerts, setHomeAlerts] = useState<HomeDashboardItem[]>([]);
+  const [homeStale, setHomeStale] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const applyHome = (home: Awaited<ReturnType<typeof api.home>>) => {
+      if (cancelled) return;
+      setHomeAlerts(home.items.filter(homeDashboardAlertActive));
+      setHomeStale(home.stale && home.items.some((item) => item.frameAlert));
+    };
+    void api.home().then(applyHome).catch(() => { if (!cancelled) setHomeStale(true); });
+    const events = new EventSource('/api/home/events');
+    events.onmessage = (event) => {
+      try {
+        const home = JSON.parse(event.data) as Awaited<ReturnType<typeof api.home>>;
+        if (home && Array.isArray(home.items)) applyHome(home);
+      } catch {
+        // EventSource reconnects automatically; the next complete state replaces this one.
+      }
+    };
+    return () => { cancelled = true; events.close(); };
+  }, []);
   // What is left of today, plus anything already under way. The events query is
   // a deliberately coarse prefilter that reaches into the neighbouring days, so
   // without the day bound tomorrow's 7pm could appear here showing only "7 PM"
@@ -250,6 +282,23 @@ export function IdleFrame({
           )}
         </div>
       </div>
+      {(homeAlerts.length > 0 || homeStale) && (
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '18px 30px', marginTop: 34, minWidth: 0, overflow: 'hidden' }}>
+          {homeAlerts.slice(0, 6).map((item) => (
+            <div key={item.entityId} title={item.alertLabel ?? undefined} style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 9, color: FRAME_INK, fontSize: 16, fontWeight: 800 }}>
+              <Icon name={frameAlertIcon(item)} size={23} style={{ color: '#ff8278' }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.displayName}</span>
+            </div>
+          ))}
+          {homeAlerts.length > 6 && <div style={{ flex: 'none', color: FRAME_INK2, fontSize: 15, fontWeight: 750 }}>+{homeAlerts.length - 6} more</div>}
+          {homeStale && (
+            <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, color: FRAME_INK2, fontSize: 15, fontWeight: 750 }}>
+              <Icon name="alert" size={20} />
+              Home states may be out of date
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

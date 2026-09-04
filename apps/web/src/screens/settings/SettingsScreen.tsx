@@ -8,7 +8,7 @@ import {
   describeRecurrence,
 } from '@dashboard/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type Board, type ImmichAlbum, type ImmichHealth, type VersionInfo, api } from '../../api';
+import { type Board, type HomeAssistantStatus, type ImmichAlbum, type ImmichHealth, type VersionInfo, api } from '../../api';
 import { displayVersion } from '../../components/UpdateNotice';
 import { Field, Modal, fieldStyle } from '../../components/Modal';
 import { PickerField } from '../../components/pickers';
@@ -16,11 +16,12 @@ import { Avatar, Button, Icon, Switch, TapButton } from '../../components/ui';
 import { EASE, type IconName, col, deep, soft } from '../../theme';
 import { ChipRow, ItemRow, Panel, ToggleRow, rowStyle } from './controls';
 
-export type SettingsSection = 'family' | 'calendar' | 'chores' | 'points' | 'display' | 'security';
+export type SettingsSection = 'family' | 'calendar' | 'home' | 'chores' | 'points' | 'display' | 'security';
 
 const SECTIONS: Array<{ id: SettingsSection; label: string; sub: string; icon: IconName }> = [
   { id: 'family', label: 'Family', sub: 'Everyone in the house', icon: 'star' },
   { id: 'calendar', label: 'Calendar', sub: 'Google accounts and subscriptions', icon: 'calendar' },
+  { id: 'home', label: 'Home', sub: 'Home Assistant connection', icon: 'home' },
   { id: 'chores', label: 'Chores', sub: 'Boards, streaks, and the chore list', icon: 'check' },
   { id: 'points', label: 'Points', sub: 'Extra jobs and rewards', icon: 'gift' },
   { id: 'display', label: 'Display', sub: 'Theme and frame mode', icon: 'bulb' },
@@ -118,12 +119,103 @@ export function SettingsScreen(props: Props) {
       >
         {section === 'family' && <FamilySection {...props} />}
         {section === 'calendar' && <CalendarSection {...props} />}
+        {section === 'home' && <HomeSection say={props.say} />}
         {section === 'chores' && <ChoresSection {...props} />}
         {section === 'points' && <PointsSection {...props} />}
         {section === 'display' && <DisplaySection {...props} />}
         {section === 'security' && <SecuritySection {...props} />}
       </div>
     </div>
+  );
+}
+
+function HomeSection({ say }: Pick<Props, 'say'>) {
+  const [status, setStatus] = useState<HomeAssistantStatus>({ configured: false, url: null, state: 'disconnected' });
+  const [url, setUrl] = useState('');
+  const [token, setToken] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const next = await api.homeConfig();
+      setStatus(next);
+      setUrl(next.url ?? '');
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not load Home Assistant settings', 25);
+    } finally {
+      setLoading(false);
+    }
+  }, [say]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const connect = async () => {
+    setSaving(true);
+    try {
+      const next = await api.saveHomeConfig({ url, token });
+      setStatus(next);
+      setToken('');
+      setEditing(false);
+      say('Home Assistant connected', 148);
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not connect to Home Assistant', 25);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const disconnect = async () => {
+    try {
+      await api.clearHomeConfig();
+      setStatus({ configured: false, url: null, state: 'disconnected' });
+      setUrl('');
+      setToken('');
+      setEditing(false);
+      say('Home Assistant disconnected');
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'Could not disconnect Home Assistant', 25);
+    }
+  };
+
+  const tone = status.state === 'connected' ? 'Connected' : status.state === 'connecting' ? 'Connecting…' : status.state === 'error' ? 'Connection unavailable' : 'Disconnected';
+  return (
+    <>
+      <Panel title="Home Assistant" sub="Connect Hearth to the Home Assistant server on your network">
+        {!loading && (!status.configured || editing) && (
+          <>
+            <Field label="Home Assistant URL" sub="For example, http://homeassistant.local:8123">
+              <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="http://homeassistant.local:8123" style={fieldStyle} inputMode="url" />
+            </Field>
+            <Field label="Long-lived access token" sub="Create one at the bottom of your Home Assistant profile page. Hearth encrypts it and never sends it to the dashboard.">
+              <input value={token} onChange={(event) => setToken(event.target.value)} placeholder={status.configured ? 'Paste a new token' : 'Paste access token'} style={fieldStyle} type="password" autoComplete="off" />
+            </Field>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              {status.configured && <Button onClick={() => { setEditing(false); setToken(''); setUrl(status.url ?? ''); }}>Cancel</Button>}
+              <Button variant="primary" disabled={saving || !url.trim() || !token.trim()} onClick={() => void connect()}>{saving ? 'Connecting…' : 'Connect'}</Button>
+            </div>
+          </>
+        )}
+        {!loading && status.configured && !editing && (
+          <div style={{ ...rowStyle, flexWrap: 'wrap' }}>
+            <span style={{ width: 11, height: 11, borderRadius: '50%', background: status.state === 'connected' ? 'var(--success)' : 'var(--danger)' }} />
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontSize: 17, fontWeight: 800 }}>{tone}</div>
+              <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>{status.url}</div>
+            </div>
+            <Button onClick={() => setEditing(true)}>Change</Button>
+            <Button onClick={() => void disconnect()}>Disconnect</Button>
+          </div>
+        )}
+        {loading && <div style={{ color: 'var(--ink2)', fontWeight: 700 }}>Checking Home Assistant…</div>}
+      </Panel>
+      <Panel title="Dashboard access" sub="Parents choose devices with Edit on the Home tab. Once published, their controls are available to everyone.">
+        <div style={{ color: 'var(--ink2)', fontSize: 15, fontWeight: 650, lineHeight: 1.5 }}>
+          Frame alerts can also be enabled per device there. They appear only while the selected device is in its alert state.
+        </div>
+      </Panel>
+    </>
   );
 }
 
@@ -1209,4 +1301,3 @@ const inputStyle: React.CSSProperties = {
   letterSpacing: 4,
   outline: 'none',
 };
-

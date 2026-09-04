@@ -9,12 +9,14 @@ import './db/index.js';
 import { seedIfEmpty } from './db/seed.js';
 import { startSyncLoop } from './google/sync.js';
 import { calendarRoutes } from './routes/calendar.js';
+import { homeRoutes } from './routes/home.js';
 import { choreRoutes } from './routes/chores.js';
 import { peopleRoutes } from './routes/people.js';
 import { photoRoutes } from './routes/photos.js';
 import { settingsRoutes } from './routes/settings.js';
 import { requestUpdate, updaterInfo } from './updater.js';
 import { CURRENT_VERSION, checkNow, startVersionChecks, versionInfo } from './version.js';
+import { homeAssistant } from './home-assistant.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 8080);
@@ -43,6 +45,7 @@ await app.register(choreRoutes);
 await app.register(settingsRoutes);
 await app.register(calendarRoutes);
 await app.register(photoRoutes);
+await app.register(homeRoutes);
 
 app.get('/api/health', async () => ({ ok: true, version: CURRENT_VERSION, time: new Date().toISOString() }));
 
@@ -95,6 +98,7 @@ if (existsSync(webRoot)) {
 
 startSyncLoop();
 startVersionChecks();
+homeAssistant.start();
 
 try {
   await app.listen({ port: PORT, host: HOST });

@@ -1,5 +1,5 @@
 import type { CalendarEvent, Chore, Extra, Person, Reward, WeekStart } from '@dashboard/shared';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api } from './api';
 import { EventEditor } from './components/EventEditor';
 import { IdleFrame } from './components/IdleFrame';
@@ -12,6 +12,7 @@ import { CalendarScreen } from './screens/calendar/CalendarScreen';
 import type { CalView } from './screens/calendar/useEvents';
 import { rangeFor, useEvents } from './screens/calendar/useEvents';
 import { ChoresScreen } from './screens/chores/ChoresScreen';
+import { HomeScreen, type HomeEditActions } from './screens/home/HomeScreen';
 import { PrizeCatalog } from './screens/chores/PrizeCatalog';
 import { ProfileDialog } from './screens/chores/ProfileDialog';
 import { SettingsScreen, type SettingsSection } from './screens/settings/SettingsScreen';
@@ -60,6 +61,8 @@ export default function App() {
   const [unlocked, setUnlocked] = useState(true);
   const [pinPrompt, setPinPrompt] = useState<{ onReady: () => void } | null>(null);
   const [calendarNonce, setCalendarNonce] = useState(0);
+  const [editingHome, setEditingHome] = useState(false);
+  const homeEditActions = useRef<HomeEditActions | null>(null);
 
   // Frame mode needs today's events regardless of which tab is open.
   const idleEvents = useEvents('day', now, settings.weekStart);
@@ -81,6 +84,7 @@ export default function App() {
    * picking one day out of a grid of thirty to put in the title is arbitrary.
    */
   const heading = useMemo(() => {
+    if (tab === 'home') return { title: 'Home', sub: 'At a glance' };
     if (tab === 'today' && calView !== 'day') return spanLabel(calView, anchor, settings.weekStart);
     return {
       title: viewing.toLocaleDateString('en-US', {
@@ -104,6 +108,7 @@ export default function App() {
   useEffect(() => {
     if (!idle) return;
     setEditor(null);
+    setEditingHome(false);
     setAnchor(new Date());
   }, [idle]);
 
@@ -141,6 +146,7 @@ export default function App() {
   const tabs: Array<{ id: Tab; label: string; icon: IconName; badge: number }> = [
     { id: 'today', label: 'Calendar', icon: 'calendar', badge: 0 },
     { id: 'chores', label: 'Chores', icon: 'check', badge: openChores },
+    { id: 'home', label: 'Home', icon: 'home', badge: 0 },
     { id: 'settings', label: 'Settings', icon: 'gear', badge: 0 },
   ];
 
@@ -184,7 +190,11 @@ export default function App() {
             {...t}
             active={tab === t.id}
             rail
-            onClick={() => (t.id === 'settings' ? openSettings() : setTab(t.id))}
+            onClick={() => {
+              if (t.id !== 'home') setEditingHome(false);
+              if (t.id === 'settings') openSettings();
+              else setTab(t.id);
+            }}
           />
         ))}
         <div style={{ flex: 1 }} />
@@ -302,6 +312,18 @@ export default function App() {
               )}
             </div>
           )}
+          {tab === 'home' && (
+            editingHome ? (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button variant="quiet" size="sm" onClick={() => homeEditActions.current?.cancel()}>Cancel</Button>
+                <Button variant="primary" size="sm" onClick={() => homeEditActions.current?.save()}>Done</Button>
+              </div>
+            ) : (
+              <Button variant="quiet" size="sm" onClick={() => requireParent(() => setEditingHome(true))}>
+                <Icon name="pencil" size={17} /> Edit
+              </Button>
+            )
+          )}
         </header>
 
         <div style={{ flex: 1, minHeight: 0, padding: '6px var(--space-page) 24px' }}>
@@ -348,6 +370,10 @@ export default function App() {
             />
           )}
 
+          {tab === 'home' && (
+            <HomeScreen edit={editingHome} editActions={homeEditActions} night={night} say={say} onCloseEdit={() => setEditingHome(false)} />
+          )}
+
           {tab === 'settings' && board && (
             <SettingsScreen
               section={section}
@@ -367,6 +393,7 @@ export default function App() {
               onLock={async () => {
                 await api.lock();
                 setUnlocked(false);
+                setEditingHome(false);
                 setTab('today');
                 say('Settings locked', 258);
               }}
