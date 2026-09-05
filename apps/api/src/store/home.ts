@@ -1,12 +1,11 @@
 import type { HomeDashboardSelection, HomeEntityDetails, HomeEntityState } from '@dashboard/shared';
-import { db, fromBool, nowIso, toBool } from '../db/index.js';
+import { db, nowIso } from '../db/index.js';
 
 interface DashboardRow {
   entity_id: string;
   device_id: string | null;
   display_name: string | null;
   sort_order: number;
-  frame_alert: number;
 }
 
 interface StateRow {
@@ -24,7 +23,7 @@ interface StateRow {
 
 const entityIdPattern = /^[a-z0-9_]+\.[a-z0-9_]+$/;
 const dashboardRows = db.prepare<[], DashboardRow>(
-  'SELECT entity_id, device_id, display_name, sort_order, frame_alert FROM home_dashboard ORDER BY sort_order, entity_id',
+  'SELECT entity_id, device_id, display_name, sort_order FROM home_dashboard ORDER BY sort_order, entity_id',
 );
 const cachedRows = db.prepare<[], StateRow>(
   'SELECT entity_id, state, name, domain, device_class, device_id, area, unit, last_changed, details_json FROM home_state_cache',
@@ -44,7 +43,6 @@ export interface StoredHomeSelection {
   deviceId: string | null;
   displayName: string | null;
   sortOrder: number;
-  frameAlert: boolean;
 }
 
 export function listHomeSelection(): StoredHomeSelection[] {
@@ -53,7 +51,6 @@ export function listHomeSelection(): StoredHomeSelection[] {
     deviceId: row.device_id,
     displayName: row.display_name,
     sortOrder: row.sort_order,
-    frameAlert: toBool(row.frame_alert),
   }));
 }
 
@@ -72,8 +69,8 @@ export function replaceHomeSelection(items: HomeDashboardSelection[]): StoredHom
   }
   db.transaction(() => {
     db.exec('DELETE FROM home_dashboard');
-    const insert = db.prepare('INSERT INTO home_dashboard (entity_id, device_id, display_name, sort_order, frame_alert) VALUES (?, ?, ?, ?, ?)');
-    items.forEach((item, index) => insert.run(item.entityId, item.deviceId ?? null, item.displayName?.trim() ?? null, index, fromBool(item.frameAlert)));
+    const insert = db.prepare('INSERT INTO home_dashboard (entity_id, device_id, display_name, sort_order) VALUES (?, ?, ?, ?)');
+    items.forEach((item, index) => insert.run(item.entityId, item.deviceId ?? null, item.displayName?.trim() ?? null, index));
   })();
   return listHomeSelection();
 }

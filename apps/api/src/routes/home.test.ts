@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { beforeEach, test } from 'node:test';
 import cookie from '@fastify/cookie';
 import Fastify from 'fastify';
-import { defaultHomeFrameAlert, homeAlertActive, homeDashboardAlertActive } from '@dashboard/shared';
+import { homeAlertActive, homeStatusNotable } from '@dashboard/shared';
 
 process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), 'hearth-home-')), 'test.db');
 
@@ -33,17 +33,25 @@ beforeEach(() => {
 });
 
 test('the fresh database includes the Home Assistant tables', () => {
-  assert.equal(schemaVersion, 26);
+  assert.equal(schemaVersion, 27);
 });
 
-test('frame alerts default to safety entities and understand numeric batteries', () => {
-  assert.equal(defaultHomeFrameAlert({ domain: 'binary_sensor', deviceClass: 'door', name: 'Side door' }), true);
-  assert.equal(defaultHomeFrameAlert({ domain: 'cover', deviceClass: 'shade', name: 'Living room shade' }), false);
-  assert.equal(defaultHomeFrameAlert({ domain: 'sensor', deviceClass: 'battery', name: 'Lock battery' }), true);
+test('needs-attention alerts are unconditional; door/lock/cover status never turns one red', () => {
   assert.equal(homeAlertActive({ domain: 'sensor', deviceClass: 'battery', name: 'Lock battery', state: '18', available: true }), true);
   assert.equal(homeAlertActive({ domain: 'sensor', deviceClass: 'battery', name: 'Lock battery', state: '82', available: true }), false);
-  assert.equal(homeDashboardAlertActive({ frameAlert: true, alertActive: true }), true);
-  assert.equal(homeDashboardAlertActive({ frameAlert: false, alertActive: true }), false);
+  assert.equal(homeAlertActive({ domain: 'lock', deviceClass: null, name: 'Front door', state: 'jammed', available: true }), true);
+  assert.equal(homeAlertActive({ domain: 'lock', deviceClass: null, name: 'Front door', state: 'unlocked', available: true }), false);
+  assert.equal(homeAlertActive({ domain: 'cover', deviceClass: null, name: 'Garage', state: 'open', available: true }), false);
+  assert.equal(homeAlertActive({ domain: 'binary_sensor', deviceClass: 'door', name: 'Front door', state: 'on', available: true }), false);
+  assert.equal(homeAlertActive({ domain: 'binary_sensor', deviceClass: 'smoke', name: 'Kitchen smoke', state: 'on', available: true }), true);
+});
+
+test('a door open, a lock unlocked, or a cover raised is a normal status, always shown but never an alert', () => {
+  assert.equal(homeStatusNotable({ domain: 'lock', deviceClass: null, state: 'unlocked', available: true }), true);
+  assert.equal(homeStatusNotable({ domain: 'lock', deviceClass: null, state: 'locked', available: true }), false);
+  assert.equal(homeStatusNotable({ domain: 'cover', deviceClass: null, state: 'open', available: true }), true);
+  assert.equal(homeStatusNotable({ domain: 'binary_sensor', deviceClass: 'door', state: 'on', available: true }), true);
+  assert.equal(homeStatusNotable({ domain: 'binary_sensor', deviceClass: 'smoke', state: 'on', available: true }), false);
 });
 
 test('Home Assistant pong messages complete heartbeat commands', () => {
@@ -62,7 +70,7 @@ test('Home Assistant registry changes are recognized as live metadata updates', 
 });
 
 test('Home updates include selected entities and companion states from their device', () => {
-  const selection = [{ entityId: 'switch.office', deviceId: 'device-1', displayName: null, frameAlert: false, sortOrder: 0 }];
+  const selection = [{ entityId: 'switch.office', deviceId: 'device-1', displayName: null, sortOrder: 0 }];
   const state = (entityId: string, deviceId: string | null) => ({ entityId, deviceId } as Parameters<typeof homeStateAffectsSelection>[0]);
   assert.equal(homeStateAffectsSelection(state('switch.office', 'device-1'), selection), true);
   assert.equal(homeStateAffectsSelection(state('sensor.office_battery', 'device-1'), selection), true);
@@ -71,7 +79,7 @@ test('Home updates include selected entities and companion states from their dev
 
 test('editing the Home dashboard requires a parent session while reading it does not', async () => {
   setPin('123456');
-  const item = { entityId: 'light.kitchen', displayName: 'Kitchen', frameAlert: false };
+  const item = { entityId: 'light.kitchen', displayName: 'Kitchen' };
   const locked = await app.inject({ method: 'PUT', url: '/api/home/dashboard', payload: { items: [item] } });
   assert.equal(locked.statusCode, 401);
 
@@ -89,7 +97,7 @@ test('editing the Home dashboard requires a parent session while reading it does
 });
 
 test('published controls are public but arbitrary or unpublished actions are refused', async () => {
-  replaceHomeSelection([{ entityId: 'light.kitchen', displayName: 'Kitchen', frameAlert: false }]);
+  replaceHomeSelection([{ entityId: 'light.kitchen', displayName: 'Kitchen' }]);
   const published = await app.inject({ method: 'POST', url: '/api/home/entities/light.kitchen/action', payload: { action: 'turn_on' } });
   assert.equal(published.statusCode, 502); // Reached the connector; this test has no Home Assistant server.
 

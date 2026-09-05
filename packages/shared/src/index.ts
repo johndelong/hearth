@@ -388,44 +388,49 @@ export function homeCategoryFor(entity: Pick<HomeEntityState, 'domain' | 'device
   return 'other';
 }
 
-export function defaultHomeFrameAlert(entity: Pick<HomeEntityState, 'domain' | 'deviceClass' | 'name'>): boolean {
-  const kind = entity.deviceClass ?? '';
-  return entity.domain === 'lock' || entity.domain === 'alarm_control_panel' ||
-    ['door', 'window', 'opening', 'garage_door', 'battery', 'smoke', 'gas', 'carbon_monoxide', 'moisture', 'safety', 'tamper', 'problem'].includes(kind) ||
-    /battery low|low battery|replace battery|charge battery/i.test(entity.name);
-}
-
+/**
+ * Something needing a household member's attention as soon as possible — a
+ * triggered alarm, a jammed lock, a low battery, smoke or water detected.
+ * Unconditional, with no per-item opt-out, since these are never just normal
+ * operation.
+ */
 export function homeAlertActive(entity: Pick<HomeEntityState, 'domain' | 'deviceClass' | 'name' | 'state' | 'available'>): boolean {
   if (!entity.available) return false;
-  if (entity.domain === 'lock') return entity.state !== 'locked';
+  if (entity.domain === 'lock') return entity.state === 'jammed';
   if (entity.domain === 'alarm_control_panel') return entity.state === 'triggered' || entity.state === 'pending';
-  // A cover being open, or a door/window sensor reading open, is its normal
-  // useful state — not something needing attention. It still shows up in its
-  // active tone, just not as an alert.
-  if (entity.domain === 'cover') return false;
-  if (entity.domain === 'binary_sensor') {
-    if (['door', 'window', 'opening', 'garage_door'].includes(entity.deviceClass ?? '')) return false;
-    return entity.state === 'on';
-  }
   if (homeCategoryFor(entity) === 'batteries') {
+    if (entity.domain === 'binary_sensor') return entity.state === 'on';
     const level = Number.parseFloat(entity.state);
     return Number.isFinite(level) && level <= 20;
   }
-  return ['unlocked', 'jammed', 'triggered', 'on', 'detected', 'problem'].includes(entity.state);
+  if (entity.domain === 'binary_sensor') {
+    return ['smoke', 'gas', 'carbon_monoxide', 'moisture', 'problem', 'tamper', 'safety'].includes(entity.deviceClass ?? '') && entity.state === 'on';
+  }
+  return ['jammed', 'triggered', 'detected', 'problem'].includes(entity.state);
+}
+
+/**
+ * A door open, a lock unlocked, a cover raised — normal, expected operation,
+ * not something needing attention. Always shown on the screen saver, the same
+ * way a {@link homeAlertActive} entity is, but never as an alert: it doesn't
+ * belong in "needs attention" and shouldn't turn a tile red.
+ */
+export function homeStatusNotable(entity: Pick<HomeEntityState, 'domain' | 'deviceClass' | 'state' | 'available'>): boolean {
+  if (!entity.available) return false;
+  if (entity.domain === 'lock') return entity.state === 'unlocked';
+  if (entity.domain === 'cover') return entity.state === 'open' || entity.state === 'opening';
+  if (entity.domain === 'binary_sensor') return ['door', 'window', 'opening', 'garage_door'].includes(entity.deviceClass ?? '') && entity.state === 'on';
+  return false;
 }
 
 export interface HomeDashboardItem extends HomeEntityState {
   displayName: string;
   sortOrder: number;
-  frameAlert: boolean;
   alertActive: boolean;
   alertLabel: string | null;
+  statusActive: boolean;
+  statusLabel: string | null;
   related: HomeEntityState[];
-}
-
-/** The single alert gate shared by the Home dashboard and idle frame. */
-export function homeDashboardAlertActive(item: Pick<HomeDashboardItem, 'frameAlert' | 'alertActive'>): boolean {
-  return item.frameAlert && item.alertActive;
 }
 
 export interface HomeDashboard {
@@ -437,14 +442,12 @@ export interface HomeDashboard {
 export interface HomeCandidate extends HomeEntityState {
   selected: boolean;
   displayName: string;
-  frameAlert: boolean;
 }
 
 export interface HomeDashboardSelection {
   entityId: string;
   deviceId?: string | null;
   displayName: string | null;
-  frameAlert: boolean;
 }
 
 export interface HomeDeviceCandidate {
@@ -455,7 +458,6 @@ export interface HomeDeviceCandidate {
   model: string | null;
   primaryEntityId: string;
   category: HomeCategory;
-  frameAlert: boolean;
   selected: boolean;
   entities: HomeCandidate[];
 }

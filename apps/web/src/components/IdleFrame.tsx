@@ -1,8 +1,8 @@
-import { type CalendarEvent, type HomeDashboardItem, type Person, type Settings, eventEnd, eventStart, homeDashboardAlertActive } from '@dashboard/shared';
+import { type CalendarEvent, type HomeDashboardItem, type Person, type Settings, eventEnd, eventStart } from '@dashboard/shared';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Icon } from './ui';
-import { EASE, type IconName, col } from '../theme';
+import { EASE, type IconName, col, homeTone, homeVisualHue } from '../theme';
 import { eventPeople, fmtTime } from '../screens/calendar/useEvents';
 
 /**
@@ -19,13 +19,24 @@ import { eventPeople, fmtTime } from '../screens/calendar/useEvents';
 const FRAME_INK = '#e4e7ee';
 const FRAME_INK2 = '#767c88';
 
+/** Icon for a needs-attention alert — a jammed lock, low battery, water detected, etc. */
 function frameAlertIcon(item: HomeDashboardItem): IconName {
-  if (item.domain === 'lock') return 'lockOpen';
+  if (item.domain === 'lock') return 'lock';
   if (item.deviceClass === 'battery' || /battery/i.test(item.alertLabel ?? '')) return 'batteryLow';
-  if (item.deviceClass === 'garage_door') return 'garage';
-  if (['door', 'window', 'opening'].includes(item.deviceClass ?? '')) return 'door';
   if (item.deviceClass === 'moisture') return 'droplet';
-  if (item.domain === 'cover') return item.deviceClass === 'garage' ? 'garage' : 'shades';
+  return 'alert';
+}
+
+/**
+ * Icon for a normal-operation status — a door open, a lock unlocked, a cover
+ * raised. Only ever rendered while {@link homeStatusNotable} is true, so the
+ * open/raised variant always applies here, never the closed/at-rest one.
+ */
+function frameStatusIcon(item: HomeDashboardItem): IconName {
+  if (item.domain === 'lock') return 'lockOpen';
+  if (item.deviceClass === 'garage_door') return 'garageOpen';
+  if (['door', 'window', 'opening'].includes(item.deviceClass ?? '')) return 'doorOpen';
+  if (item.domain === 'cover') return item.deviceClass === 'garage' ? 'garageOpen' : 'shades';
   return 'alert';
 }
 
@@ -175,13 +186,15 @@ export function IdleFrame({
   onWake: () => void;
 }) {
   const [homeAlerts, setHomeAlerts] = useState<HomeDashboardItem[]>([]);
+  const [homeStatus, setHomeStatus] = useState<HomeDashboardItem[]>([]);
   const [homeStale, setHomeStale] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const applyHome = (home: Awaited<ReturnType<typeof api.home>>) => {
       if (cancelled) return;
-      setHomeAlerts(home.items.filter(homeDashboardAlertActive));
-      setHomeStale(home.stale && home.items.some((item) => item.frameAlert));
+      setHomeAlerts(home.items.filter((item) => item.alertActive));
+      setHomeStatus(home.items.filter((item) => item.statusActive));
+      setHomeStale(home.stale && home.items.length > 0);
     };
     void api.home().then(applyHome).catch(() => { if (!cancelled) setHomeStale(true); });
     const events = new EventSource('/api/home/events');
@@ -224,11 +237,17 @@ export function IdleFrame({
       }}
     >
       <ImmichSlideshow settings={settings} />
-      {(homeAlerts.length > 0 || homeStale) && (
+      {(homeAlerts.length > 0 || homeStatus.length > 0 || homeStale) && (
         <div className="idle-frame-alerts">
           {homeAlerts.map((item) => (
             <div key={item.entityId} className="idle-frame-alert" title={item.alertLabel ?? undefined} style={{ color: FRAME_INK }}>
-              <Icon name={frameAlertIcon(item)} style={{ width: 'calc(var(--text-md) + var(--space-2))', height: 'calc(var(--text-md) + var(--space-2))', color: '#ff8278' }} />
+              <Icon name={frameAlertIcon(item)} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)', color: '#ff8278' }} />
+              <span className="idle-frame-alert-name">{item.displayName}</span>
+            </div>
+          ))}
+          {homeStatus.map((item) => (
+            <div key={item.entityId} className="idle-frame-alert" title={item.statusLabel ?? undefined} style={{ color: FRAME_INK }}>
+              <Icon name={frameStatusIcon(item)} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)', color: homeTone(homeVisualHue(item), true).accent }} />
               <span className="idle-frame-alert-name">{item.displayName}</span>
             </div>
           ))}

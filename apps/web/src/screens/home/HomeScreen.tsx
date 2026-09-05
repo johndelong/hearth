@@ -1,9 +1,9 @@
-import { homeAlertActive, homeCategoryFor, homeDashboardAlertActive, type HomeCandidate, type HomeCategory, type HomeDashboard, type HomeDashboardItem, type HomeDashboardSelection, type HomeDeviceCandidate, type HomeEntityState } from '@dashboard/shared';
+import { homeAlertActive, homeCategoryFor, type HomeCandidate, type HomeCategory, type HomeDashboard, type HomeDashboardItem, type HomeDashboardSelection, type HomeDeviceCandidate, type HomeEntityState } from '@dashboard/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode } from 'react';
 import { api } from '../../api';
-import { Button, Card, Icon, IconBadge, Pill, Switch, TapButton } from '../../components/ui';
+import { Button, Card, Icon, IconBadge, Pill, TapButton } from '../../components/ui';
 import { Modal } from '../../components/Modal';
-import { CARD_SHADOW, type IconName, deep, homeTone, soft } from '../../theme';
+import { CARD_SHADOW, type IconName, deep, homeTone, homeVisualHue, soft } from '../../theme';
 import { useOnWake } from '../../state';
 
 const EMPTY: HomeDashboard = { connection: 'disconnected', stale: true, items: [] };
@@ -145,12 +145,18 @@ function iconFor(item: Pick<HomeDashboardItem, 'name' | 'domain' | 'deviceClass'
   return 'home';
 }
 
+/**
+ * Whether a tile should show its colored, "on" tone rather than the neutral
+ * gray of normal, at-rest operation. Gray means "as it should be" — a locked
+ * door, a closed cover — not "off"; a lock reads gray when locked and colored
+ * when unlocked, the opposite of a light.
+ */
 function isVisuallyActive(item: HomeDashboardItem): boolean {
   if (!item.available) return false;
-  if (item.domain === 'lock') return item.state === 'locked';
+  if (item.domain === 'lock') return item.state !== 'locked';
   if (item.domain === 'alarm_control_panel') return item.state !== 'disarmed';
   if (item.domain === 'climate') return item.state !== 'off';
-  return item.state === 'on' || ['open', 'opening', 'unlocked', 'triggered', 'heat', 'cool'].includes(item.state);
+  return item.state === 'on' || ['open', 'opening', 'triggered', 'heat', 'cool'].includes(item.state);
 }
 
 function prettyState(item: HomeEntityState): string {
@@ -206,7 +212,7 @@ function criticalLabel(entity: HomeEntityState): string {
 }
 
 function criticalLabels(item: HomeDashboardItem): string[] {
-  if (!homeDashboardAlertActive(item)) return [];
+  if (!item.alertActive) return [];
   return [...new Set([item, ...item.related].filter(homeAlertActive).map(criticalLabel))];
 }
 
@@ -231,7 +237,7 @@ function tileSubtitle(item: HomeDashboardItem, isDimmableLight: boolean): string
 }
 
 function AttentionPanel({ items, night, onOpen }: { items: HomeDashboardItem[]; night: boolean; onOpen: (item: HomeDashboardItem) => void }) {
-  const alerts = items.filter(homeDashboardAlertActive);
+  const alerts = items.filter((item) => item.alertActive);
   if (!alerts.length) return null;
   const warning = homeTone(25, night);
   return (
@@ -266,7 +272,7 @@ function HomeTile({ item, night, busy, onOpen, onAction }: HomeCardProps) {
   const action = actionFor(item);
   const active = isVisuallyActive(item);
   const alerts = criticalLabels(item);
-  const hue = visualHue(item);
+  const hue = homeVisualHue(item);
   const tone = homeTone(hue, night);
   const warning = homeTone(25, night);
   const isDimmableLight = item.domain === 'light' && item.state === 'on' && item.details.brightness !== null;
@@ -288,15 +294,6 @@ function HomeTile({ item, night, busy, onOpen, onAction }: HomeCardProps) {
       </div>
     </div>
   );
-}
-
-function visualHue(item: HomeDashboardItem): number {
-  if (item.domain === 'alarm_control_panel' || homeCategoryFor(item) === 'security') return 258;
-  if (homeCategoryFor(item) === 'covers' || homeCategoryFor(item) === 'media') return 305;
-  if (homeCategoryFor(item) === 'climate' || homeCategoryFor(item) === 'other') return 165;
-  if (item.domain === 'light' || homeCategoryFor(item) === 'lights' || homeCategoryFor(item) === 'batteries') return 68;
-  if (['switch', 'input_boolean', 'fan'].includes(item.domain)) return 305;
-  return -1;
 }
 
 function ClimateCard({ item, night, busy, onOpen, onAction }: HomeCardProps) {
@@ -450,7 +447,7 @@ function HomeSwipeControl({ value, night, hue, disabled, snap = false, thumbIcon
 function HomeDetail({ item, night, busy, onAction, onClose }: Omit<HomeCardProps, 'onOpen'> & { onClose: () => void }) {
   const action = actionFor(item);
   const battery = batteryFor(item);
-  const tone = homeTone(visualHue(item), night);
+  const tone = homeTone(homeVisualHue(item), night);
   const warning = homeTone(25, night);
 
   // Home Assistant drops `brightness` once a dimmable light reports off, but the swipe
@@ -493,7 +490,7 @@ function HomeDetail({ item, night, busy, onAction, onClose }: Omit<HomeCardProps
         <HomeSwipeControl
           value={snapOn ? 100 : 0}
           night={night}
-          hue={visualHue(item)}
+          hue={homeVisualHue(item)}
           disabled={busy || !item.available}
           snap
           thumbIcon={(level) => item.domain === 'lock' ? (level >= 50 ? 'lock' : 'lockOpen') : item.domain === 'light' ? 'bulb' : 'toggle'}
@@ -574,7 +571,6 @@ function HomeEditor({ actions: editActions, night, say, onDone }: { actions: Mut
           entityId: saved.entityId,
           deviceId: device?.deviceId ?? null,
           displayName: saved.displayName,
-          frameAlert: saved.frameAlert,
           sourceName: device?.name ?? source?.name ?? saved.name,
           area: source?.area ?? saved.area,
           domain: source?.domain ?? saved.domain,
@@ -612,7 +608,7 @@ function HomeEditor({ actions: editActions, night, say, onDone }: { actions: Mut
     if (loading || saving) return;
     setSaving(true);
     try {
-      await api.saveHomeDashboard(items.map(({ entityId, deviceId, frameAlert }) => ({ entityId, deviceId: deviceId ?? null, displayName: null, frameAlert })));
+      await api.saveHomeDashboard(items.map(({ entityId, deviceId }) => ({ entityId, deviceId: deviceId ?? null, displayName: null })));
       say('Home dashboard saved', 148);
       onDone();
     } catch (err) {
@@ -645,10 +641,6 @@ function HomeEditor({ actions: editActions, night, say, onDone }: { actions: Mut
                 <span style={{ display: 'block', color: 'var(--ink)', fontSize: 16, fontWeight: 825, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.sourceName}</span>
                 <span style={{ display: 'block', marginTop: 2, color: 'var(--ink2)', fontSize: 12.5, fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.entityId}</span>
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 750, color: 'var(--ink2)' }}>
-                Frame alert
-                <Switch night={night} on={item.frameAlert} label={`Show ${item.sourceName} alerts in frame mode`} onChange={(frameAlert) => setItems((current) => current.map((candidate) => candidate.entityId === item.entityId ? { ...candidate, frameAlert } : candidate))} />
-              </div>
               <Button size="sm" onClick={() => setItems((current) => current.filter((candidate) => candidate.entityId !== item.entityId))}>Remove</Button>
             </div>
           ))}
@@ -681,7 +673,7 @@ function HomeEditor({ actions: editActions, night, say, onDone }: { actions: Mut
             const primary = device.entities.find((entity) => entity.entityId === device.primaryEntityId)!;
             const companions = device.entities.filter((entity) => entity.entityId !== device.primaryEntityId && (entity.deviceClass === 'battery' || ['door', 'window', 'opening', 'temperature', 'humidity', 'problem', 'tamper', 'moisture'].includes(entity.deviceClass ?? ''))).length;
             return (
-              <TapButton key={device.deviceId} onClick={() => setItems((current) => [...current, { entityId: primary.entityId, deviceId: device.deviceId, displayName: device.name, frameAlert: device.frameAlert, sourceName: device.name, area: device.area, domain: primary.domain, deviceClass: primary.deviceClass }])} style={{ minHeight: 76, padding: '11px 13px', border: '1px solid var(--line)', borderRadius: 16, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 11 }}>
+              <TapButton key={device.deviceId} onClick={() => setItems((current) => [...current, { entityId: primary.entityId, deviceId: device.deviceId, displayName: device.name, sourceName: device.name, area: device.area, domain: primary.domain, deviceClass: primary.deviceClass }])} style={{ minHeight: 76, padding: '11px 13px', border: '1px solid var(--line)', borderRadius: 16, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 11 }}>
                 <span style={{ width: 40, height: 40, borderRadius: 13, display: 'grid', placeItems: 'center', background: soft(categoryInfo(device.category).hue, night), color: deep(categoryInfo(device.category).hue, night) }}><Icon name={iconFor(primary)} size={20} /></span>
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ display: 'block', fontWeight: 825 }}>{device.name}</span>
@@ -703,7 +695,7 @@ function HomeEditor({ actions: editActions, night, say, onDone }: { actions: Mut
 }
 
 function editingItem(entity: HomeCandidate): EditingItem {
-  return { entityId: entity.entityId, deviceId: null, displayName: entity.name, frameAlert: entity.frameAlert, sourceName: entity.name, area: entity.area, domain: entity.domain, deviceClass: entity.deviceClass };
+  return { entityId: entity.entityId, deviceId: null, displayName: entity.name, sourceName: entity.name, area: entity.area, domain: entity.domain, deviceClass: entity.deviceClass };
 }
 
 function EntityChoice({ entity, onAdd }: { entity: HomeCandidate; onAdd: () => void }) {

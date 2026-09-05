@@ -1,7 +1,7 @@
 import {
-  defaultHomeFrameAlert,
   homeAlertActive,
   homeCategoryFor,
+  homeStatusNotable,
   type HomeCandidate,
   type HomeDashboard,
   type HomeDashboardItem,
@@ -49,6 +49,7 @@ function dashboard(): HomeDashboard {
       ? [...states.values()].filter((candidate) => candidate.deviceId === selected.deviceId && candidate.entityId !== state.entityId && usefulCompanion(candidate))
       : [];
     const activeAlert = [state, ...related].find((candidate) => homeAlertActive(candidate));
+    const notableStatus = homeStatusNotable(state) ? state : undefined;
     const homeAssistantName = selected.deviceId
       ? homeAssistant.devices().get(selected.deviceId)?.name ?? state.name
       : state.name;
@@ -56,9 +57,10 @@ function dashboard(): HomeDashboard {
       ...state,
       displayName: homeAssistantName,
       sortOrder: selected.sortOrder,
-      frameAlert: selected.frameAlert,
-      alertActive: selected.frameAlert && Boolean(activeAlert),
-      alertLabel: selected.frameAlert && activeAlert ? alertLabel(activeAlert) : null,
+      alertActive: Boolean(activeAlert),
+      alertLabel: activeAlert ? alertLabel(activeAlert) : null,
+      statusActive: Boolean(notableStatus),
+      statusLabel: notableStatus ? statusLabel(notableStatus) : null,
       related,
     };
   });
@@ -77,10 +79,16 @@ function alertLabel(entity: HomeEntityState): string {
     const level = Number.parseFloat(entity.state);
     return Number.isFinite(level) ? `Battery ${level}${entity.unit ?? '%'}` : 'Low battery';
   }
-  if (entity.domain === 'lock') return entity.state === 'jammed' ? 'Lock jammed' : 'Unlocked';
+  if (entity.domain === 'lock') return 'Lock jammed';
   if (entity.domain === 'alarm_control_panel') return entity.state === 'triggered' ? 'Alarm sounding' : 'Alarm pending';
   if (entity.deviceClass === 'moisture') return 'Water detected';
   return entity.state.replaceAll('_', ' ');
+}
+
+/** Label for a {@link homeStatusNotable} entity — normal operation, not an alert. */
+function statusLabel(entity: HomeEntityState): string {
+  if (entity.domain === 'lock') return 'Unlocked';
+  return 'Open';
 }
 
 function primaryRank(entity: HomeEntityState): number {
@@ -118,7 +126,6 @@ function deviceCandidates(): HomeDeviceCandidate[] {
       ...entity,
       selected: selected.some((item) => item.entityId === entity.entityId),
       displayName: selected.find((item) => item.entityId === entity.entityId)?.displayName ?? entity.name,
-      frameAlert: selected.find((item) => item.entityId === entity.entityId)?.frameAlert ?? defaultHomeFrameAlert(entity),
     }));
     return [{
       deviceId,
@@ -128,7 +135,6 @@ function deviceCandidates(): HomeDeviceCandidate[] {
       model: metadata?.model ?? null,
       primaryEntityId: primary.entityId,
       category: homeCategoryFor(primary),
-      frameAlert: entities.some(defaultHomeFrameAlert),
       selected: Boolean(chosen),
       entities: candidates.filter((entity) => entity.entityId === primary.entityId || usefulCompanion(entity)),
     }];
@@ -205,7 +211,6 @@ export async function homeRoutes(app: FastifyInstance): Promise<void> {
           ...state,
           selected: Boolean(item),
           displayName: item?.displayName ?? state.name,
-          frameAlert: item?.frameAlert ?? defaultHomeFrameAlert(state),
         };
       })
       .sort((a, b) => (a.area ?? '').localeCompare(b.area ?? '') || a.name.localeCompare(b.name));
@@ -222,12 +227,11 @@ export async function homeRoutes(app: FastifyInstance): Promise<void> {
           items: {
             type: 'array', maxItems: 100, uniqueItems: true,
             items: {
-              type: 'object', additionalProperties: false, required: ['entityId', 'displayName', 'frameAlert'],
+              type: 'object', additionalProperties: false, required: ['entityId', 'displayName'],
               properties: {
                 entityId: { type: 'string', pattern: '^[a-z0-9_]+\\.[a-z0-9_]+$' },
                 deviceId: { anyOf: [{ type: 'string', minLength: 1, maxLength: 128 }, { type: 'null' }] },
                 displayName: { anyOf: [{ type: 'string', minLength: 1, maxLength: 100 }, { type: 'null' }] },
-                frameAlert: { type: 'boolean' },
               },
             },
           },

@@ -1,3 +1,5 @@
+import { homeCategoryFor, type HomeDashboardItem } from '@dashboard/shared';
+
 /**
  * The design language from `Family Dashboard.dc.html`, extracted so every screen
  * draws from one source. Colors are OKLCH hues: each family member owns a hue,
@@ -75,6 +77,16 @@ export function homeTone(hue: number, night: boolean): HomeTone {
   return night
     ? { background: '#1a1f26', ink: '#eef1f5', accent: '#8d959f' }
     : { background: '#fff', ink: '#16202b', accent: '#8b949e' };
+}
+
+/** The category hue behind a Home Assistant tile's icon, active tone, and screen-saver status color. */
+export function homeVisualHue(entity: Pick<HomeDashboardItem, 'domain' | 'deviceClass' | 'name'>): number {
+  if (entity.domain === 'alarm_control_panel' || homeCategoryFor(entity) === 'security') return 258;
+  if (homeCategoryFor(entity) === 'covers' || homeCategoryFor(entity) === 'media') return 305;
+  if (homeCategoryFor(entity) === 'climate' || homeCategoryFor(entity) === 'other') return 165;
+  if (entity.domain === 'light' || homeCategoryFor(entity) === 'lights' || homeCategoryFor(entity) === 'batteries') return 68;
+  if (['switch', 'input_boolean', 'fan'].includes(entity.domain)) return 305;
+  return -1;
 }
 
 export const CARD_SHADOW = '0 1px 2px rgba(20,24,40,.05),0 16px 34px -22px rgba(20,24,40,.26)';

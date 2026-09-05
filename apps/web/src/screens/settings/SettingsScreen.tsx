@@ -179,7 +179,7 @@ function HomeSection({ say }: Pick<Props, 'say'>) {
       </Panel>
       <Panel title="Dashboard access" sub="Parents choose devices with Edit on the Home tab. Once published, their controls are available to everyone.">
         <div style={{ color: 'var(--ink2)', fontSize: 15, fontWeight: 650, lineHeight: 1.5 }}>
-          Frame alerts can also be enabled per device there. They appear only while the selected device is in its alert state.
+          A device needing attention — a triggered alarm, a low battery — always shows there and on the screen saver. A door, lock, or cover also shows its open or unlocked status on the screen saver automatically.
         </div>
       </Panel>
     </>
