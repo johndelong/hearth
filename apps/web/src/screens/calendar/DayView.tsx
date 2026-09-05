@@ -30,6 +30,11 @@ const LANE_OVERLAP = 0.34;
  */
 const TRACK_MAX = 640;
 
+/** Line heights of the header's time and title rows, set explicitly so the avatar can match their combined height exactly. */
+const TIME_LINE_H = 16;
+const TITLE_LINE_H = 20;
+const HEADER_AVATAR_SIZE = TIME_LINE_H + TITLE_LINE_H;
+
 interface Props {
   day: Date;
   now: Date;
@@ -152,9 +157,8 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
                 const tight = height < 58;
 
                 return (
-                  <TapButton
+                  <div
                     key={e.id}
-                    onClick={() => !e.synthetic && onEditEvent(e)}
                     style={{
                       position: 'absolute',
                       pointerEvents: 'auto',
@@ -164,11 +168,6 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
                       width: `${width}%`,
                       // Later lanes sit on top, so the pile reads left to right.
                       zIndex: box.column + 1,
-                      display: 'flex',
-                      alignItems: tight ? 'center' : 'flex-start',
-                      gap: 10,
-                      overflow: 'hidden',
-                      padding: tight ? '6px 12px' : '9px 13px',
                       borderRadius: 14,
                       borderLeft: `3px solid ${col(p.hue, night)}`,
                       background: soft(p.hue, night),
@@ -180,26 +179,61 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
                       animation: `riseIn .45s ${EASE} ${i * 26}ms both`,
                     }}
                   >
-                    {!tight &&
-                      (going(e).length > 1 ? (
-                        <Faces people={going(e)} night={night} size={27} />
-                      ) : (
-                        <Avatar name={p.name} hue={p.hue} night={night} size={27} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
-                      ))}
-                    <span style={{ minWidth: 0 }}>
-                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, opacity: 0.75 }}>
-                        {fmtRange(eventStart(e), eventEnd(e))}
-                      </span>
-                      <span style={{ display: 'block', fontSize: tight ? 14.5 : 16.5, fontWeight: 800 }}>
-                        {e.title}
-                      </span>
-                      {e.location && height >= 84 && (
-                        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, opacity: 0.7 }}>
-                          {e.location}
+                    {/*
+                      A plain div, not a button, holds the box: Chromium and
+                      Firefox both center a <button>'s content inside an internal
+                      anonymous box, which silently breaks a sticky child's normal-
+                      flow position (it renders mid-button instead of at its own
+                      top). The tap target below is layered underneath instead —
+                      the same hit-area pattern used for Home tiles.
+                    */}
+                    <TapButton
+                      onClick={() => !e.synthetic && onEditEvent(e)}
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', padding: 0, borderRadius: 14 }}
+                    >
+                      <span />
+                    </TapButton>
+                    {/*
+                      Sticky, not just top-aligned: a tall event's identity — who,
+                      what, when — should stay on screen as you scroll into it,
+                      the way it would if you'd scrolled to its start. Position
+                      sticky clamps to this box's own bottom on its own, so the
+                      header rides down with the view and then scrolls away
+                      normally once the event ends.
+                    */}
+                    <div
+                      style={{
+                        position: 'sticky',
+                        top: 8,
+                        zIndex: 1,
+                        pointerEvents: 'none',
+                        display: 'flex',
+                        alignItems: tight ? 'center' : 'flex-start',
+                        gap: 10,
+                        padding: tight ? '6px 12px' : '9px 13px',
+                      }}
+                    >
+                      {!tight &&
+                        (going(e).length > 1 ? (
+                          <Faces people={going(e)} night={night} size={HEADER_AVATAR_SIZE} />
+                        ) : (
+                          <Avatar name={p.name} hue={p.hue} night={night} size={HEADER_AVATAR_SIZE} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />
+                        ))}
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 13.5, lineHeight: `${TIME_LINE_H}px`, fontWeight: 800, opacity: 0.75 }}>
+                          {fmtRange(eventStart(e), eventEnd(e))}
                         </span>
-                      )}
-                    </span>
-                  </TapButton>
+                        <span style={{ display: 'block', fontSize: tight ? 14.5 : 16.5, lineHeight: tight ? undefined : `${TITLE_LINE_H}px`, fontWeight: 800 }}>
+                          {e.title}
+                        </span>
+                        {e.location && height >= 84 && (
+                          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, opacity: 0.7 }}>
+                            {e.location}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
                 );
               })}
             </div>
