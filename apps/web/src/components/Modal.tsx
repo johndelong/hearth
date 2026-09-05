@@ -16,13 +16,16 @@ let stack: symbol[] = [];
 export function Modal({
   title,
   sub,
+  icon,
   onClose,
   children,
   footer,
   width = 520,
 }: {
   title: string;
-  sub?: string;
+  sub?: ReactNode;
+  /** Rendered to the left of the title and subtitle — a device or category badge. */
+  icon?: ReactNode;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
@@ -100,9 +103,12 @@ export function Modal({
           flexDirection: 'column',
         }}
       >
-        <div style={{ padding: 'var(--space-6) var(--space-7) var(--space-2)' }}>
-          <div id={titleId} style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 600 }}>{title}</div>
-          {sub && <div style={{ marginTop: 4, color: 'var(--ink2)', fontSize: 15.5 }}>{sub}</div>}
+        <div style={{ padding: 'var(--space-6) var(--space-7) var(--space-2)', display: 'flex', alignItems: 'center', gap: 16 }}>
+          {icon}
+          <div>
+            <div id={titleId} style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 600 }}>{title}</div>
+            {sub && <div style={{ marginTop: 4, color: 'var(--ink2)', fontSize: 15.5 }}>{sub}</div>}
+          </div>
         </div>
         <div style={{ padding: 'var(--space-3) var(--space-7)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           {children}

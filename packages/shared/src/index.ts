@@ -399,13 +399,19 @@ export function homeAlertActive(entity: Pick<HomeEntityState, 'domain' | 'device
   if (!entity.available) return false;
   if (entity.domain === 'lock') return entity.state !== 'locked';
   if (entity.domain === 'alarm_control_panel') return entity.state === 'triggered' || entity.state === 'pending';
-  if (entity.domain === 'cover') return entity.state === 'open' || entity.state === 'opening';
-  if (entity.domain === 'binary_sensor') return entity.state === 'on';
+  // A cover being open, or a door/window sensor reading open, is its normal
+  // useful state — not something needing attention. It still shows up in its
+  // active tone, just not as an alert.
+  if (entity.domain === 'cover') return false;
+  if (entity.domain === 'binary_sensor') {
+    if (['door', 'window', 'opening', 'garage_door'].includes(entity.deviceClass ?? '')) return false;
+    return entity.state === 'on';
+  }
   if (homeCategoryFor(entity) === 'batteries') {
     const level = Number.parseFloat(entity.state);
     return Number.isFinite(level) && level <= 20;
   }
-  return ['open', 'opening', 'unlocked', 'jammed', 'triggered', 'on', 'detected', 'problem'].includes(entity.state);
+  return ['unlocked', 'jammed', 'triggered', 'on', 'detected', 'problem'].includes(entity.state);
 }
 
 export interface HomeDashboardItem extends HomeEntityState {

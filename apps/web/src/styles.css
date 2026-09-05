@@ -1,4 +1,17 @@
 /*
+  Self-hosted so icons keep working with no network — the app's iconography
+  is Material Symbols Rounded (see `ICONS` in theme.ts and `Icon` in
+  components/ui.tsx), loaded from a local font file rather than Google Fonts.
+*/
+@font-face {
+  font-family: 'Material Symbols Rounded';
+  font-style: normal;
+  font-weight: 100 700;
+  src: url('/fonts/MaterialSymbolsRounded.woff2') format('woff2');
+  font-display: block;
+}
+
+/*
   The whole app's theme tokens, day and night, defined once on the document
   root rather than injected by React as an inline style on the app's own
   container — a Modal portals its dialog straight to `document.body`, which
@@ -47,7 +60,7 @@
   --settings-nav-width: 268px;
   --home-tile-width: 228px;
   --home-climate-width: 300px;
-  --home-tile-min-height: 136px;
+  --home-tile-min-height: 84px;
   --home-climate-min-height: 405px;
   --home-climate-ring: 208px;
   --home-climate-stroke: 22px;
@@ -98,7 +111,7 @@
   --settings-nav-width: 220px;
   --home-tile-width: 205px;
   --home-climate-width: 270px;
-  --home-tile-min-height: 118px;
+  --home-tile-min-height: 72px;
   --home-climate-min-height: 342px;
   --home-climate-ring: 176px;
   --home-climate-stroke: 18px;
@@ -144,7 +157,7 @@
   --settings-nav-width: 300px;
   --home-tile-width: 250px;
   --home-climate-width: 330px;
-  --home-tile-min-height: 152px;
+  --home-tile-min-height: 94px;
   --home-climate-min-height: 450px;
   --home-climate-ring: 228px;
   --home-climate-stroke: 24px;
@@ -205,6 +218,8 @@ select {
 }
 
 button {
+  margin: 0;
+  padding: 0;
   -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
@@ -406,8 +421,10 @@ button {
 }
 
 .home-device-card {
+  flex-direction: row;
+  align-items: center;
   min-height: var(--home-tile-min-height);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   gap: var(--space-3);
 }
 
@@ -426,18 +443,11 @@ button {
   border-radius: var(--radius-card);
 }
 
-.home-card-content,
 .home-climate-header,
 .home-climate-dial-wrap {
   position: relative;
   z-index: 1;
   pointer-events: none;
-}
-
-.home-card-content {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
 }
 
 .home-climate-header {
@@ -512,7 +522,7 @@ button {
 
 .idle-frame-date {
   margin-top: var(--space-3);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 700;
 }
 
@@ -534,7 +544,7 @@ button {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: var(--text-section);
+  font-size: var(--text-md);
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -542,24 +552,26 @@ button {
 
 .idle-frame-event-time {
   flex: none;
-  font-size: var(--text-lg);
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .idle-frame-empty {
-  font-size: var(--text-section);
+  font-size: var(--text-md);
   font-weight: 700;
 }
 
 .idle-frame-alerts {
-  position: relative;
+  position: absolute;
+  top: var(--space-6);
+  left: var(--space-6);
+  right: var(--space-6);
   z-index: 1;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4) var(--space-7);
   min-width: 0;
-  margin-top: var(--space-8);
-  overflow: hidden;
 }
 
 .idle-frame-alert,
@@ -582,7 +594,6 @@ button {
   white-space: nowrap;
 }
 
-.idle-frame-alert-overflow,
 .idle-frame-stale {
   flex: none;
   color: #767c88;

@@ -17,7 +17,7 @@ import { PrizeCatalog } from './screens/chores/PrizeCatalog';
 import { ProfileDialog } from './screens/chores/ProfileDialog';
 import { SettingsScreen, type SettingsSection } from './screens/settings/SettingsScreen';
 import { type Tab, useAppData, useClock, useIdle, useNight, useToast } from './state';
-import { EASE, type IconName, MONTHS_LONG } from './theme';
+import { EASE, type IconName, MONTHS_LONG, col } from './theme';
 
 type Editor =
   | { kind: 'person'; person: Person | null }
@@ -88,7 +88,7 @@ export default function App() {
    * picking one day out of a grid of thirty to put in the title is arbitrary.
    */
   const heading = useMemo(() => {
-    if (tab === 'home') return { title: 'Home', sub: 'At a glance' };
+    if (tab === 'home') return { title: 'Home', sub: '' };
     if (tab === 'today' && calView !== 'day') return spanLabel(calView, anchor, settings.weekStart);
     return {
       title: viewing.toLocaleDateString('en-US', {
@@ -226,9 +226,11 @@ export default function App() {
             <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-display)', fontWeight: 600, lineHeight: 1.1 }}>
               {heading.title}
             </h1>
-            <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>
-              {heading.sub}
-            </div>
+            {heading.sub && (
+              <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>
+                {heading.sub}
+              </div>
+            )}
           </div>
 
           {tab === 'today' && (
@@ -263,13 +265,6 @@ export default function App() {
                 ))}
               </div>
 
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setEditor({ kind: 'event', event: null })}
-              >
-                <Icon name="plus" size={18} /> Add
-              </Button>
             </>
           )}
           {tab === 'chores' && board && (
@@ -406,6 +401,29 @@ export default function App() {
         </div>
 
       </main>
+
+      {tab === 'today' && !idle && (
+        <TapButton
+          title="Add event"
+          onClick={() => setEditor({ kind: 'event', event: null })}
+          style={{
+            position: 'fixed',
+            right: 'var(--space-page)',
+            bottom: 'var(--space-page)',
+            zIndex: 40,
+            width: 'var(--control-xl)',
+            height: 'var(--control-xl)',
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: '50%',
+            background: col(258, night),
+            color: '#fff',
+            boxShadow: '0 10px 24px -8px rgba(20,24,40,.45)',
+          }}
+        >
+          <Icon name="plus" size={26} />
+        </TapButton>
+      )}
 
       {idle && (
         <IdleFrame

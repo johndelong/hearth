@@ -368,6 +368,7 @@ export function ChoresScreen({
                     goal={goal}
                     points={points}
                     night={night}
+                    size={56}
                     onOpen={() => onOpenCatalog(person)}
                   />
                   {/*

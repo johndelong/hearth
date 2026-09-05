@@ -224,6 +224,22 @@ export function IdleFrame({
       }}
     >
       <ImmichSlideshow settings={settings} />
+      {(homeAlerts.length > 0 || homeStale) && (
+        <div className="idle-frame-alerts">
+          {homeAlerts.map((item) => (
+            <div key={item.entityId} className="idle-frame-alert" title={item.alertLabel ?? undefined} style={{ color: FRAME_INK }}>
+              <Icon name={frameAlertIcon(item)} style={{ width: 'calc(var(--text-md) + var(--space-2))', height: 'calc(var(--text-md) + var(--space-2))', color: '#ff8278' }} />
+              <span className="idle-frame-alert-name">{item.displayName}</span>
+            </div>
+          ))}
+          {homeStale && (
+            <div className="idle-frame-stale">
+              <Icon name="alert" style={{ width: 'var(--text-lg)', height: 'var(--text-lg)' }} />
+              Home states may be out of date
+            </div>
+          )}
+        </div>
+      )}
       <div className="idle-frame-main">
         <div>
           <div className="idle-frame-clock">
@@ -265,23 +281,6 @@ export function IdleFrame({
           )}
         </div>
       </div>
-      {(homeAlerts.length > 0 || homeStale) && (
-        <div className="idle-frame-alerts">
-          {homeAlerts.slice(0, 6).map((item) => (
-            <div key={item.entityId} className="idle-frame-alert" title={item.alertLabel ?? undefined} style={{ color: FRAME_INK }}>
-              <Icon name={frameAlertIcon(item)} style={{ width: 'calc(var(--text-md) + var(--space-2))', height: 'calc(var(--text-md) + var(--space-2))', color: '#ff8278' }} />
-              <span className="idle-frame-alert-name">{item.displayName}</span>
-            </div>
-          ))}
-          {homeAlerts.length > 6 && <div className="idle-frame-alert-overflow">+{homeAlerts.length - 6} more</div>}
-          {homeStale && (
-            <div className="idle-frame-stale">
-              <Icon name="alert" style={{ width: 'var(--text-lg)', height: 'var(--text-lg)' }} />
-              Home states may be out of date
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

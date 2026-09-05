@@ -85,6 +85,14 @@ export function cacheHomeState(state: HomeEntityState): void {
   );
 }
 
+export function pruneHomeStatesNotIn(entityIds: Iterable<string>): void {
+  const keep = new Set(entityIds);
+  const stale = cachedRows.all().map((row) => row.entity_id).filter((id) => !keep.has(id));
+  if (stale.length === 0) return;
+  const remove = db.prepare('DELETE FROM home_state_cache WHERE entity_id = ?');
+  db.transaction(() => { for (const id of stale) remove.run(id); })();
+}
+
 export function cachedHomeStates(): Map<string, HomeEntityState> {
   return new Map(cachedRows.all().map((row) => [row.entity_id, {
     entityId: row.entity_id,

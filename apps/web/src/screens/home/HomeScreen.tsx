@@ -101,7 +101,6 @@ export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
         </div>
       )}
       <AttentionPanel items={dashboard.items} night={night} onOpen={(item) => setDetailEntityId(item.entityId)} />
-      <HomeSummary items={dashboard.items} />
       <div className="home-sections">
         {DASHBOARD_SECTIONS.map((section) => {
           const items = dashboard.items.filter(section.includes);
@@ -118,7 +117,7 @@ export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
               <div className={`home-grid${section.id === 'climate' ? ' home-grid-climate' : ''}`}>
                 {items.map((item) => item.domain === 'climate'
                   ? <ClimateCard key={item.entityId} item={item} night={night} busy={busyEntityId === item.entityId} onOpen={() => setDetailEntityId(item.entityId)} onAction={(action, value) => void runAction(item, action, value)} />
-                  : <HomeCard key={item.entityId} item={item} night={night} busy={busyEntityId === item.entityId} onOpen={() => setDetailEntityId(item.entityId)} onAction={(action, value) => void runAction(item, action, value)} />)}
+                  : <HomeTile key={item.entityId} item={item} night={night} busy={busyEntityId === item.entityId} onOpen={() => setDetailEntityId(item.entityId)} onAction={(action, value) => void runAction(item, action, value)} />)}
               </div>
             </section>
           );
@@ -131,10 +130,13 @@ export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
 
 function iconFor(item: Pick<HomeDashboardItem, 'name' | 'domain' | 'deviceClass' | 'state'>): IconName {
   if (item.domain === 'lock') return item.state === 'locked' ? 'lock' : 'lockOpen';
-  if (item.domain === 'cover') return item.deviceClass === 'garage' ? 'garage' : 'shades';
+  if (item.domain === 'cover') {
+    if (item.deviceClass !== 'garage') return 'shades';
+    return ['open', 'opening'].includes(item.state) ? 'garageOpen' : 'garage';
+  }
   if (item.domain === 'climate' || item.deviceClass === 'temperature') return 'thermometer';
   if (item.deviceClass === 'battery') return 'battery';
-  if (['door', 'window', 'opening', 'garage_door'].includes(item.deviceClass ?? '')) return 'door';
+  if (['door', 'window', 'opening', 'garage_door'].includes(item.deviceClass ?? '')) return item.state === 'on' ? 'doorOpen' : 'door';
   if (item.deviceClass === 'moisture') return 'droplet';
   if (item.domain === 'light' || (item.domain === 'switch' && homeCategoryFor(item) === 'lights')) return 'bulb';
   if (['switch', 'input_boolean', 'fan'].includes(item.domain)) return 'toggle';
@@ -199,7 +201,6 @@ function criticalLabel(entity: HomeEntityState): string {
   }
   if (entity.domain === 'lock') return entity.state === 'jammed' ? 'Jammed' : 'Unlocked';
   if (entity.domain === 'alarm_control_panel') return entity.state === 'triggered' ? 'Alarm sounding' : 'Alarm pending';
-  if (['door', 'window', 'opening', 'garage_door'].includes(entity.deviceClass ?? '')) return 'Open';
   if (entity.deviceClass === 'moisture') return 'Water detected';
   return prettyState(entity);
 }
@@ -221,9 +222,12 @@ function batteryFor(item: HomeDashboardItem): { entity: HomeEntityState; level: 
   return { entity, level: Number.isFinite(parsed) ? parsed : item.details.batteryLevel };
 }
 
-function levelFor(item: HomeDashboardItem): number | null {
-  if (item.details.brightness !== null) return Math.round(item.details.brightness / 255 * 100);
-  return batteryFor(item)?.level ?? item.details.position;
+/** Extra context beyond what the icon already conveys — omitted when it would just repeat a binary already shown by the icon's shape or tint. */
+function tileSubtitle(item: HomeDashboardItem, isDimmableLight: boolean): string | null {
+  if (!item.available) return 'Not responding';
+  if (isDimmableLight) return null;
+  const text = tileState(item);
+  return ['On', 'Off', 'Locked', 'Unlocked', 'Open', 'Closed'].includes(text) ? null : text;
 }
 
 function AttentionPanel({ items, night, onOpen }: { items: HomeDashboardItem[]; night: boolean; onOpen: (item: HomeDashboardItem) => void }) {
@@ -250,25 +254,6 @@ function AttentionPanel({ items, night, onOpen }: { items: HomeDashboardItem[]; 
   );
 }
 
-function HomeSummary({ items }: { items: HomeDashboardItem[] }) {
-  const summaries = [
-    { icon: 'bulb' as IconName, value: items.filter((item) => homeCategoryFor(item) === 'lights' && item.state === 'on').length, label: 'lights on' },
-    { icon: 'door' as IconName, value: items.filter((item) => ['open', 'opening', 'unlocked'].includes(item.state) || (item.domain === 'binary_sensor' && ['door', 'window', 'opening', 'garage_door'].includes(item.deviceClass ?? '') && item.state === 'on')).length, label: 'open' },
-    { icon: 'lock' as IconName, value: items.filter((item) => item.domain === 'lock' && item.state === 'locked').length, label: 'locked' },
-    { icon: 'thermometer' as IconName, value: items.filter((item) => item.domain === 'climate' && item.state !== 'off').length, label: 'running' },
-  ];
-  return (
-    <div style={{ display: 'flex', gap: 9, overflowX: 'auto', paddingBottom: 24 }}>
-      {summaries.map((summary) => (
-        <Pill key={summary.label} size="lg" style={{ flex: 'none' }}>
-          <Icon name={summary.icon} style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
-          <strong style={{ color: 'var(--ink)' }}>{summary.value}</strong> {summary.label}
-        </Pill>
-      ))}
-    </div>
-  );
-}
-
 interface HomeCardProps {
   item: HomeDashboardItem;
   night: boolean;
@@ -277,34 +262,30 @@ interface HomeCardProps {
   onAction: (action: string, value?: number) => void;
 }
 
-function HomeCard({ item, night, busy, onOpen, onAction }: HomeCardProps) {
+function HomeTile({ item, night, busy, onOpen, onAction }: HomeCardProps) {
   const action = actionFor(item);
   const active = isVisuallyActive(item);
   const alerts = criticalLabels(item);
-  const level = levelFor(item);
-  const battery = batteryFor(item)?.level;
   const hue = visualHue(item);
   const tone = homeTone(hue, night);
   const warning = homeTone(25, night);
+  const isDimmableLight = item.domain === 'light' && item.state === 'on' && item.details.brightness !== null;
+  const brightness = isDimmableLight ? Math.max(4, Math.min(100, Math.round(item.details.brightness! / 255 * 100))) : null;
+  const subtitle = alerts.length ? alerts.join(' · ') : tileSubtitle(item, isDimmableLight);
+  const dimBase = `color-mix(in oklab, ${tone.accent} 30%, ${tone.background})`;
+  const iconTone = isDimmableLight
+    ? { background: `linear-gradient(to top, ${tone.accent} 0%, ${tone.accent} ${brightness}%, ${dimBase} ${brightness}%, ${dimBase} 100%)`, color: '#fff' }
+    : { background: alerts.length ? warning.accent : active ? tone.accent : 'var(--chip)', color: alerts.length || active ? '#fff' : 'var(--ink2)' };
   return (
-    <div className="home-device-card" style={{ border: alerts.length ? `1.5px solid ${warning.accent}` : '1px solid transparent', background: alerts.length ? warning.background : active ? tone.background : 'var(--card)', boxShadow: CARD_SHADOW, opacity: item.available ? 1 : .58 }}>
+    <div className="home-device-card" style={{ border: alerts.length ? `1.5px solid ${warning.accent}` : '1px solid var(--line)', background: alerts.length ? warning.background : active ? tone.background : 'var(--card)', boxShadow: CARD_SHADOW, opacity: item.available ? 1 : .58 }}>
       <TapButton className="home-card-hit-area" title={`View ${item.displayName} details`} onClick={onOpen}><span /></TapButton>
-      <div className="home-card-content">
-        <TapButton disabled={!item.available || busy} title={action ? (action.risky ? `Open ${item.displayName} controls` : action.label) : `View ${item.displayName}`} onClick={() => { if (action && !action.risky) onAction(action.action); else onOpen(); }} style={{ pointerEvents: 'auto', padding: 0 }}>
-          <IconBadge icon={iconFor(item)} size="md" tone={{ background: alerts.length ? warning.accent : active ? tone.accent : 'var(--chip)', color: alerts.length || active ? '#fff' : 'var(--ink2)' }} />
-        </TapButton>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 'var(--text-md)', fontWeight: 850, color: !alerts.length && active ? tone.ink : 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.displayName}</div>
-          <div style={{ marginTop: 3, fontSize: 'var(--text-sm)', lineHeight: 1.2, fontWeight: 800, color: alerts.length ? warning.ink : active ? tone.ink : 'var(--ink2)' }}>{alerts.length ? alerts.join(' · ') : tileState(item)}</div>
-          {(item.area || !item.available) && <div style={{ marginTop: 2, fontSize: 'var(--text-xs)', fontWeight: 650, color: 'var(--ink2)', opacity: 0.75 }}>{item.available ? item.area : 'Not responding'}</div>}
-        </div>
+      <TapButton disabled={!item.available || busy} title={action ? (action.risky ? `Open ${item.displayName} controls` : action.label) : `View ${item.displayName}`} onClick={() => { if (action && !action.risky) onAction(action.action); else onOpen(); }} style={{ position: 'relative', zIndex: 1, pointerEvents: 'auto', padding: 0 }}>
+        <IconBadge icon={iconFor(item)} size="sm" tone={iconTone} />
+      </TapButton>
+      <div style={{ position: 'relative', zIndex: 1, pointerEvents: 'none', flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 'var(--text-md)', fontWeight: 850, color: !alerts.length && active ? tone.ink : 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.displayName}</div>
+        {subtitle && <div style={{ marginTop: 2, fontSize: 'var(--text-sm)', lineHeight: 1.2, fontWeight: 750, color: alerts.length ? warning.ink : active ? tone.ink : 'var(--ink2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>}
       </div>
-      <div style={{ flex: 1 }} />
-      {level !== null && (
-        <div aria-label={`${level} percent`} style={{ position: 'relative', zIndex: 1, pointerEvents: 'none', height: 8, borderRadius: 999, overflow: 'hidden', background: 'var(--line)' }}>
-          <div style={{ height: '100%', width: `${Math.max(3, Math.min(100, level))}%`, borderRadius: 999, background: battery != null && battery <= 20 ? warning.accent : tone.accent }} />
-        </div>
-      )}
     </div>
   );
 }
@@ -347,7 +328,7 @@ function ClimateCard({ item, night, busy, onOpen, onAction }: HomeCardProps) {
       </div>
       <div className="home-climate-controls">
         <ClimateButton label={`Lower ${item.displayName} temperature`} disabled={!item.available || busy || target === null} onClick={() => { if (target !== null) onAction('set_temperature', target - 1); }}>−</ClimateButton>
-        <div style={{ textAlign: 'center', color: 'var(--ink2)', fontSize: 'var(--text-xs)', fontWeight: 750 }}><strong style={{ display: 'block', color: mode === 'off' ? 'var(--ink2)' : tone.ink, fontSize: 'var(--text-section)' }}>{target === null ? '—' : `${target}°`}</strong>{Number.isFinite(humidity) ? `${humidity}% humidity` : item.area ?? ''}</div>
+        <div style={{ textAlign: 'center', color: 'var(--ink2)', fontSize: 'var(--text-xs)', fontWeight: 750 }}><strong style={{ display: 'block', color: mode === 'off' ? 'var(--ink2)' : tone.ink, fontSize: 'var(--text-section)' }}>{target === null ? '—' : `${target}°`}</strong>{Number.isFinite(humidity) ? `${humidity}% humidity` : ''}</div>
         <ClimateButton label={`Raise ${item.displayName} temperature`} disabled={!item.available || busy || target === null} onClick={() => { if (target !== null) onAction('set_temperature', target + 1); }}>+</ClimateButton>
         <ClimateButton label={`${active ? 'Turn off' : 'Turn on'} ${item.displayName}`} disabled={!item.available || busy} active={mode === 'off'} onClick={() => onAction(active ? 'turn_off' : 'turn_on')}><Icon name="power" size={23} style={{ width: 'var(--icon-sm)', height: 'var(--icon-sm)' }} /></ClimateButton>
       </div>
@@ -359,7 +340,22 @@ function ClimateButton({ label, disabled, active = false, onClick, children }: {
   return <TapButton title={label} disabled={disabled} onClick={onClick} style={{ width: 'var(--control-xl)', height: 'var(--control-xl)', display: 'grid', placeItems: 'center', borderRadius: '50%', background: active ? 'var(--ink2)' : 'var(--chip)', color: active ? 'var(--card)' : 'var(--ink)', fontSize: 'var(--text-xl)', fontWeight: 500 }}>{children}</TapButton>;
 }
 
-function HomeLevelControl({ value, night, disabled, onToggle, onCommit }: { value: number; night: boolean; disabled: boolean; onToggle: () => void; onCommit: (value: number) => void }) {
+/**
+ * A swipeable track shared by brightness (continuous, 1% steps) and on/off
+ * controls (`snap`, which rounds a released drag to whichever end it's
+ * closer to, like a physical switch). A tap without a drag always toggles.
+ */
+function HomeSwipeControl({ value, night, hue, disabled, snap = false, thumbIcon, hint, onToggle, onCommit }: {
+  value: number;
+  night: boolean;
+  hue: number;
+  disabled: boolean;
+  snap?: boolean;
+  thumbIcon?: (level: number) => IconName;
+  hint: string;
+  onToggle: () => void;
+  onCommit: (value: number) => void;
+}) {
   const [level, setLevel] = useState(value);
   const trackRef = useRef<HTMLDivElement>(null);
   const gesture = useRef<{ pointerId: number; startX: number; moved: boolean } | null>(null);
@@ -372,10 +368,11 @@ function HomeLevelControl({ value, night, disabled, onToggle, onCommit }: { valu
     }
   }, [value]);
 
+  const settle = (raw: number) => snap ? (raw >= 50 ? 100 : 0) : raw;
   const levelAt = (clientX: number) => {
     const bounds = trackRef.current?.getBoundingClientRect();
     if (!bounds) return levelRef.current;
-    return Math.max(0, Math.min(100, Math.round(((clientX - bounds.left - 56) / Math.max(1, bounds.width - 112)) * 20) * 5));
+    return Math.max(0, Math.min(100, Math.round(((clientX - bounds.left - 56) / Math.max(1, bounds.width - 112)) * 100)));
   };
   const update = (clientX: number) => {
     const next = levelAt(clientX);
@@ -397,67 +394,113 @@ function HomeLevelControl({ value, night, disabled, onToggle, onCommit }: { valu
   const pointerUp = (event: PointerEvent<HTMLDivElement>) => {
     const current = gesture.current;
     if (!current || current.pointerId !== event.pointerId) return;
-    if (current.moved) onCommit(update(event.clientX));
-    else onToggle();
+    if (current.moved) {
+      const settled = settle(update(event.clientX));
+      levelRef.current = settled;
+      setLevel(settled);
+      onCommit(settled);
+    } else onToggle();
     gesture.current = null;
   };
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (disabled || !['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    if (disabled) return;
+    if (snap) {
+      if (!['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp', 'Home', 'End', 'Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      const next = ['ArrowLeft', 'ArrowDown', 'Home'].includes(event.key) ? 0 : ['ArrowRight', 'ArrowUp', 'End'].includes(event.key) ? 100 : levelRef.current >= 50 ? 0 : 100;
+      levelRef.current = next;
+      setLevel(next);
+      onCommit(next);
+      return;
+    }
+    if (!['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? 100 : Math.max(0, Math.min(100, levelRef.current + (['ArrowRight', 'ArrowUp'].includes(event.key) ? 5 : -5)));
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? 100 : Math.max(0, Math.min(100, levelRef.current + (['ArrowRight', 'ArrowUp'].includes(event.key) ? 1 : -1)));
     levelRef.current = next;
     setLevel(next);
     onCommit(next);
   };
   const fraction = level / 100;
-  const tone = homeTone(68, night);
+  const tone = homeTone(hue, night);
   return (
-    <div>
-      <div
-        ref={trackRef}
-        role="slider"
-        tabIndex={disabled ? -1 : 0}
-        aria-label="Brightness"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={level}
-        aria-disabled={disabled}
-        onPointerDown={pointerDown}
-        onPointerMove={pointerMove}
-        onPointerUp={pointerUp}
-        onPointerCancel={() => { gesture.current = null; setLevel(value); levelRef.current = value; }}
-        onKeyDown={keyDown}
-        style={{ position: 'relative', height: 112, borderRadius: 56, overflow: 'hidden', touchAction: 'none', cursor: disabled ? 'default' : 'pointer', background: 'var(--chip)', boxShadow: 'inset 0 0 0 1px var(--line)', opacity: disabled ? .55 : 1 }}
-      >
-        <div style={{ position: 'absolute', inset: 0, width: `calc(112px + (100% - 112px) * ${fraction})`, borderRadius: 56, background: tone.accent, transition: gesture.current ? 'none' : 'width 160ms ease' }} />
-        <div style={{ position: 'absolute', top: 10, left: `calc(10px + (100% - 112px) * ${fraction})`, width: 92, height: 92, display: 'grid', placeItems: 'center', borderRadius: '50%', background: 'var(--card)', color: tone.ink, boxShadow: '0 7px 18px rgba(20,24,40,.18)', transition: gesture.current ? 'none' : 'left 160ms ease', fontSize: 18, fontWeight: 850 }}>{level}%</div>
+    <div
+      ref={trackRef}
+      role="slider"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={hint}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={level}
+      aria-disabled={disabled}
+      onPointerDown={pointerDown}
+      onPointerMove={pointerMove}
+      onPointerUp={pointerUp}
+      onPointerCancel={() => { gesture.current = null; setLevel(value); levelRef.current = value; }}
+      onKeyDown={keyDown}
+      style={{ position: 'relative', height: 112, borderRadius: 56, overflow: 'hidden', touchAction: 'none', cursor: disabled ? 'default' : 'pointer', background: 'var(--chip)', boxShadow: 'inset 0 0 0 1px var(--line)', opacity: disabled ? .55 : 1, userSelect: 'none', WebkitUserSelect: 'none' }}
+    >
+      <div style={{ position: 'absolute', inset: 0, width: `calc(112px + (100% - 112px) * ${fraction})`, borderRadius: 56, background: tone.accent, transition: gesture.current ? 'none' : 'width 160ms ease' }} />
+      <div style={{ position: 'absolute', top: 10, left: `calc(10px + (100% - 112px) * ${fraction})`, width: 92, height: 92, display: 'grid', placeItems: 'center', borderRadius: '50%', background: 'var(--card)', color: tone.ink, boxShadow: '0 7px 18px rgba(20,24,40,.18)', transition: gesture.current ? 'none' : 'left 160ms ease', fontSize: 18, fontWeight: 850, userSelect: 'none', WebkitUserSelect: 'none' }}>
+        {thumbIcon ? <Icon name={thumbIcon(level)} size={30} /> : `${level}%`}
       </div>
-      <div style={{ marginTop: 9, textAlign: 'center', color: 'var(--ink2)', fontSize: 13.5, fontWeight: 700 }}>Tap to toggle · slide left or right to set</div>
     </div>
   );
 }
 
 function HomeDetail({ item, night, busy, onAction, onClose }: Omit<HomeCardProps, 'onOpen'> & { onClose: () => void }) {
-  const brightness = item.details.brightness === null ? null : Math.round(item.details.brightness / 255 * 100);
   const action = actionFor(item);
   const battery = batteryFor(item);
   const tone = homeTone(visualHue(item), night);
   const warning = homeTone(25, night);
+
+  // Home Assistant drops `brightness` once a dimmable light reports off, but the swipe
+  // control should stay a slider (parked at 0) rather than swap to a plain toggle button.
+  const dimmable = useRef(false);
+  const lastBrightness = useRef(0);
+  if (item.details.brightness !== null) {
+    dimmable.current = true;
+    lastBrightness.current = Math.round(item.details.brightness / 255 * 100);
+  }
+  const isDimmableLight = item.domain === 'light' && dimmable.current;
+  const brightness = isDimmableLight ? (item.details.brightness === null ? lastBrightness.current : Math.round(item.details.brightness / 255 * 100)) : null;
+
+  const isSnapToggle = !isDimmableLight && ['lock', 'switch', 'input_boolean', 'light'].includes(item.domain);
+  const snapOn = isVisuallyActive(item);
+  const alerts = criticalLabels(item);
+
   const facts = [
     item.area ? ['Area', item.area] : null,
+    !item.available ? ['Status', 'Not responding'] : null,
+    item.details.humidity !== null ? ['Humidity', `${item.details.humidity}%`] : null,
     battery ? ['Battery', battery.level === null ? prettyState(battery.entity) : `${battery.level}${battery.entity.unit ?? '%'}`] : null,
     item.lastChanged ? ['Last changed', relativeTime(item.lastChanged)] : null,
-    ['Entity', item.entityId],
   ].filter((fact): fact is string[] => Boolean(fact));
-  return (
-    <Modal title={item.displayName} sub={[prettyState(item), item.area].filter(Boolean).join(' · ')} onClose={onClose} width={820} footer={<Button onClick={onClose}>Close</Button>}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '4px 0 8px' }}>
-        <IconBadge icon={iconFor(item)} size="lg" tone={{ background: criticalLabels(item).length ? warning.accent : isVisuallyActive(item) ? tone.accent : 'var(--chip)', color: criticalLabels(item).length || isVisuallyActive(item) ? '#fff' : 'var(--ink2)' }} />
-        <div><div style={{ fontSize: 'var(--text-lg)', fontWeight: 850, color: criticalLabels(item).length ? 'var(--danger)' : 'var(--ink)' }}>{criticalLabels(item).join(' · ') || prettyState(item)}</div><div style={{ marginTop: 3, color: 'var(--ink2)', fontWeight: 700 }}>{item.available ? 'Connected' : 'Not responding'}</div></div>
-      </div>
 
-      {brightness !== null && (
-        <HomeLevelControl value={brightness} night={night} disabled={busy || !item.available} onToggle={() => action && onAction(action.action)} onCommit={(value) => onAction('set_brightness', value)} />
+  return (
+    <Modal
+      title={item.displayName}
+      sub={alerts.length ? <span style={{ color: 'var(--danger)', fontWeight: 750 }}>{alerts.join(' · ')}</span> : prettyState(item)}
+      icon={<IconBadge icon={iconFor(item)} size="lg" tone={{ background: alerts.length ? warning.accent : isVisuallyActive(item) ? tone.accent : 'var(--chip)', color: alerts.length || isVisuallyActive(item) ? '#fff' : 'var(--ink2)' }} />}
+      onClose={onClose}
+      width={480}
+      footer={<Button onClick={onClose}>Close</Button>}
+    >
+      {isDimmableLight && (
+        <HomeSwipeControl value={brightness ?? 0} night={night} hue={68} disabled={busy || !item.available} hint="Brightness" onToggle={() => action && onAction(action.action)} onCommit={(value) => onAction('set_brightness', value)} />
+      )}
+
+      {isSnapToggle && (
+        <HomeSwipeControl
+          value={snapOn ? 100 : 0}
+          night={night}
+          hue={visualHue(item)}
+          disabled={busy || !item.available}
+          snap
+          thumbIcon={(level) => item.domain === 'lock' ? (level >= 50 ? 'lock' : 'lockOpen') : item.domain === 'light' ? 'bulb' : 'toggle'}
+          hint={item.domain === 'lock' ? 'Lock' : 'Power'}
+          onToggle={() => action && onAction(action.action)}
+          onCommit={(value) => { if (action && (value >= 50) !== snapOn) onAction(action.action); }}
+        />
       )}
 
       {item.domain === 'climate' && item.details.targetTemperature !== null && (
@@ -474,7 +517,7 @@ function HomeDetail({ item, night, busy, onAction, onClose }: Omit<HomeCardProps
           <Button disabled={busy || !item.available} onClick={() => onAction('stop')}>Stop</Button>
           <Button disabled={busy || !item.available} onClick={() => onAction('close')}>Close</Button>
         </div>
-      ) : action && brightness === null && (
+      ) : action && !isDimmableLight && !isSnapToggle && (
         <Button danger={action.risky && ['lock', 'cover', 'alarm_control_panel'].includes(item.domain)} disabled={busy || !item.available} onClick={() => onAction(action.action)} style={{ width: '100%', minHeight: 54, borderColor: action.risky && ['lock', 'cover', 'alarm_control_panel'].includes(item.domain) ? 'var(--danger)' : undefined }}>
           {busy ? 'Working…' : action.label}
         </Button>

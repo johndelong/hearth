@@ -16,10 +16,11 @@ export function ProgressPill({
   const complete = total > 0 && done === total;
   return (
     <Pill
-      style={{ gap: 6, transition: `background .4s ${EASE}, color .4s ${EASE}` }}
+      size="lg"
+      style={{ minHeight: 0, padding: 'var(--space-2) var(--space-4)', transition: `background .4s ${EASE}, color .4s ${EASE}` }}
       tone={{ background: complete ? soft(148, night) : 'var(--chip)', color: complete ? deep(148, night) : 'var(--ink2)' }}
     >
-      <Icon name="check" size={14} style={{ width: 'var(--icon-2xs)', height: 'var(--icon-2xs)' }} />
+      <Icon name="check" style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
       {done}/{total}
     </Pill>
   );
@@ -43,8 +44,8 @@ const TIERS: Array<{ min: number; hue: number; label: string }> = [
 export function StreakPill({ streak, night }: { streak: Streak; night: boolean }) {
   if (streak.paused) {
     return (
-      <Pill style={{ gap: 6, opacity: 0.8 }} title={`Streak paused at ${streak.length}`}>
-        <Icon name="moon" size={14} style={{ width: 'var(--icon-2xs)', height: 'var(--icon-2xs)' }} />
+      <Pill size="lg" style={{ minHeight: 0, padding: 'var(--space-2) var(--space-4)', opacity: 0.8 }} title={`Streak paused at ${streak.length}`}>
+        <Icon name="moon" style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
         {streak.length} · paused
       </Pill>
     );
@@ -62,17 +63,19 @@ export function StreakPill({ streak, night }: { streak: Streak; night: boolean }
 
   return (
     <Pill
+      size="lg"
       title={tier ? `${streak.length} in a row — ${tier.label}` : 'No streak yet — finish today to start one'}
       tone={{ background: tier ? soft(tier.hue, night) : 'var(--chip)', color: tier ? deep(tier.hue, night) : 'var(--ink2)' }}
       style={{
-        gap: 5,
+        minHeight: 0,
+        padding: 'var(--space-2) var(--space-4)',
         boxShadow:
           tier && heat > 0.4 ? `0 0 0 2px ${col(tier.hue, night)}${heat > 0.85 ? '' : '66'}` : 'none',
         transition: `background .5s ${EASE}, box-shadow .5s ${EASE}`,
         animation: streak.length >= 14 ? `ptsPop 2.6s ${EASE} infinite` : undefined,
       }}
     >
-      <Icon name="flame" size={15} style={{ width: 'var(--icon-2xs)', height: 'var(--icon-2xs)' }} />
+      <Icon name="flame" style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)' }} />
       {streak.length}
     </Pill>
   );

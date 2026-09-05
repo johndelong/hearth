@@ -11,10 +11,9 @@ import { EASE, col, deep, soft } from '../../theme';
  * off sparks — the point is that a kid glances at the board and knows.
  */
 
-/** Ring geometry: 74px box, 6px band — matches the design's masked arc. */
-const RING_W = 6;
-const RING_R = (74 - RING_W) / 2;
-const RING_C = 2 * Math.PI * RING_R;
+/** Ring geometry, scaled from the design's 74px/6px-band reference. */
+const REFERENCE_SIZE = 74;
+const REFERENCE_RING_W = 6;
 
 export function GoalRing({
   person,
@@ -22,17 +21,26 @@ export function GoalRing({
   points,
   night,
   onOpen,
+  size = REFERENCE_SIZE,
 }: {
   person: Person;
   goal: Reward | null;
   points: number;
   night: boolean;
   onOpen: () => void;
+  /** Box size in px — matched to the avatar beside it so both line up. */
+  size?: number;
 }) {
   const hue = person.hue;
   const accent = col(hue, night);
   const pct = goal ? Math.min(100, Math.round((points / Math.max(1, goal.cost)) * 100)) : 0;
   const reached = Boolean(goal && points >= goal.cost);
+  const scale = size / REFERENCE_SIZE;
+  const ringW = REFERENCE_RING_W * scale;
+  const center = size / 2;
+  const ringR = center - ringW / 2;
+  const ringC = 2 * Math.PI * ringR;
+  const inset = 9 * scale;
 
   // Fixed positions so the sparks don't rearrange on every render.
   const sparks = useRef(
@@ -54,8 +62,8 @@ export function GoalRing({
       style={{
         position: 'relative',
         flex: 'none',
-        width: 74,
-        height: 74,
+        width: size,
+        height: size,
         padding: 0,
         borderRadius: '50%',
         background: 'transparent',
@@ -70,23 +78,23 @@ export function GoalRing({
         custom property, and that proved unreliable to drive from React.
       */}
       <svg
-        viewBox="0 0 74 74"
+        viewBox={`0 0 ${size} ${size}`}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
         aria-hidden="true"
       >
-        <circle cx="37" cy="37" r={RING_R} fill="none" stroke="var(--chip)" strokeWidth={RING_W} />
+        <circle cx={center} cy={center} r={ringR} fill="none" stroke="var(--chip)" strokeWidth={ringW} />
         {goal && (
           <circle
-            cx="37"
-            cy="37"
-            r={RING_R}
+            cx={center}
+            cy={center}
+            r={ringR}
             fill="none"
             stroke={accent}
-            strokeWidth={RING_W}
+            strokeWidth={ringW}
             strokeLinecap="round"
-            strokeDasharray={RING_C}
-            strokeDashoffset={RING_C * (1 - pct / 100)}
-            transform="rotate(-90 37 37)"
+            strokeDasharray={ringC}
+            strokeDashoffset={ringC * (1 - pct / 100)}
+            transform={`rotate(-90 ${center} ${center})`}
             style={{ transition: `stroke-dashoffset .9s ${EASE}, stroke .4s ease` }}
           />
         )}
@@ -116,7 +124,7 @@ export function GoalRing({
       <span
         style={{
           position: 'absolute',
-          inset: 9,
+          inset,
           borderRadius: '50%',
           overflow: 'hidden',
           display: 'flex',
@@ -129,9 +137,9 @@ export function GoalRing({
         {goal?.imageUrl ? (
           <img src={goal.imageUrl} alt={goal.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : goal?.icon ? (
-          <span style={{ fontSize: 26, lineHeight: 1 }}>{goal.icon}</span>
+          <span style={{ fontSize: 26 * scale, lineHeight: 1 }}>{goal.icon}</span>
         ) : (
-          <Icon name={goal ? 'gift' : 'star'} size={23} />
+          <Icon name={goal ? 'gift' : 'star'} size={23 * scale} />
         )}
       </span>
     </TapButton>

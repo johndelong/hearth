@@ -79,7 +79,6 @@ function alertLabel(entity: HomeEntityState): string {
   }
   if (entity.domain === 'lock') return entity.state === 'jammed' ? 'Lock jammed' : 'Unlocked';
   if (entity.domain === 'alarm_control_panel') return entity.state === 'triggered' ? 'Alarm sounding' : 'Alarm pending';
-  if (['door', 'window', 'opening', 'garage_door'].includes(entity.deviceClass ?? '')) return 'Open';
   if (entity.deviceClass === 'moisture') return 'Water detected';
   return entity.state.replaceAll('_', ' ');
 }

@@ -1,6 +1,6 @@
 import type { HomeConnectionState, HomeEntityState } from '@dashboard/shared';
 import { protect, unprotect } from './crypto.js';
-import { cacheHomeState, cachedHomeStates } from './store/home.js';
+import { cacheHomeState, cachedHomeStates, pruneHomeStatesNotIn } from './store/home.js';
 import { deleteRaw, getRaw, setRaw } from './store/settings.js';
 
 const URL_KEY = '_homeAssistantUrl';
@@ -303,13 +303,14 @@ export class HomeAssistantConnection {
     this.setConnectionState('connecting');
     const socket = new HaSocket();
     this.socket = socket;
-    socket.onClose = () => {
+    const handleClose = () => {
       if (generation !== this.generation) return;
       if (this.heartbeat) clearInterval(this.heartbeat);
       this.heartbeat = null;
       this.setConnectionState('error');
       this.scheduleReconnect(generation);
     };
+    socket.onClose = handleClose;
     try {
       await socket.open(config);
       const [states, entities, devices, areas] = await Promise.all([
@@ -320,9 +321,7 @@ export class HomeAssistantConnection {
       ]);
       if (generation !== this.generation) return socket.close();
       this.updateAreas(entities, devices, areas);
-      if (Array.isArray(states)) {
-        for (const raw of states) this.acceptState(raw as HaState, false);
-      }
+      if (Array.isArray(states)) this.applyFullSnapshot(states as HaState[]);
       socket.onEvent = (event) => {
         if (isHomeAssistantRegistryEvent(event)) {
           void this.refreshRegistry(socket, generation);
@@ -341,7 +340,15 @@ export class HomeAssistantConnection {
       ]);
       this.setConnectionState('connected');
       this.heartbeat = setInterval(() => {
-        void socket.command('ping').catch(() => socket.close());
+        // `socket.close()` deliberately disarms `onClose` (used by callers that
+        // are intentionally tearing the connection down), so a dead heartbeat
+        // must drive the reconnect handling itself rather than rely on the
+        // native close event to do it — otherwise connectionState gets stuck
+        // reporting "connected" forever while the socket is actually gone.
+        void socket.command('ping').catch(() => {
+          socket.close();
+          handleClose();
+        });
       }, 30_000);
       this.heartbeat.unref();
     } catch {
@@ -390,6 +397,18 @@ export class HomeAssistantConnection {
     if (notify) this.notify(state);
   }
 
+  private applyFullSnapshot(states: HaState[]): void {
+    const seen = new Set<string>();
+    for (const raw of states) {
+      if (typeof raw.entity_id === 'string') seen.add(raw.entity_id);
+      this.acceptState(raw, false);
+    }
+    for (const entityId of this.stateMap.keys()) {
+      if (!seen.has(entityId)) this.stateMap.delete(entityId);
+    }
+    pruneHomeStatesNotIn(seen);
+  }
+
   private refreshRegistry(socket: HaSocket, generation: number): Promise<void> {
     if (this.registryRefresh) return this.registryRefresh;
     const refresh = Promise.all([
@@ -400,9 +419,7 @@ export class HomeAssistantConnection {
     ]).then(([states, entities, devices, areas]) => {
       if (generation !== this.generation || this.socket !== socket) return;
       this.updateAreas(entities, devices, areas);
-      if (Array.isArray(states)) {
-        for (const raw of states) this.acceptState(raw as HaState, false);
-      }
+      if (Array.isArray(states)) this.applyFullSnapshot(states as HaState[]);
       this.notify(null);
     }).catch(() => undefined).finally(() => {
       if (this.registryRefresh === refresh) this.registryRefresh = null;

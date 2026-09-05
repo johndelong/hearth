@@ -3,6 +3,13 @@ import { forwardRef, useEffect, useRef, useState } from 'react';
 import { AVATAR_LIFT, CARD_SHADOW, EASE, ICONS, type IconName, col } from '../theme';
 import { AvatarArt, isAvatarKey } from './AvatarArt';
 
+/**
+ * Renders a Material Symbols Rounded glyph as text — the font substitutes the
+ * glyph name for its icon via a ligature, so the "size" is really a font
+ * size. A caller's `width`/`height` (most pass one, sized off an --icon-*
+ * token) or the numeric `size` prop both become that font size, so every
+ * existing call site keeps behaving like it did with the old SVGs.
+ */
 export function Icon({
   name,
   size = 24,
@@ -12,19 +19,35 @@ export function Icon({
   size?: number;
   style?: CSSProperties;
 }) {
+  const { width, height, color, ...rest } = style ?? {};
+  const boxSize = width ?? height ?? size;
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ width: size, height: size, flex: 'none', ...style }}
+    <span
       aria-hidden="true"
+      style={{
+        display: 'inline-flex',
+        flex: 'none',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: boxSize,
+        height: boxSize,
+        fontSize: boxSize,
+        lineHeight: 1,
+        color: color ?? 'currentColor',
+        fontFamily: "'Material Symbols Rounded'",
+        fontWeight: 400,
+        fontStyle: 'normal',
+        fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24",
+        letterSpacing: 'normal',
+        textTransform: 'none',
+        whiteSpace: 'nowrap',
+        wordWrap: 'normal',
+        userSelect: 'none',
+        ...rest,
+      }}
     >
-      <path d={ICONS[name]} />
-    </svg>
+      {ICONS[name]}
+    </span>
   );
 }
 
