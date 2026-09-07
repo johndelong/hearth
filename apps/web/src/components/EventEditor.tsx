@@ -64,7 +64,10 @@ export function EventEditor({
   const [confirming, setConfirming] = useState<'save' | 'delete' | null>(null);
   const [recurrenceOpen, setRecurrenceOpen] = useState(false);
   const [allDay, setAllDay] = useState(event?.allDay ?? false);
-  const [date, setDate] = useState(dateValue(start));
+  const [startDate, setStartDate] = useState(dateValue(start));
+  // All-day boundaries are stored exclusive (the day after the last day), but
+  // a parent thinks of "ends" as the last day itself, so that's what's shown.
+  const [endDate, setEndDate] = useState(() => (event?.allDay ? prevDay(dateValue(end)) : dateValue(end)));
   const [from, setFrom] = useState(timeValue(start));
   const [to, setTo] = useState(timeValue(end));
   const [saving, setSaving] = useState(false);
@@ -109,8 +112,8 @@ export function EventEditor({
     try {
       // All-day events go up as plain dates, the same shape they come back in;
       // a timed one becomes a real instant, offset and all.
-      const startIso = allDay ? date : new Date(`${date}T${from}`).toISOString();
-      const endIso = allDay ? nextDay(date) : new Date(`${date}T${to}`).toISOString();
+      const startIso = allDay ? startDate : new Date(`${startDate}T${from}`).toISOString();
+      const endIso = allDay ? nextDay(endDate) : new Date(`${endDate}T${to}`).toISOString();
 
       const body = {
         calendarId,
@@ -131,8 +134,8 @@ export function EventEditor({
             ? { recurrence: repeats ? recurrence : null }
             : !event.seriesId && repeats
               ? // A one-off becoming a series counts from its own day, which the
-                // Day field may have moved since the rule was switched on.
-                { recurrence: { ...recurrence, startsOn: date } }
+                // Starts field may have moved since the rule was switched on.
+                { recurrence: { ...recurrence, startsOn: startDate } }
               : {};
         await api.updateEvent(event.id, {
           ...body,
@@ -146,7 +149,7 @@ export function EventEditor({
         await api.createEvent({
           ...body,
           personIds,
-          ...(repeats ? { recurrence: { ...recurrence, startsOn: date } } : {}),
+          ...(repeats ? { recurrence: { ...recurrence, startsOn: startDate } } : {}),
         });
       }
 
@@ -254,10 +257,6 @@ export function EventEditor({
           <input value={title} onChange={(e) => setTitle(e.target.value)} style={fieldStyle} autoFocus />
         </Field>
 
-        <Field label="Day">
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
-        </Field>
-
         <label style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 17, fontWeight: 800 }}>
           <input
             type="checkbox"
@@ -268,20 +267,36 @@ export function EventEditor({
           All day
         </label>
 
-        {!allDay && (
+        <Field label="Starts">
           <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <Field label="Starts">
-                <input type="time" value={from} onChange={(e) => setFrom(e.target.value)} style={fieldStyle} />
-              </Field>
-            </div>
-            <div style={{ flex: 1 }}>
-              <Field label="Ends">
-                <input type="time" value={to} onChange={(e) => setTo(e.target.value)} style={fieldStyle} />
-              </Field>
-            </div>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                const next = e.target.value;
+                setStartDate(next);
+                // Dragging the start past the end would otherwise leave an
+                // event that ends before it begins.
+                setEndDate((current) => (current < next ? next : current));
+              }}
+              style={{ ...fieldStyle, flex: allDay ? 1 : 1.3 }}
+            />
+            {!allDay && <input type="time" value={from} onChange={(e) => setFrom(e.target.value)} style={{ ...fieldStyle, flex: 1 }} />}
           </div>
-        )}
+        </Field>
+
+        <Field label="Ends">
+          <div style={{ display: 'flex', gap: 12 }}>
+            <input
+              type="date"
+              min={startDate}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{ ...fieldStyle, flex: allDay ? 1 : 1.3 }}
+            />
+            {!allDay && <input type="time" value={to} onChange={(e) => setTo(e.target.value)} style={{ ...fieldStyle, flex: 1 }} />}
+          </div>
+        </Field>
 
         <Field label="Repeats">
           <TapButton
@@ -289,8 +304,8 @@ export function EventEditor({
             onClick={() => {
               // The rule counts from the event's own day, so opening the
               // dialog to turn it on seeds that day now, matching whatever
-              // the Day field currently says rather than a stale default.
-              if (!repeats) setRecurrence((r) => ({ ...r, startsOn: date }));
+              // the Starts field currently says rather than a stale default.
+              if (!repeats) setRecurrence((r) => ({ ...r, startsOn: startDate }));
               setRecurrenceOpen(true);
             }}
             style={{
@@ -444,5 +459,11 @@ function roundedNext(from: Date): Date {
 function nextDay(date: string): string {
   const d = new Date(`${date}T00:00:00`);
   d.setDate(d.getDate() + 1);
+  return dateValue(d);
+}
+
+function prevDay(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() - 1);
   return dateValue(d);
 }
