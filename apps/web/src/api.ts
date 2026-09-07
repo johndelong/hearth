@@ -145,6 +145,9 @@ export interface HomeAssistantStatus {
   configured: boolean;
   url: string | null;
   state: HomeDashboard['connection'];
+  lastConnectedAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
 }
 
 export type ImmichHealth = 'ready' | 'disconnected' | 'no-album' | 'needs-asset-view' | 'error';

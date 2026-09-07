@@ -5,7 +5,12 @@ import { deleteRaw, getRaw, setRaw } from './store/settings.js';
 
 const URL_KEY = '_homeAssistantUrl';
 const TOKEN_KEY = '_homeAssistantToken';
+const LAST_CONNECTED_KEY = '_homeAssistantLastConnectedAt';
+const LAST_ERROR_KEY = '_homeAssistantLastError';
+const LAST_ERROR_AT_KEY = '_homeAssistantLastErrorAt';
 const CONNECT_TIMEOUT = 12_000;
+const RECONNECT_BASE_DELAY = 10_000;
+const RECONNECT_MAX_DELAY = 300_000;
 
 interface HaState {
   entity_id?: unknown;
@@ -93,6 +98,29 @@ function storedConfig(): HomeAssistantConfig | null {
   const url = getRaw(URL_KEY);
   const token = unprotect(getRaw(TOKEN_KEY));
   return url && token ? { url, token } : null;
+}
+
+export interface HomeAssistantHealth {
+  lastConnectedAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+}
+
+function recordConnected(): void {
+  setRaw(LAST_CONNECTED_KEY, new Date().toISOString());
+}
+
+function recordError(message: string): void {
+  setRaw(LAST_ERROR_KEY, message);
+  setRaw(LAST_ERROR_AT_KEY, new Date().toISOString());
+}
+
+function health(): HomeAssistantHealth {
+  return {
+    lastConnectedAt: getRaw(LAST_CONNECTED_KEY),
+    lastError: getRaw(LAST_ERROR_KEY),
+    lastErrorAt: getRaw(LAST_ERROR_AT_KEY),
+  };
 }
 
 class HaSocket {
@@ -219,6 +247,7 @@ export class HomeAssistantConnection {
   private retry: NodeJS.Timeout | null = null;
   private heartbeat: NodeJS.Timeout | null = null;
   private generation = 0;
+  private reconnectAttempts = 0;
   private connectionState: HomeConnectionState = 'disconnected';
   private stateMap = cachedHomeStates();
   private areaByEntity = new Map<string, string>();
@@ -231,9 +260,9 @@ export class HomeAssistantConnection {
     return this.connectionState;
   }
 
-  configured(): { configured: boolean; url: string | null; state: HomeConnectionState } {
+  configured(): { configured: boolean; url: string | null; state: HomeConnectionState } & HomeAssistantHealth {
     const config = storedConfig();
-    return { configured: Boolean(config), url: config?.url ?? null, state: this.connectionState };
+    return { configured: Boolean(config), url: config?.url ?? null, state: this.connectionState, ...health() };
   }
 
   states(): Map<string, HomeEntityState> {
@@ -269,6 +298,9 @@ export class HomeAssistantConnection {
   clear(): void {
     deleteRaw(URL_KEY);
     deleteRaw(TOKEN_KEY);
+    deleteRaw(LAST_CONNECTED_KEY);
+    deleteRaw(LAST_ERROR_KEY);
+    deleteRaw(LAST_ERROR_AT_KEY);
     this.stop();
   }
 
@@ -282,6 +314,7 @@ export class HomeAssistantConnection {
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.retry = null;
     this.heartbeat = null;
+    this.reconnectAttempts = 0;
     this.socket?.close();
     this.socket = null;
     this.setConnectionState('disconnected');
@@ -308,6 +341,7 @@ export class HomeAssistantConnection {
       if (this.heartbeat) clearInterval(this.heartbeat);
       this.heartbeat = null;
       this.setConnectionState('error');
+      recordError('Home Assistant disconnected');
       this.scheduleReconnect(generation);
     };
     socket.onClose = handleClose;
@@ -339,6 +373,8 @@ export class HomeAssistantConnection {
         socket.command('subscribe_events', { event_type: 'area_registry_updated' }),
       ]);
       this.setConnectionState('connected');
+      this.reconnectAttempts = 0;
+      recordConnected();
       this.heartbeat = setInterval(() => {
         // `socket.close()` deliberately disarms `onClose` (used by callers that
         // are intentionally tearing the connection down), so a dead heartbeat
@@ -351,10 +387,11 @@ export class HomeAssistantConnection {
         });
       }, 30_000);
       this.heartbeat.unref();
-    } catch {
+    } catch (err) {
       socket.close();
       if (generation !== this.generation) return;
       this.setConnectionState('error');
+      recordError(err instanceof Error ? err.message : 'Could not connect to Home Assistant');
       this.scheduleReconnect(generation);
     }
   }
@@ -440,10 +477,12 @@ export class HomeAssistantConnection {
 
   private scheduleReconnect(generation: number): void {
     if (this.retry || generation !== this.generation || !storedConfig()) return;
+    const delay = Math.min(RECONNECT_BASE_DELAY * 2 ** this.reconnectAttempts, RECONNECT_MAX_DELAY);
+    this.reconnectAttempts += 1;
     this.retry = setTimeout(() => {
       this.retry = null;
       void this.connect(generation);
-    }, 10_000);
+    }, delay);
     this.retry.unref();
   }
 }

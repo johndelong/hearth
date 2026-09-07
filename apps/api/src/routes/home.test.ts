@@ -120,6 +120,9 @@ test('the configured token remains encrypted and is never returned', async () =>
     configured: true,
     url: 'http://homeassistant.local:8123',
     state: 'disconnected',
+    lastConnectedAt: null,
+    lastError: null,
+    lastErrorAt: null,
   });
   assert.doesNotMatch(response.body, /secret-token/);
 });

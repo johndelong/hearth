@@ -97,7 +97,7 @@ export function SettingsScreen(props: Props) {
 }
 
 function HomeSection({ say }: Pick<Props, 'say'>) {
-  const [status, setStatus] = useState<HomeAssistantStatus>({ configured: false, url: null, state: 'disconnected' });
+  const [status, setStatus] = useState<HomeAssistantStatus>({ configured: false, url: null, state: 'disconnected', lastConnectedAt: null, lastError: null, lastErrorAt: null });
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
@@ -136,7 +136,7 @@ function HomeSection({ say }: Pick<Props, 'say'>) {
   const disconnect = async () => {
     try {
       await api.clearHomeConfig();
-      setStatus({ configured: false, url: null, state: 'disconnected' });
+      setStatus({ configured: false, url: null, state: 'disconnected', lastConnectedAt: null, lastError: null, lastErrorAt: null });
       setUrl('');
       setToken('');
       setEditing(false);
@@ -170,6 +170,16 @@ function HomeSection({ say }: Pick<Props, 'say'>) {
             <div style={{ flex: 1, minWidth: 180 }}>
               <div style={{ fontSize: 17, fontWeight: 800 }}>{tone}</div>
               <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>{status.url}</div>
+              {status.state !== 'connected' && status.lastConnectedAt && (
+                <div style={{ fontSize: 13, color: 'var(--ink2)', fontWeight: 600 }}>
+                  Last connected {new Date(status.lastConnectedAt).toLocaleString()}
+                </div>
+              )}
+              {status.state !== 'connected' && status.lastError && (
+                <div style={{ fontSize: 13, color: 'var(--danger)', fontWeight: 600 }}>
+                  {status.lastError}{status.lastErrorAt ? ` (${new Date(status.lastErrorAt).toLocaleString()})` : ''}
+                </div>
+              )}
             </div>
             <Button onClick={() => setEditing(true)}>Change</Button>
             <Button onClick={() => void disconnect()}>Disconnect</Button>
