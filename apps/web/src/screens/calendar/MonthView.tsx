@@ -1,5 +1,6 @@
 import type { CalendarEvent, Person, Settings } from '@dashboard/shared';
 import { TapButton } from '../../components/ui';
+import { useNarrow } from '../../state';
 import { EASE, col, deep, soft } from '../../theme';
 import { eventHue, eventsOn, rangeFor, sameDay } from './useEvents';
 
@@ -42,6 +43,12 @@ export function MonthView({
   // Legend doubles as a color key for the family.
   const legend = [...byPerson.values()].filter((p) => p.onCal);
 
+  // A narrow cell has no room for even one truncated title without cutting
+  // it mid-word, so it trades titles for a dot per event — the day's shape
+  // at a glance, with the full list a tap away.
+  const narrow = useNarrow();
+  const MAX_DOTS = 8;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0,1fr))', gap: 10, flex: 'none' }}>
@@ -81,6 +88,7 @@ export function MonthView({
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 5,
+                minWidth: 0,
                 minHeight: 0,
                 padding: '10px 10px 8px',
                 borderRadius: 18,
@@ -103,42 +111,78 @@ export function MonthView({
                 {day.getDate()}
               </div>
 
-              {chips.map((e) => {
-                const hue = eventHue(e, byPerson);
-                return (
-                  <TapButton
-                    key={e.id}
-                    // A synthetic event has nothing to edit, so its tap is left
-                    // to fall through to the cell and open the day instead.
-                    onClick={(click) => {
-                      if (e.synthetic) return;
-                      click.stopPropagation();
-                      onEditEvent(e);
-                    }}
-                    style={{
-                      display: 'block',
-                      width: '100%',
-                      padding: '3px 8px',
-                      borderRadius: 8,
-                      background: soft(hue, night),
-                      color: deep(hue, night),
-                      fontSize: 12.5,
-                      fontWeight: 800,
-                      textAlign: 'left',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {e.title}
-                  </TapButton>
-                );
-              })}
+              {narrow ? (
+                dayEvents.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                    {dayEvents.slice(0, MAX_DOTS).map((e) => (
+                      <span
+                        key={e.id}
+                        style={{ width: 7, height: 7, borderRadius: '50%', background: col(eventHue(e, byPerson), night) }}
+                      />
+                    ))}
+                    {dayEvents.length > MAX_DOTS && (
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--ink2)' }}>
+                        +{dayEvents.length - MAX_DOTS}
+                      </span>
+                    )}
+                  </div>
+                )
+              ) : (
+                <>
+                  {chips.map((e) => {
+                    const hue = eventHue(e, byPerson);
+                    return (
+                      <TapButton
+                        key={e.id}
+                        // A synthetic event has nothing to edit, so its tap is left
+                        // to fall through to the cell and open the day instead.
+                        onClick={(click) => {
+                          if (e.synthetic) return;
+                          click.stopPropagation();
+                          onEditEvent(e);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          width: '100%',
+                          minWidth: 0,
+                          height: 22,
+                          padding: '0 8px',
+                          borderRadius: 8,
+                          background: soft(hue, night),
+                          color: deep(hue, night),
+                        }}
+                      >
+                        {/*
+                          text-overflow needs a block box of its own — set on
+                          the flex container above, it had nothing to clip
+                          against and never actually ellipsized.
+                        */}
+                        <span
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            minWidth: 0,
+                            fontSize: 12.5,
+                            fontWeight: 800,
+                            textAlign: 'left',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {e.title}
+                        </span>
+                      </TapButton>
+                    );
+                  })}
 
-              {overflow > 0 && (
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink2)', paddingLeft: 4 }}>
-                  +{overflow} more
-                </div>
+                  {overflow > 0 && (
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink2)', paddingLeft: 4 }}>
+                      +{overflow} more
+                    </div>
+                  )}
+                </>
               )}
             </div>
           );

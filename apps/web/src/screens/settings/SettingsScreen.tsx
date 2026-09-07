@@ -66,7 +66,11 @@ export function SettingsScreen(props: Props) {
       {showList && (
         <ScreenScroll outerClassName="settings-nav" innerClassName="settings-nav-inner page-gutter">
           {SECTIONS.map((s) => {
-            const on = s.id === section;
+            // Narrow mode shows this list only before a section is picked
+            // (drilling in swaps it for the content pane), so "selected"
+            // never means anything here — every row is just a button, with
+            // a chevron standing in for the accent highlight wide mode uses.
+            const on = !narrow && s.id === section;
             return (
               <TapButton
                 key={s.id}
@@ -76,9 +80,9 @@ export function SettingsScreen(props: Props) {
                   setDrilled(true);
                 }}
                 style={{
-                  background: on ? 'var(--card)' : 'transparent',
-                  color: on ? 'var(--ink)' : 'var(--ink2)',
-                  boxShadow: on ? '0 1px 2px rgba(20,24,40,.05),0 14px 28px -20px rgba(20,24,40,.3)' : 'none',
+                  background: on || narrow ? 'var(--card)' : 'transparent',
+                  color: on || narrow ? 'var(--ink)' : 'var(--ink2)',
+                  boxShadow: on || narrow ? '0 1px 2px rgba(20,24,40,.05),0 14px 28px -20px rgba(20,24,40,.3)' : 'none',
                 }}
               >
                 <span
@@ -94,6 +98,9 @@ export function SettingsScreen(props: Props) {
                   <span className="settings-nav-label">{s.label}</span>
                   <span className="settings-nav-subtitle">{s.sub}</span>
                 </span>
+                {narrow && (
+                  <Icon name="chevronRight" size={20} style={{ flex: 'none', marginLeft: 'auto', opacity: 0.4 }} />
+                )}
               </TapButton>
             );
           })}
