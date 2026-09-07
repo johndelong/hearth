@@ -511,6 +511,14 @@ export function Switch({
   /** Still readable, but not actionable — the setting does not apply yet. */
   disabled?: boolean;
 }) {
+  // The thumb is inset from the track's left edge by a fixed gap; sliding to
+  // "on" reuses that same gap on the right so both sides ever only depend on
+  // one number. Vertical centering is `top: 50%` + `translateY(-50%)` rather
+  // than a matching inset computed by hand — that stays centered no matter
+  // what the track height or thumb size are, including at every interface
+  // size, instead of relying on their formulas to happen to agree.
+  const inset = 'var(--space-1)';
+  const thumbSize = 'calc(var(--control-sm) - var(--space-4) - 2px)';
   return (
     <button
       type="button"
@@ -536,13 +544,14 @@ export function Switch({
       <span
         style={{
           position: 'absolute',
-          top: 'var(--space-1)',
-          left: on ? 'calc(100% - (var(--control-sm) - var(--space-4) - 2px) - var(--space-1) - 1px)' : 'var(--space-1)',
-          width: 'calc(var(--control-sm) - var(--space-4) - 2px)',
-          height: 'calc(var(--control-sm) - var(--space-4) - 2px)',
+          top: '50%',
+          left: on ? `calc(100% - ${thumbSize} - ${inset})` : inset,
+          width: thumbSize,
+          height: thumbSize,
           borderRadius: '50%',
           background: night ? '#0f1116' : '#fff',
           boxShadow: '0 2px 5px rgba(20,24,40,.3)',
+          transform: 'translateY(-50%)',
           transition: `left .28s ${EASE}`,
         }}
       />
