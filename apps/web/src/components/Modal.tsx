@@ -36,6 +36,15 @@ export function Modal({
   if (!idRef.current) idRef.current = Symbol('modal');
   const titleId = useId();
 
+  // Read through a ref rather than depending on `onClose` directly: callers
+  // rebuild that closure on every render they make (most don't memoize it),
+  // and depending on it here would re-run the effect below on every one of
+  // those renders — re-focusing the dialog's first field each time, which is
+  // what periodically yanked focus back to an open field and popped the
+  // on-screen keyboard.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     const id = idRef.current!;
     stack.push(id);
@@ -48,7 +57,7 @@ export function Modal({
     (focusable()[0] ?? dialog)?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (!isTop()) return;
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
       if (e.key === 'Tab') {
         const nodes = focusable();
         if (!nodes.length) return;
@@ -64,7 +73,9 @@ export function Modal({
       stack = stack.filter((s) => s !== id);
       previous?.focus();
     };
-  }, [onClose]);
+    // Mount/unmount only — see the comment on `onCloseRef` above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Portaled to the document body rather than rendered where the JSX sits: a
   // picker field's own dialog can otherwise end up nested inside another
