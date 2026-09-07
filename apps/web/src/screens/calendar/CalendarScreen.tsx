@@ -1,5 +1,6 @@
 import type { CalendarEvent, Person, Settings } from '@dashboard/shared';
 import { useMemo, useState } from 'react';
+import { ScreenScroll } from '../../components/ScreenScroll';
 import { EASE } from '../../theme';
 import { DayView } from './DayView';
 import { MonthView } from './MonthView';
@@ -54,8 +55,8 @@ export function CalendarScreen({
   const shared = { events, byPerson, night, settings, now, onEditEvent };
 
   return (
-    <div
-      style={{
+    <ScreenScroll
+      contentStyle={{
         height: '100%',
         animation: `fadeIn .3s ${EASE} both`,
         display: 'grid',
@@ -70,7 +71,7 @@ export function CalendarScreen({
         {view === 'week' && <WeekView {...shared} anchor={anchor} onOpenDay={onOpenDay} />}
         {view === 'month' && <MonthView {...shared} anchor={anchor} onOpenDay={onOpenDay} />}
       </div>
-    </div>
+    </ScreenScroll>
   );
 }
 

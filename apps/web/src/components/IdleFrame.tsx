@@ -40,7 +40,7 @@ function frameStatusIcon(item: HomeDashboardItem): IconName {
   return 'alert';
 }
 
-function ImmichSlideshow({ settings }: { settings: Settings }) {
+function ImmichSlideshow({ settings, topScrim }: { settings: Settings; topScrim: boolean }) {
   const [photos, setPhotos] = useState<Array<{ id: string; url: string }>>([]);
   const [index, setIndex] = useState(0);
 
@@ -105,6 +105,9 @@ function ImmichSlideshow({ settings }: { settings: Settings }) {
         );
       })}
       <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,.14) 0%, rgba(0,0,0,${dim}) 90%)` }} />
+      {topScrim && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '30%', background: `linear-gradient(180deg, rgba(0,0,0,${dim}) 0%, rgba(0,0,0,0) 100%)` }} />
+      )}
     </div>
   );
 }
@@ -218,7 +221,7 @@ export function IdleFrame({
         animation: `fadeIn .8s ${EASE} both`,
       }}
     >
-      <ImmichSlideshow settings={settings} />
+      <ImmichSlideshow settings={settings} topScrim={homeAlerts.length > 0 || homeStatus.length > 0 || homeStale} />
       {(homeAlerts.length > 0 || homeStatus.length > 0 || homeStale) && (
         <div className="idle-frame-alerts">
           {homeAlerts.map((item) => (

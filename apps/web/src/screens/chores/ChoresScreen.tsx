@@ -11,6 +11,7 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Board, api } from '../../api';
 import { GhostButton, Modal, PrimaryButton } from '../../components/Modal';
+import { ScreenScroll } from '../../components/ScreenScroll';
 import { Avatar, Card, Icon, Pill, TapButton } from '../../components/ui';
 import { EASE, col, deep, soft } from '../../theme';
 import { ChoreDetails } from './ChoreDetails';
@@ -297,16 +298,13 @@ export function ChoresScreen({
 
   return (
     <>
-    <div
-      style={{
+    <ScreenScroll
+      contentStyle={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
         gap: 14,
         alignContent: 'start',
         alignItems: 'start',
-        height: '100%',
-        overflowY: 'auto',
-        paddingBottom: 8,
       }}
     >
       {boards.map((person, bi) => {
@@ -470,7 +468,7 @@ export function ChoresScreen({
           </Card>
         );
       })}
-    </div>
+    </ScreenScroll>
 
     {openedPerson && openedRow && (
       <ChoreDetails

@@ -12,8 +12,10 @@ import { type Board, type HomeAssistantStatus, type ImmichAlbum, type ImmichHeal
 import { displayVersion } from '../../components/UpdateNotice';
 import { Field, Modal, fieldStyle } from '../../components/Modal';
 import { MultiPickerField, PickerField } from '../../components/pickers';
+import { ScreenScroll } from '../../components/ScreenScroll';
 import { Avatar, Button, Icon, Switch, TapButton } from '../../components/ui';
 import { EASE, type IconName, col, deep, soft } from '../../theme';
+import { useNarrow } from '../../state';
 import { ChipRow, ItemRow, Panel, ToggleRow, rowStyle } from './controls';
 
 export type SettingsSection = 'family' | 'calendar' | 'home' | 'chores' | 'points' | 'display' | 'security';
@@ -48,50 +50,76 @@ interface Props {
 
 export function SettingsScreen(props: Props) {
   const { section, onSection, night } = props;
+  const narrow = useNarrow();
+  // Below the breakpoint this is a drill-down: the list until a section is
+  // picked, then that section full-width with a way back. Local rather than
+  // lifted, since SettingsScreen unmounts on leaving the tab — so coming
+  // back always starts at the list again, regardless of which section was
+  // open last.
+  const [drilled, setDrilled] = useState(false);
+  const showList = !narrow || !drilled;
+  const showContent = !narrow || drilled;
+  const current = SECTIONS.find((s) => s.id === section);
 
   return (
     <div className="settings-layout">
-      <nav className="settings-nav">
-        {SECTIONS.map((s) => {
-          const on = s.id === section;
-          return (
-            <TapButton
-              key={s.id}
-              className="settings-nav-item"
-              onClick={() => onSection(s.id)}
-              style={{
-                background: on ? 'var(--card)' : 'transparent',
-                color: on ? 'var(--ink)' : 'var(--ink2)',
-                boxShadow: on ? '0 1px 2px rgba(20,24,40,.05),0 14px 28px -20px rgba(20,24,40,.3)' : 'none',
-              }}
-            >
-              <span
-                className="settings-nav-icon"
+      {showList && (
+        <ScreenScroll outerClassName="settings-nav" innerClassName="settings-nav-inner page-gutter">
+          {SECTIONS.map((s) => {
+            const on = s.id === section;
+            return (
+              <TapButton
+                key={s.id}
+                className="settings-nav-item"
+                onClick={() => {
+                  onSection(s.id);
+                  setDrilled(true);
+                }}
                 style={{
-                  background: on ? soft(258, night) : 'var(--chip)',
-                  color: on ? deep(258, night) : 'var(--ink2)',
+                  background: on ? 'var(--card)' : 'transparent',
+                  color: on ? 'var(--ink)' : 'var(--ink2)',
+                  boxShadow: on ? '0 1px 2px rgba(20,24,40,.05),0 14px 28px -20px rgba(20,24,40,.3)' : 'none',
                 }}
               >
-                <Icon name={s.icon} size={22} />
-              </span>
-              <span className="settings-nav-copy">
-                <span className="settings-nav-label">{s.label}</span>
-                <span className="settings-nav-subtitle">{s.sub}</span>
-              </span>
-            </TapButton>
-          );
-        })}
-      </nav>
+                <span
+                  className="settings-nav-icon"
+                  style={{
+                    background: on ? soft(258, night) : 'var(--chip)',
+                    color: on ? deep(258, night) : 'var(--ink2)',
+                  }}
+                >
+                  <Icon name={s.icon} size={22} />
+                </span>
+                <span className="settings-nav-copy">
+                  <span className="settings-nav-label">{s.label}</span>
+                  <span className="settings-nav-subtitle">{s.sub}</span>
+                </span>
+              </TapButton>
+            );
+          })}
+        </ScreenScroll>
+      )}
 
-      <div className="settings-content">
-        {section === 'family' && <FamilySection {...props} />}
-        {section === 'calendar' && <CalendarSection {...props} />}
-        {section === 'home' && <HomeSection say={props.say} />}
-        {section === 'chores' && <ChoresSection {...props} />}
-        {section === 'points' && <PointsSection {...props} />}
-        {section === 'display' && <DisplaySection {...props} />}
-        {section === 'security' && <SecuritySection {...props} />}
-      </div>
+      {showContent && (
+        <ScreenScroll outerClassName="settings-content" innerClassName="settings-content-inner page-gutter">
+          {narrow && (
+            <TapButton
+              onClick={() => setDrilled(false)}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, alignSelf: 'flex-start', padding: '4px 2px', color: 'var(--ink2)', fontSize: 15, fontWeight: 800 }}
+            >
+              <Icon name="chevronLeft" size={20} />
+              {current?.label ?? 'Settings'}
+            </TapButton>
+          )}
+          {section === 'family' && <FamilySection {...props} />}
+          {section === 'calendar' && <CalendarSection {...props} />}
+          {section === 'home' && <HomeSection say={props.say} />}
+          {section === 'chores' && <ChoresSection {...props} />}
+          {section === 'points' && <PointsSection {...props} />}
+          {section === 'display' && <DisplaySection {...props} />}
+          {section === 'security' && <SecuritySection {...props} />}
+        </ScreenScroll>
+      )}
     </div>
   );
 }

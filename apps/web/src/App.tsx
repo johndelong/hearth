@@ -89,7 +89,6 @@ export default function App() {
    * picking one day out of a grid of thirty to put in the title is arbitrary.
    */
   const heading = useMemo(() => {
-    if (tab === 'home') return { title: 'Home', sub: '' };
     if (tab === 'today' && calView !== 'day') return spanLabel(calView, anchor, settings.weekStart);
     return {
       title: viewing.toLocaleDateString('en-US', {
@@ -163,32 +162,8 @@ export default function App() {
   }
 
   return (
-    <div
-      onPointerDown={poke}
-      onPointerMove={poke}
-      style={{
-        background: 'var(--bg)',
-        color: 'var(--ink)',
-        height: '100dvh',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'row',
-        transition: 'background .9s ease, color .9s ease',
-      }}
-    >
-      <nav
-        style={{
-          width: 'var(--nav-width)',
-          flex: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 5,
-          padding: 'var(--space-4) 0',
-          background: 'var(--card)',
-          borderRight: '1px solid var(--line)',
-        }}
-      >
+    <div onPointerDown={poke} onPointerMove={poke} className="app-shell">
+      <nav className="app-nav">
         {tabs.map((t) => (
           <NavButton
             key={t.id}
@@ -202,49 +177,33 @@ export default function App() {
             }}
           />
         ))}
-        <div style={{ flex: 1 }} />
+        <div className="app-nav-spacer" />
         <NavButton label="Sleep" icon="moon" badge={0} active={false} rail onClick={sleep} />
       </nav>
 
-      <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <main className="app-main">
         <header
           style={{
             flex: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 18,
-            flexWrap: 'wrap',
-            padding: 'var(--space-5) var(--space-page) var(--space-3)',
+            padding: 'var(--space-5) var(--space-page)',
+            background: 'var(--card)',
+            borderBottom: '1px solid var(--line)',
           }}
         >
-          {/*
-            Whichever day is being looked at, on every tab — the arrows below
-            move this, and `Today` brings it back. A wall panel is glanced at
-            far more often than it is used, and "which day am I looking at" is
-            what that glance is usually for.
-          */}
-          <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-            <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-display)', fontWeight: 600, lineHeight: 1.1 }}>
-              {heading.title}
-            </h1>
-            {heading.sub && (
-              <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>
-                {heading.sub}
-              </div>
-            )}
-          </div>
-
-          {tab === 'today' && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <IconButton name="chevronLeft" title="Previous" onClick={() => setAnchor((a) => shift(a, calView, -1))} />
-                <Button size="sm" onClick={() => setAnchor(new Date())} style={{ fontSize: 15.5 }}>
-                  Today
-                </Button>
-                <IconButton name="chevronRight" title="Next" onClick={() => setAnchor((a) => shift(a, calView, 1))} />
+          {tab === 'today' ? (
+            <div className="cal-header">
+              <div>
+                <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-display)', fontWeight: 600, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+                  {heading.title}
+                </h1>
+                {heading.sub && (
+                  <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)', whiteSpace: 'nowrap' }}>
+                    {heading.sub}
+                  </div>
+                )}
               </div>
 
-              <div style={{ display: 'flex', gap: 4, padding: 5, borderRadius: 999, background: 'var(--chip)' }}>
+              <div className="cal-view-toggle-track">
                 {(['day', 'week', 'month'] as const).map((v) => (
                   <Button
                     key={v}
@@ -253,7 +212,6 @@ export default function App() {
                     style={{
                       minHeight: 0,
                       padding: '9px 20px',
-                      fontSize: 15.5,
                       textTransform: 'capitalize',
                       // Selected reads as a raised chip, not a filled pill.
                       background: calView === v ? 'var(--card)' : 'transparent',
@@ -266,67 +224,74 @@ export default function App() {
                 ))}
               </div>
 
-            </>
-          )}
-          {tab === 'chores' && board && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <IconButton
-                  name="chevronLeft"
-                  title="Previous day"
-                  onClick={() => data.setBoardDate(shiftDay(board.date, -1))}
-                />
-                <Button
-                  size="sm"
-                  onClick={() => data.setBoardDate(null)}
-                  selected={!board.today}
-                  style={{ fontSize: 15.5 }}
-                >
+              <div className="cal-header-actions">
+                <IconButton name="chevronLeft" title="Previous" onClick={() => setAnchor((a) => shift(a, calView, -1))} />
+                <Button size="sm" onClick={() => setAnchor(new Date())} style={{ fontSize: 15.5 }}>
                   Today
                 </Button>
-                <IconButton
-                  name="chevronRight"
-                  title="Next day"
-                  onClick={() => data.setBoardDate(shiftDay(board.date, 1))}
-                />
+                <IconButton name="chevronRight" title="Next" onClick={() => setAnchor((a) => shift(a, calView, 1))} />
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 0, flex: '1 1 260px' }}>
+                <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-display)', fontWeight: 600, lineHeight: 1.1 }}>
+                  {heading.title}
+                </h1>
+                {heading.sub && (
+                  <div style={{ marginTop: 3, fontSize: 16.5, fontWeight: 700, color: 'var(--ink2)' }}>
+                    {heading.sub}
+                  </div>
+                )}
               </div>
 
-              {/*
-                Which day it is now lives in the header, so this only has to say
-                which direction you have gone — and on a future board that is
-                also the hint that the rows can still be tapped.
-              */}
-              {!board.today && (
-                <span
-                  style={{
-                    padding: '7px 15px',
-                    borderRadius: 999,
-                    background: 'var(--chip)',
-                    fontSize: 15,
-                    fontWeight: 800,
-                    color: 'var(--ink2)',
-                  }}
-                >
-                  {dayDirection(board.date) === 'past' ? 'Looking back' : 'Coming up'}
-                </span>
+              {tab === 'chores' && board && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <IconButton
+                    name="chevronLeft"
+                    title="Previous day"
+                    onClick={() => data.setBoardDate(shiftDay(board.date, -1))}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => data.setBoardDate(null)}
+                    selected={!board.today}
+                    style={{ fontSize: 15.5 }}
+                  >
+                    Today
+                  </Button>
+                  <IconButton
+                    name="chevronRight"
+                    title="Next day"
+                    onClick={() => data.setBoardDate(shiftDay(board.date, 1))}
+                  />
+                </div>
+              )}
+              {tab === 'home' && (
+                editingHome ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button variant="quiet" size="sm" onClick={() => homeEditActions.current?.cancel()}>Cancel</Button>
+                    <Button variant="primary" size="sm" onClick={() => homeEditActions.current?.save()}>Done</Button>
+                  </div>
+                ) : (
+                  <Button variant="quiet" size="sm" onClick={() => requireParent(() => setEditingHome(true))}>
+                    <Icon name="pencil" size={17} /> Edit
+                  </Button>
+                )
               )}
             </div>
           )}
-          {tab === 'home' && (
-            editingHome ? (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <Button variant="quiet" size="sm" onClick={() => homeEditActions.current?.cancel()}>Cancel</Button>
-                <Button variant="primary" size="sm" onClick={() => homeEditActions.current?.save()}>Done</Button>
-              </div>
-            ) : (
-              <Button variant="quiet" size="sm" onClick={() => requireParent(() => setEditingHome(true))}>
-                <Icon name="pencil" size={17} /> Edit
-              </Button>
-            )
-          )}
         </header>
 
-        <div style={{ flex: 1, minHeight: 0, padding: 'var(--space-2) var(--space-page) var(--space-6)' }}>
+        {/*
+          No padding here: each screen owns its own page gutter now, since a
+          screen whose own root scrolls (Home, Settings) needs that scroll
+          viewport flush to this box's true edges — padding here would inset
+          its scrollbar and shrink the space its `height: 100%` sees, cutting
+          content off at the top and bottom the same way a scroll container's
+          own trailing padding does.
+        */}
+        <div style={{ flex: 1, minHeight: 0 }}>
           {tab === 'today' && (
             <CalendarScreen
               key={calendarNonce}
@@ -406,12 +371,9 @@ export default function App() {
       {tab === 'today' && !idle && (
         <TapButton
           title="Add event"
+          className="fab"
           onClick={() => setEditor({ kind: 'event', event: null })}
           style={{
-            position: 'fixed',
-            right: 'var(--space-page)',
-            bottom: 'var(--space-page)',
-            zIndex: 40,
             width: 'var(--control-xl)',
             height: 'var(--control-xl)',
             display: 'grid',
@@ -691,15 +653,6 @@ function NavButton({
 }) {
   const base: React.CSSProperties = rail
     ? {
-        position: 'relative',
-        width: 'var(--nav-item-width)',
-        height: 'var(--nav-item-height)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 5,
-        borderRadius: 'var(--radius-lg)',
         background: active ? 'var(--chip)' : 'transparent',
         color: active ? 'var(--ink)' : 'var(--ink2)',
       }
@@ -716,7 +669,11 @@ function NavButton({
       };
 
   return (
-    <TapButton onClick={onClick} style={{ ...base, fontSize: 16.5, fontWeight: 800, transition: `all .3s ${EASE}` }}>
+    <TapButton
+      onClick={onClick}
+      className={rail ? 'nav-item' : undefined}
+      style={{ ...base, fontSize: 16.5, fontWeight: 800, transition: `all .3s ${EASE}` }}
+    >
       <Icon name={icon} size={rail ? 24 : 20} />
       <span style={{ fontSize: rail ? 13 : 16.5, fontWeight: 800 }}>{label}</span>
       {badge > 0 && (
@@ -828,19 +785,4 @@ function shiftDay(date: string, by: number): string {
   d.setDate(d.getDate() + by);
   const m = String(d.getMonth() + 1).padStart(2, '0');
   return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/** Today as `YYYY-MM-DD` in local time — never via toISOString, which is UTC. */
-function localToday(): string {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/** Whether a board date is behind, level with, or ahead of today. */
-function dayDirection(date: string): 'past' | 'today' | 'future' {
-  const today = localToday();
-  if (date < today) return 'past';
-  if (date > today) return 'future';
-  return 'today';
 }

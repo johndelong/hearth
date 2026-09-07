@@ -57,6 +57,7 @@
   --nav-width: 112px;
   --nav-item-width: 88px;
   --nav-item-height: 72px;
+  --tabbar-height: 78px;
   --settings-nav-width: 268px;
   --home-tile-width: 228px;
   --home-climate-width: 300px;
@@ -108,6 +109,7 @@
   --nav-width: 96px;
   --nav-item-width: 76px;
   --nav-item-height: 62px;
+  --tabbar-height: 68px;
   --settings-nav-width: 220px;
   --home-tile-width: 205px;
   --home-climate-width: 270px;
@@ -154,6 +156,7 @@
   --nav-width: 124px;
   --nav-item-width: 98px;
   --nav-item-height: 80px;
+  --tabbar-height: 86px;
   --settings-nav-width: 300px;
   --home-tile-width: 250px;
   --home-climate-width: 330px;
@@ -223,6 +226,150 @@ button {
   -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
+}
+
+/*
+  The app shell: a side nav rail next to the main pane on a wide screen,
+  folding into a bottom tab bar on a narrow/portrait one — a wall panel
+  mounted in portrait, or a tall phone-shaped tablet, has width to spare
+  far less often than height. Structural sizing lives here rather than as
+  inline styles specifically so the narrow-screen media query below can
+  override it — an inline style always wins over a stylesheet rule for the
+  same property, media query or not.
+*/
+.app-shell {
+  background: var(--bg);
+  color: var(--ink);
+  height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  transition: background .9s ease, color .9s ease;
+}
+
+.app-nav {
+  width: var(--nav-width);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: var(--space-4) 0;
+  background: var(--card);
+  border-right: 1px solid var(--line);
+}
+
+.app-nav-spacer {
+  flex: 1;
+}
+
+.nav-item {
+  position: relative;
+  width: var(--nav-item-width);
+  height: var(--nav-item-height);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-radius: var(--radius-lg);
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  /*
+    A flex item's height floor defaults to its content's, not its flex-basis
+    — harmless while .app-shell laid out as a row (main filled the cross
+    axis by simple stretch), but the narrow-screen media query below makes
+    it a column, putting main on the main axis instead. Without this, a
+    tab whose content is taller than the screen grows .app-main straight
+    past the viewport rather than leaving it to its own children's
+    `overflow-y: auto` — and since column-reverse anchors the bottom, only
+    the tail of that overflow ever showed.
+  */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+  The calendar tab's header: date, Day/Week/Month, and Today/arrows on one
+  row. `1fr auto 1fr` (not `minmax(0, 1fr) auto minmax(0, 1fr)`) keeps the
+  date and Today/arrows from ever being squeezed smaller than their own
+  min-content, at the cost of overflowing on a viewport too narrow to fit
+  all three at their natural size.
+*/
+.cal-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 18px;
+}
+
+.cal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: end;
+}
+
+.cal-view-toggle-track {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--chip);
+}
+
+.fab {
+  position: fixed;
+  right: var(--space-page);
+  bottom: var(--space-page);
+  z-index: 40;
+}
+
+/*
+  The one page gutter, applied either directly to a screen's own root (safe
+  when nothing there scrolls itself) or to a plain wrapper one level inside
+  an element that does scroll — never to the scroll container itself, since
+  trailing padding on one of those isn't reliably scrollable to in Chromium.
+  One class so every screen's gutter can only ever mean the same four
+  numbers, changed in one place.
+*/
+.page-gutter {
+  padding: var(--space-2) var(--space-page) var(--space-6);
+}
+
+@media (max-width: 760px) {
+  /* `column-reverse` puts the nav (first in the DOM, so still first for
+     screen readers and keyboard focus) at the bottom of the screen without
+     having to reorder the markup. */
+  .app-shell {
+    flex-direction: column-reverse;
+  }
+  .app-nav {
+    width: 100%;
+    height: var(--tabbar-height);
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 0;
+    padding: var(--space-2);
+    border-right: none;
+    border-top: 1px solid var(--line);
+  }
+  .app-nav-spacer {
+    display: none;
+  }
+  .nav-item {
+    width: auto;
+    height: auto;
+    flex: 1;
+  }
+  .fab {
+    bottom: calc(var(--tabbar-height) + var(--space-page));
+  }
 }
 
 @keyframes fadeIn {
@@ -329,20 +476,42 @@ button {
   }
 }
 
+/*
+  No `gap` here: the space between the two panes lives on `.settings-nav-inner`'s
+  own trailing edge instead, so the same padding rules work whether both
+  panes are showing (a wide screen) or only one is (the narrow drill-down in
+  SettingsScreen) — a shared gap would vanish correctly when nav is hidden,
+  but would leave content's leading edge with no inset of its own to fall
+  back on.
+*/
 .settings-layout {
   display: flex;
-  gap: var(--space-5);
   height: 100%;
   min-height: 0;
 }
 
+/*
+  Both panes below are rendered through ScreenScroll (see
+  components/ScreenScroll.tsx), which supplies the actual scrolling and the
+  gutter on an inner wrapper — this class only ever sets this pane's own
+  sizing within `.settings-layout`.
+*/
 .settings-nav {
   flex: none;
   width: var(--settings-nav-width);
+}
+
+.settings-nav-inner {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  overflow-y: auto;
+}
+
+/* Same gutter as everywhere else, except the trailing edge: that's the gap
+   to `.settings-content` (see the note on `.settings-layout` above), not a
+   page edge. */
+.settings-nav-inner.page-gutter {
+  padding-right: var(--space-5);
 }
 
 .settings-nav-item {
@@ -388,11 +557,12 @@ button {
 .settings-content {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
+}
+
+.settings-content-inner {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding-bottom: var(--space-2);
 }
 
 .home-sections {
@@ -601,31 +771,14 @@ button {
   font-weight: 750;
 }
 
+/*
+  Below the breakpoint, SettingsScreen renders the nav list or the section
+  content, never both — a drill-down rather than two side-by-side columns
+  neither of which has room to breathe. The nav just needs to claim the
+  full width once it's the only thing showing.
+*/
 @media (max-width: 760px) {
-  .settings-layout {
-    flex-direction: column;
-  }
-
   .settings-nav {
-    width: 100% !important;
-    flex-direction: row !important;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .settings-nav > button {
-    min-width: 176px;
-  }
-
-  [data-interface-size='compact'] .settings-nav > button {
-    min-width: 154px;
-  }
-
-  [data-interface-size='large'] .settings-nav > button {
-    min-width: 196px;
-  }
-
-  .settings-content {
-    min-height: 0;
+    width: 100%;
   }
 }

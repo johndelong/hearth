@@ -113,8 +113,13 @@ export function DayView({ day, now, events, byPerson, night, settings, onEditEve
         </div>
       )}
 
-      <Card ref={scroller} style={{ flex: 1, overflowY: 'auto' }} padding="10px 20px 28px">
-        <div style={{ position: 'relative' }}>
+      {/*
+        Padding lives on the inner wrapper, not this scrolling Card itself —
+        trailing padding on a scroll container isn't reliably scrollable to
+        in Chromium, which cut the last hour off early.
+      */}
+      <Card ref={scroller} style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ position: 'relative', padding: '10px 20px 28px' }}>
           {hours.map((h, hi) => {
             const isNow = isToday && now.getHours() === h;
             return (

@@ -85,6 +85,25 @@ export function useOnWake(fn: () => void): void {
   }, []);
 }
 
+/**
+ * Whether the viewport is narrow enough that the nav rail has folded into a
+ * bottom tab bar (see `--tabbar-height`/`.app-shell` in styles.css — this
+ * hook's breakpoint must match the one there, since this drives layout
+ * decisions CSS alone can't make, like Settings showing its section list or
+ * its content but never both).
+ */
+export function useNarrow(): boolean {
+  const query = '(max-width: 760px)';
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const update = () => setNarrow(mq.matches);
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return narrow;
+}
+
 /** Ticks once a minute so clocks and the "now" line stay honest. */
 export function useClock(): Date {
   const [now, setNow] = useState(() => new Date());

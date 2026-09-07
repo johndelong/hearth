@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableR
 import { api } from '../../api';
 import { Button, Card, Icon, IconBadge, Pill, TapButton } from '../../components/ui';
 import { Modal } from '../../components/Modal';
+import { ScreenScroll } from '../../components/ScreenScroll';
 import { CARD_SHADOW, type IconName, deep, homeTone, homeVisualHue, soft } from '../../theme';
 
 const CATEGORIES: Array<{ id: HomeCategory; label: string; icon: IconName; hue: number }> = [
@@ -63,7 +64,7 @@ export function HomeScreen({ dashboard, onRefresh, edit, editActions, night, say
 
   if (dashboard.items.length === 0) {
     return (
-      <div style={{ height: '100%', display: 'grid', placeItems: 'center', textAlign: 'center', color: 'var(--ink2)' }}>
+      <ScreenScroll contentStyle={{ height: '100%', display: 'grid', placeItems: 'center', textAlign: 'center', color: 'var(--ink2)' }}>
         <div>
           <Icon name="home" size={52} style={{ opacity: 0.35 }} />
           <div style={{ marginTop: 16, fontSize: 'var(--text-section)', fontWeight: 800, color: 'var(--ink)' }}>Your home, at a glance</div>
@@ -71,42 +72,42 @@ export function HomeScreen({ dashboard, onRefresh, edit, editActions, night, say
             {dashboard.connection === 'disconnected' ? 'Connect Home Assistant in Settings, then use Edit to choose devices.' : 'Use Edit to choose the devices shown here.'}
           </div>
         </div>
-      </div>
+      </ScreenScroll>
     );
   }
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
-      {dashboard.stale && (
-        <div role="status" style={{ marginBottom: 14, padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-control)', background: 'var(--chip)', color: 'var(--ink2)', fontWeight: 750, fontSize: 'var(--text-md)' }}>
-          Home Assistant is {dashboard.connection === 'connecting' ? 'reconnecting' : 'unavailable'} · showing last known states
+    <ScreenScroll>
+        {dashboard.stale && (
+          <div role="status" style={{ marginBottom: 14, padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-control)', background: 'var(--chip)', color: 'var(--ink2)', fontWeight: 750, fontSize: 'var(--text-md)' }}>
+            Home Assistant is {dashboard.connection === 'connecting' ? 'reconnecting' : 'unavailable'} · showing last known states
+          </div>
+        )}
+        <AttentionPanel items={dashboard.items} night={night} onOpen={(item) => setDetailEntityId(item.entityId)} />
+        <div className="home-sections">
+          {DASHBOARD_SECTIONS.map((section) => {
+            const items = dashboard.items.filter(section.includes);
+            if (!items.length) return null;
+            const active = items.filter(isVisuallyActive).length;
+            const tone = homeTone(section.hue, night);
+            return (
+              <section key={section.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 2px 11px' }}>
+                  <IconBadge icon={section.icon} size="xs" tone={{ background: tone.background, color: tone.ink }} />
+                  <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-section)', fontWeight: 650 }}>{section.label}</h2>
+                  <span style={{ color: 'var(--ink2)', fontSize: 'var(--text-sm)', fontWeight: 750 }}>{active ? `${active} active · ` : ''}{items.length}</span>
+                </div>
+                <div className={`home-grid${section.id === 'climate' ? ' home-grid-climate' : ''}`}>
+                  {items.map((item) => item.domain === 'climate'
+                    ? <ClimateCard key={item.entityId} item={item} night={night} busy={busyEntityId === item.entityId} onOpen={() => setDetailEntityId(item.entityId)} onAction={(action, value) => void runAction(item, action, value)} />
+                    : <HomeTile key={item.entityId} item={item} night={night} busy={busyEntityId === item.entityId} onOpen={() => setDetailEntityId(item.entityId)} onAction={(action, value) => void runAction(item, action, value)} />)}
+                </div>
+              </section>
+            );
+          })}
         </div>
-      )}
-      <AttentionPanel items={dashboard.items} night={night} onOpen={(item) => setDetailEntityId(item.entityId)} />
-      <div className="home-sections">
-        {DASHBOARD_SECTIONS.map((section) => {
-          const items = dashboard.items.filter(section.includes);
-          if (!items.length) return null;
-          const active = items.filter(isVisuallyActive).length;
-          const tone = homeTone(section.hue, night);
-          return (
-            <section key={section.id}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 2px 11px' }}>
-                <IconBadge icon={section.icon} size="xs" tone={{ background: tone.background, color: tone.ink }} />
-                <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-section)', fontWeight: 650 }}>{section.label}</h2>
-                <span style={{ color: 'var(--ink2)', fontSize: 'var(--text-sm)', fontWeight: 750 }}>{active ? `${active} active · ` : ''}{items.length}</span>
-              </div>
-              <div className={`home-grid${section.id === 'climate' ? ' home-grid-climate' : ''}`}>
-                {items.map((item) => item.domain === 'climate'
-                  ? <ClimateCard key={item.entityId} item={item} night={night} busy={busyEntityId === item.entityId} onOpen={() => setDetailEntityId(item.entityId)} onAction={(action, value) => void runAction(item, action, value)} />
-                  : <HomeTile key={item.entityId} item={item} night={night} busy={busyEntityId === item.entityId} onOpen={() => setDetailEntityId(item.entityId)} onAction={(action, value) => void runAction(item, action, value)} />)}
-              </div>
-            </section>
-          );
-        })}
-      </div>
       {detailItem && <HomeDetail item={detailItem} night={night} busy={busyEntityId === detailItem.entityId} onAction={(action, value) => void runAction(detailItem, action, value)} onClose={() => setDetailEntityId(null)} />}
-    </div>
+    </ScreenScroll>
   );
 }
 
@@ -605,7 +606,7 @@ function HomeEditor({ actions: editActions, night, say, onDone }: { actions: Mut
   if (loading) return <div style={{ padding: 30, color: 'var(--ink2)', fontWeight: 750 }}>Loading devices…</div>;
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <ScreenScroll contentStyle={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Card padding="20px 22px">
         <div style={{ fontSize: 19, fontWeight: 850, marginBottom: 12 }}>Shown on Home</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -672,7 +673,7 @@ function HomeEditor({ actions: editActions, night, say, onDone }: { actions: Mut
         {entities.length === 0 && <div style={{ color: 'var(--ink2)', fontWeight: 650 }}>No entities are available. Check the Home Assistant connection in Settings.</div>}
         {pickerMode === 'devices' && devices.length > 0 && availableDevices.length === 0 && <div style={{ color: 'var(--ink2)', fontWeight: 650 }}>No matching devices in this category.</div>}
       </Card>
-    </div>
+    </ScreenScroll>
   );
 }
 
