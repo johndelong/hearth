@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type Person, type Settings } from '@dashboard/shared';
+import { DEFAULT_SETTINGS, type HomeDashboard, type Person, type Settings } from '@dashboard/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Board, api } from './api';
 
@@ -118,6 +118,42 @@ export function useToast(): [Toast | null, (text: string, hue?: number) => void]
   }, []);
 
   return [toast, say];
+}
+
+export interface HomeData {
+  dashboard: HomeDashboard;
+  refresh: () => Promise<void>;
+}
+
+const EMPTY_HOME_DASHBOARD: HomeDashboard = { connection: 'disconnected', stale: true, items: [] };
+
+/**
+ * Owns the single connection to the Home Assistant dashboard feed for the
+ * whole app, so every screen reads the same live snapshot instead of each
+ * fetching and reconnecting on its own mount.
+ */
+export function useHomeData(): HomeData {
+  const [dashboard, setDashboard] = useState<HomeDashboard>(EMPTY_HOME_DASHBOARD);
+  const refresh = useCallback(() => api.home().then(setDashboard).catch(() => undefined), []);
+
+  useEffect(() => {
+    const events = new EventSource('/api/home/events');
+    events.onmessage = (event) => {
+      try {
+        const next = JSON.parse(event.data) as HomeDashboard;
+        if (next && Array.isArray(next.items)) setDashboard(next);
+      } catch {
+        // EventSource reconnects automatically; the next complete state replaces this one.
+      }
+    };
+    return () => events.close();
+  }, []);
+
+  // A slept tab's EventSource can go quiet without ever firing an error, so
+  // waking is its own reason to fetch a fresh snapshot.
+  useOnWake(() => void refresh());
+
+  return useMemo(() => ({ dashboard, refresh }), [dashboard, refresh]);
 }
 
 export interface AppData {

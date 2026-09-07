@@ -16,7 +16,7 @@ import { HomeScreen, type HomeEditActions } from './screens/home/HomeScreen';
 import { PrizeCatalog } from './screens/chores/PrizeCatalog';
 import { ProfileDialog } from './screens/chores/ProfileDialog';
 import { SettingsScreen, type SettingsSection } from './screens/settings/SettingsScreen';
-import { type Tab, useAppData, useClock, useIdle, useNight, useToast } from './state';
+import { type Tab, useAppData, useClock, useHomeData, useIdle, useNight, useToast } from './state';
 import { EASE, type IconName, MONTHS_LONG, col } from './theme';
 
 type Editor =
@@ -33,6 +33,7 @@ type Editor =
 export default function App() {
   const data = useAppData();
   const { people, settings, board } = data;
+  const home = useHomeData();
   const night = useNight(settings.theme);
   const now = useClock();
   const [idle, poke, sleep] = useIdle(settings.idleMin);
@@ -370,7 +371,7 @@ export default function App() {
           )}
 
           {tab === 'home' && (
-            <HomeScreen edit={editingHome} editActions={homeEditActions} night={night} say={say} onCloseEdit={() => setEditingHome(false)} />
+            <HomeScreen dashboard={home.dashboard} onRefresh={home.refresh} edit={editingHome} editActions={homeEditActions} night={night} say={say} onCloseEdit={() => setEditingHome(false)} />
           )}
 
           {tab === 'settings' && board && (
@@ -431,6 +432,7 @@ export default function App() {
           events={idleEvents.events}
           people={people}
           settings={settings}
+          dashboard={home.dashboard}
           onWake={poke}
         />
       )}

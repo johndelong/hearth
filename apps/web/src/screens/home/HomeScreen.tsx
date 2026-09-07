@@ -1,12 +1,10 @@
 import { homeAlertActive, homeCategoryFor, type HomeCandidate, type HomeCategory, type HomeDashboard, type HomeDashboardItem, type HomeDashboardSelection, type HomeDeviceCandidate, type HomeEntityState } from '@dashboard/shared';
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode } from 'react';
 import { api } from '../../api';
 import { Button, Card, Icon, IconBadge, Pill, TapButton } from '../../components/ui';
 import { Modal } from '../../components/Modal';
 import { CARD_SHADOW, type IconName, deep, homeTone, homeVisualHue, soft } from '../../theme';
-import { useOnWake } from '../../state';
 
-const EMPTY: HomeDashboard = { connection: 'disconnected', stale: true, items: [] };
 const CATEGORIES: Array<{ id: HomeCategory; label: string; icon: IconName; hue: number }> = [
   { id: 'security', label: 'Security & doors', icon: 'shield', hue: 25 },
   { id: 'covers', label: 'Covers', icon: 'shades', hue: 258 },
@@ -36,32 +34,17 @@ export interface HomeEditActions {
   cancel: () => void;
 }
 
-export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
+export function HomeScreen({ dashboard, onRefresh, edit, editActions, night, say, onCloseEdit }: {
+  dashboard: HomeDashboard;
+  onRefresh: () => Promise<void>;
   edit: boolean;
   editActions: MutableRefObject<HomeEditActions | null>;
   night: boolean;
   say: (text: string, hue?: number) => void;
   onCloseEdit: () => void;
 }) {
-  const [dashboard, setDashboard] = useState<HomeDashboard>(EMPTY);
   const [detailEntityId, setDetailEntityId] = useState<string | null>(null);
   const [busyEntityId, setBusyEntityId] = useState<string | null>(null);
-  const load = useCallback(() => api.home().then(setDashboard).catch(() => undefined), []);
-
-  useEffect(() => {
-    void load();
-    const events = new EventSource('/api/home/events');
-    events.onmessage = (event) => {
-      try {
-        const next = JSON.parse(event.data) as HomeDashboard;
-        if (next && Array.isArray(next.items)) setDashboard(next);
-      } catch {
-        // EventSource reconnects automatically; the next complete state replaces this one.
-      }
-    };
-    return () => events.close();
-  }, [load]);
-  useOnWake(() => void load());
 
   const detailItem = dashboard.items.find((item) => item.entityId === detailEntityId) ?? null;
   const runAction = async (item: HomeDashboardItem, action: string, value?: number) => {
@@ -70,14 +53,13 @@ export function HomeScreen({ edit, editActions, night, say, onCloseEdit }: {
     try {
       await api.homeAction(item.entityId, action, value);
     } catch (err) {
-      await load();
       say(err instanceof Error ? err.message : 'Home Assistant action failed', 25);
     } finally {
       setBusyEntityId(null);
     }
   };
 
-  if (edit) return <HomeEditor actions={editActions} night={night} say={say} onDone={() => { onCloseEdit(); void load(); }} />;
+  if (edit) return <HomeEditor actions={editActions} night={night} say={say} onDone={() => { onCloseEdit(); void onRefresh(); }} />;
 
   if (dashboard.items.length === 0) {
     return (

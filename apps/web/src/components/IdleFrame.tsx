@@ -1,4 +1,4 @@
-import { type CalendarEvent, type HomeDashboardItem, type Person, type Settings, eventEnd, eventStart } from '@dashboard/shared';
+import { type CalendarEvent, type HomeDashboard, type HomeDashboardItem, type Person, type Settings, eventEnd, eventStart } from '@dashboard/shared';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Icon } from './ui';
@@ -177,37 +177,19 @@ export function IdleFrame({
   events,
   people,
   settings,
+  dashboard,
   onWake,
 }: {
   now: Date;
   events: CalendarEvent[];
   people: Person[];
   settings: Settings;
+  dashboard: HomeDashboard;
   onWake: () => void;
 }) {
-  const [homeAlerts, setHomeAlerts] = useState<HomeDashboardItem[]>([]);
-  const [homeStatus, setHomeStatus] = useState<HomeDashboardItem[]>([]);
-  const [homeStale, setHomeStale] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    const applyHome = (home: Awaited<ReturnType<typeof api.home>>) => {
-      if (cancelled) return;
-      setHomeAlerts(home.items.filter((item) => item.alertActive));
-      setHomeStatus(home.items.filter((item) => item.statusActive));
-      setHomeStale(home.stale && home.items.length > 0);
-    };
-    void api.home().then(applyHome).catch(() => { if (!cancelled) setHomeStale(true); });
-    const events = new EventSource('/api/home/events');
-    events.onmessage = (event) => {
-      try {
-        const home = JSON.parse(event.data) as Awaited<ReturnType<typeof api.home>>;
-        if (home && Array.isArray(home.items)) applyHome(home);
-      } catch {
-        // EventSource reconnects automatically; the next complete state replaces this one.
-      }
-    };
-    return () => { cancelled = true; events.close(); };
-  }, []);
+  const homeAlerts = dashboard.items.filter((item) => item.alertActive);
+  const homeStatus = dashboard.items.filter((item) => item.statusActive);
+  const homeStale = dashboard.stale && dashboard.items.length > 0;
   // What is left of today, plus anything already under way. The events query is
   // a deliberately coarse prefilter that reaches into the neighbouring days, so
   // without the day bound tomorrow's 7pm could appear here showing only "7 PM"
