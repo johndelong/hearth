@@ -1,11 +1,24 @@
 import type { FastifyInstance } from 'fastify';
 import { requireParent } from '../auth.js';
 import { createPerson, deletePerson, listPeople, updatePerson } from '../store/people.js';
-import { personBody } from '../schemas.js';
+import { avatarBody, personBody } from '../schemas.js';
 import { recordActivity } from '../store/activity.js';
 
 export async function peopleRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/people', async () => listPeople());
+
+  /**
+   * Picking a face is a normal kid interaction, not a parent decision — the
+   * PIN protects configuration, not this — so it stays outside the guarded
+   * group below and only ever touches `avatarKey`.
+   */
+  app.patch<{ Params: { id: string }; Body: { avatarKey: string | null } }>(
+    '/api/people/:id/avatar', { schema: { body: avatarBody } },
+    async (request, reply) => {
+      const person = updatePerson(request.params.id, { avatarKey: request.body.avatarKey });
+      return person ?? reply.code(404).send({ error: 'Unknown person' });
+    },
+  );
 
   app.register(async (guarded) => {
     guarded.addHook('preHandler', requireParent);

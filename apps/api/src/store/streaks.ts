@@ -1,5 +1,5 @@
 import { type ChoreReset, type Recurrence, type Streak, normalizeRecurrence } from '@dashboard/shared';
-import { db, id, toBool } from '../db/index.js';
+import { db, id, nowIso, toBool } from '../db/index.js';
 import { isDue, localDate, periodEnd, periodKey, previousPeriod } from './period.js';
 import { getSettings } from './settings.js';
 
@@ -183,4 +183,31 @@ export function streakFor(personId: string): Streak {
 /** Everyone's streak in one pass, for the board payload. */
 export function listStreaks(personIds: string[]): Streak[] {
   return personIds.map(streakFor);
+}
+
+/**
+ * Pays a one-time bonus for reaching a streak milestone (every
+ * `streakBonusDays` days kept without a break), if the setting is on.
+ *
+ * Like a claim's payout, this is idempotent rather than tracked: the ref_id
+ * is derived entirely from the streak's own `since` day and the milestone
+ * number, so recomputing the same milestone twice (a re-tick, another chore
+ * finished the same day, a later board read) can never pay it twice. A
+ * milestone already paid is never clawed back if the streak later breaks —
+ * the same way a finished extra job's payout isn't undone by later edits.
+ */
+export function evaluateStreakBonus(personId: string): void {
+  const { streakBonusEnabled, streakBonusPoints, streakBonusDays } = getSettings();
+  if (!streakBonusEnabled) return;
+
+  const streak = streakFor(personId);
+  if (streak.paused || !streak.since || streak.length === 0) return;
+  if (streak.length % streakBonusDays !== 0) return;
+
+  const milestone = streak.length / streakBonusDays;
+  const refId = `${personId}:${streak.since}:${milestone}`;
+  db.prepare(
+    `INSERT OR IGNORE INTO point_events (id, person_id, delta, reason, ref_type, ref_id, created_at)
+     VALUES (?, ?, ?, ?, 'streak', ?, ?)`,
+  ).run(id('pt'), personId, streakBonusPoints, `${streakBonusDays}-day streak`, refId, nowIso());
 }

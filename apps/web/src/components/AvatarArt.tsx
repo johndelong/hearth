@@ -8,50 +8,11 @@
  * reads as one coordinated thing and a glance still says whose face it is.
  */
 
-export const AVATAR_PACK = [
-  'axolotl',
-  'bat',
-  'bee',
-  'bluebird',
-  'cat',
-  'chick',
-  'chicken',
-  'cow',
-  'crab',
-  'dino',
-  'dog',
-  'elephant',
-  'fox',
-  'frog',
-  'garden-snail',
-  'giraffe',
-  'hamster',
-  'hatchling',
-  'hedgehog',
-  'jellyfish',
-  'koala',
-  'lamb',
-  'llama',
-  'narwhal',
-  'newt',
-  'octopus',
-  'panda',
-  'panda-cub',
-  'penguin',
-  'pig',
-  'platypus',
-  'seal',
-  'sheep',
-  'sloth',
-  'snail',
-  'turtle',
-] as const;
+import { AVATAR_PACK, type AvatarKey } from '@dashboard/shared';
+import { TapButton } from './ui';
+import { col } from '../theme';
 
-export type AvatarKey = (typeof AVATAR_PACK)[number];
-
-export function isAvatarKey(value: unknown): value is AvatarKey {
-  return typeof value === 'string' && (AVATAR_PACK as readonly string[]).includes(value);
-}
+export { AVATAR_PACK, type AvatarKey, isAvatarKey } from '@dashboard/shared';
 
 const LABEL: Record<AvatarKey, string> = {
   axolotl: 'Axolotl',
@@ -125,6 +86,69 @@ export function AvatarArt({
         height={size}
         style={{ width: '84%', height: '84%', objectFit: 'contain', display: 'block' }}
       />
+    </div>
+  );
+}
+
+/** A 52px avatar choice tile — selected reads as a ring in the person's colour. */
+function avatarChoiceStyle(on: boolean, hue: number, night: boolean) {
+  return {
+    width: 52,
+    height: 52,
+    padding: 0,
+    borderRadius: '50%',
+    overflow: 'hidden',
+    background: 'var(--chip)',
+    boxShadow: on ? `0 0 0 3px ${col(hue, night)}` : 'inset 0 0 0 1px var(--line)',
+  } as const;
+}
+
+/**
+ * The whole "pick a face" grid, shared by the parent-only person editor and
+ * the unprotected avatar picker on a kid's own profile — picking a face is
+ * never a parent-gated action, so this carries no PIN logic of its own.
+ */
+export function AvatarPicker({
+  value,
+  name,
+  hue,
+  night,
+  onChange,
+}: {
+  value: AvatarKey | null;
+  name: string;
+  hue: number;
+  night: boolean;
+  onChange: (key: AvatarKey | null) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      {/* Off first, so clearing a choice is where you'd reach for it. */}
+      <TapButton
+        title="No avatar"
+        onClick={() => onChange(null)}
+        style={{
+          ...avatarChoiceStyle(value === null, hue, night),
+          display: 'grid',
+          placeItems: 'center',
+          fontSize: 19,
+          fontWeight: 800,
+          color: 'var(--ink2)',
+        }}
+      >
+        {(name || '?').trim().charAt(0).toUpperCase()}
+      </TapButton>
+
+      {AVATAR_PACK.map((key) => (
+        <TapButton
+          key={key}
+          title={avatarLabel(key)}
+          onClick={() => onChange(key)}
+          style={avatarChoiceStyle(value === key, hue, night)}
+        >
+          <AvatarArt id={key} size={52} ground={col(hue, night)} />
+        </TapButton>
+      ))}
     </div>
   );
 }

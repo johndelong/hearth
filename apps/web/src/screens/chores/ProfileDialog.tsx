@@ -1,6 +1,7 @@
-import type { Person, PointEvent, Streak } from '@dashboard/shared';
+import type { AvatarKey, Person, PointEvent, Streak } from '@dashboard/shared';
 import { useEffect, useState } from 'react';
 import { type PointLedger, api } from '../../api';
+import { AvatarPicker, isAvatarKey } from '../../components/AvatarArt';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from '../../components/Modal';
 import { Avatar, Button, Icon, TapButton } from '../../components/ui';
 import { EASE, deep } from '../../theme';
@@ -10,6 +11,7 @@ const LEDGER_KIND: Record<PointEvent['refType'], string> = {
   claim: 'Extra job',
   redemption: 'Reward claimed',
   manual: 'Manual adjustment',
+  streak: 'Streak bonus',
 };
 
 /**
@@ -26,6 +28,7 @@ export function ProfileDialog({
   say,
   onRequireUnlock,
   onBoardChange,
+  onPeopleChange,
   onClose,
 }: {
   person: Person;
@@ -34,12 +37,27 @@ export function ProfileDialog({
   say: (text: string, hue?: number) => void;
   onRequireUnlock: (onReady: () => void) => void;
   onBoardChange: () => Promise<void>;
+  onPeopleChange: () => Promise<void>;
   onClose: () => void;
 }) {
   const [ledger, setLedger] = useState<PointLedger | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [adjusting, setAdjusting] = useState(false);
   const [streakBusy, setStreakBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  const changeAvatar = async (avatarKey: AvatarKey | null) => {
+    if (avatarBusy || avatarKey === person.avatarKey) return;
+    setAvatarBusy(true);
+    try {
+      await api.updatePersonAvatar(person.id, avatarKey);
+      await onPeopleChange();
+    } catch (err) {
+      say(err instanceof Error ? err.message : 'That did not save', 25);
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -178,6 +196,17 @@ export function ProfileDialog({
             <Icon name="x" size={17} />
           </TapButton>
         </header>
+
+        {/* Picking a face is a normal kid interaction, not a parent one — no PIN gate here. */}
+        <div style={{ opacity: avatarBusy ? 0.6 : 1 }}>
+          <AvatarPicker
+            value={isAvatarKey(person.avatarKey) ? person.avatarKey : null}
+            name={person.name}
+            hue={person.hue}
+            night={night}
+            onChange={(key) => void changeAvatar(key)}
+          />
+        </div>
 
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

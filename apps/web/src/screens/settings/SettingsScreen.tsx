@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Board, type HomeAssistantStatus, type ImmichAlbum, type ImmichHealth, type VersionInfo, api } from '../../api';
 import { displayVersion } from '../../components/UpdateNotice';
 import { Field, Modal, fieldStyle } from '../../components/Modal';
-import { PickerField } from '../../components/pickers';
+import { MultiPickerField, PickerField } from '../../components/pickers';
 import { Avatar, Button, Icon, Switch, TapButton } from '../../components/ui';
 import { EASE, type IconName, col, deep, soft } from '../../theme';
 import { ChipRow, ItemRow, Panel, ToggleRow, rowStyle } from './controls';
@@ -517,45 +517,30 @@ function ChoresSection({
         />
       </Panel>
 
-      <Panel
-        title="Chore boards"
-        delay={40}
-        sub="Parents can be left off entirely. Freeze a streak from their profile on the Chores tab while someone is away."
-      >
-        {people.map((p) => {
-          const streak = board.streaks.find((s) => s.personId === p.id);
-          const points = board.points.find((pt) => pt.personId === p.id)?.points ?? 0;
-          const streakNote = streak?.paused
-            ? `paused at ${streak.length} in a row`
-            : streak?.length
-              ? `${streak.length} in a row`
-              : 'no streak yet';
-          return (
-            <div key={p.id} style={{ ...rowStyle, flexWrap: 'wrap', gap: '12px 16px' }}>
-              <Avatar name={p.name} hue={p.hue} night={night} size={44} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} ring />
-              <div style={{ flex: 1, minWidth: 120 }}>
-                <div style={{ fontSize: 17, fontWeight: 800 }}>{p.name}</div>
-                <div style={{ fontSize: 14.5, color: 'var(--ink2)', fontWeight: 600 }}>
-                  {points} pts{p.onChores && ` · ${streakNote}`}
-                </div>
-              </div>
-              <SwitchCell
-                caption="Board"
-                night={night}
-                label={`Give ${p.name} a chore board`}
-                on={p.onChores}
-                onChange={async (onChores) => {
-                  try {
-                    await api.updatePerson(p.id, { onChores });
-                    await onPeopleChange();
-                  } catch (err) {
-                    say(err instanceof Error ? err.message : 'Could not save', 25);
-                  }
-                }}
-              />
-            </div>
-          );
-        })}
+      <Panel title="Chore boards" delay={40}>
+        <MultiPickerField
+          label="Who has a board"
+          sub="Parents can be left off entirely. Freeze a streak from their profile on the Chores tab while someone is away."
+          options={people.map((p) => ({
+            id: p.id,
+            label: p.name,
+            leading: <Avatar name={p.name} hue={p.hue} night={night} size={30} avatarUrl={p.avatarUrl} avatarKey={p.avatarKey} />,
+          }))}
+          selected={people.filter((p) => p.onChores).map((p) => p.id)}
+          placeholder="Nobody has a board"
+          onChange={(ids) => {
+            const next = new Set(ids);
+            const changed = people.filter((p) => p.onChores !== next.has(p.id));
+            void (async () => {
+              try {
+                await Promise.all(changed.map((p) => api.updatePerson(p.id, { onChores: next.has(p.id) })));
+                await onPeopleChange();
+              } catch (err) {
+                say(err instanceof Error ? err.message : 'Could not save', 25);
+              }
+            })();
+          }}
+        />
       </Panel>
 
       <ChoreListPanel
@@ -571,31 +556,6 @@ function ChoresSection({
 }
 
 /** A switch under its own caption, for rows that carry more than one. */
-function SwitchCell({
-  caption,
-  on,
-  night,
-  label,
-  disabled,
-  onChange,
-}: {
-  caption: string;
-  on: boolean;
-  night: boolean;
-  label: string;
-  disabled?: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink2)', letterSpacing: 0.2 }}>
-        {caption}
-      </span>
-      <Switch night={night} on={on} label={label} disabled={disabled} onChange={onChange} />
-    </div>
-  );
-}
-
 /**
  * Every chore, once, with the faces it belongs to.
  *
@@ -827,6 +787,39 @@ function PointsSection({
           <div style={{ padding: '6px 2px', color: 'var(--ink2)', fontWeight: 700 }}>
             No rewards yet. Add the first one below.
           </div>
+        )}
+      </Panel>
+
+      <Panel title="Streak bonus" sub="A little extra for keeping a streak alive" delay={80}>
+        <ToggleRow
+          label="Award a streak bonus"
+          sub="Paid automatically once per milestone — never taken back if the streak later breaks"
+          on={settings.streakBonusEnabled}
+          night={night}
+          onChange={(streakBonusEnabled) => void patchSettings({ streakBonusEnabled })}
+        />
+        {settings.streakBonusEnabled && (
+          <>
+            <Field label="Bonus points">
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={settings.streakBonusPoints}
+                onChange={(e) => {
+                  const streakBonusPoints = Number(e.target.value);
+                  if (Number.isFinite(streakBonusPoints)) void patchSettings({ streakBonusPoints });
+                }}
+                style={fieldStyle}
+              />
+            </Field>
+            <ChipRow
+              label="Every"
+              options={[3, 5, 7, 14, 30] as const}
+              value={settings.streakBonusDays as 3 | 5 | 7 | 14 | 30}
+              onChange={(streakBonusDays) => void patchSettings({ streakBonusDays })}
+            />
+          </>
         )}
       </Panel>
     </>

@@ -665,6 +665,7 @@ export default function App() {
             say={say}
             onClose={close}
             onBoardChange={data.reloadBoard}
+            onPeopleChange={data.reloadPeople}
             onRequireUnlock={requireParent}
           />
         );

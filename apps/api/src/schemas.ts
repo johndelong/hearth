@@ -1,3 +1,5 @@
+import { AVATAR_PACK } from '@dashboard/shared';
+
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] } as const;
 
 /** A bounded nullable string, for text that is passed on to Google. */
@@ -19,6 +21,20 @@ export const personBody = {
     avatarUrl: nullableString,
     avatarKey: nullableString,
     sortOrder: { type: 'integer', minimum: 0 },
+  },
+} as const;
+
+/**
+ * Picking a face is never a parent-gated action, so it has its own narrow
+ * body — just the avatar key, not the rest of `personBody` — for the
+ * unguarded route a kid's own profile uses.
+ */
+export const avatarBody = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['avatarKey'],
+  properties: {
+    avatarKey: { anyOf: [{ enum: AVATAR_PACK }, { type: 'null' }] },
   },
 } as const;
 
@@ -101,6 +117,9 @@ export const settingsBody = {
     showAllDay: { type: 'boolean' }, birthdaysOnCal: { type: 'boolean' },
     choreReset: { enum: ['Every night', 'Sunday', 'Monday'] },
     claimExtras: { type: 'boolean' }, choreConfetti: { type: 'boolean' },
+    streakBonusEnabled: { type: 'boolean' },
+    streakBonusPoints: { type: 'integer', minimum: 1, maximum: 500 },
+    streakBonusDays: { type: 'integer', minimum: 2, maximum: 60 },
     theme: { enum: ['Auto', 'Day', 'Night'] },
     interfaceSize: { enum: ['Compact', 'Standard', 'Large'] },
     idleMin: { type: 'integer', minimum: 0, maximum: 1440 },

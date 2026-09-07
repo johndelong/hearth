@@ -160,6 +160,8 @@ export const api = {
   people: () => call<Person[]>('/api/people'),
   createPerson: (body: Record<string, unknown>) => post<Person>('/api/people', body),
   updatePerson: (id: string, body: Record<string, unknown>) => patch<Person>(`/api/people/${id}`, body),
+  /** Unguarded — picking a face is never a parent-gated action. */
+  updatePersonAvatar: (id: string, avatarKey: string | null) => patch<Person>(`/api/people/${id}/avatar`, { avatarKey }),
   deletePerson: (id: string) => del<{ ok: true }>(`/api/people/${id}`),
 
   board: (date?: string) => call<Board>(`/api/chores/board${date ? `?date=${date}` : ''}`),

@@ -22,7 +22,7 @@ process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), 'hearth-core-')), 't
 
 const { db } = await import('./db/index.js');
 const { clearPin, pinIsSet, setPin, verifyPin } = await import('./auth.js');
-const { getSettings, setRaw } = await import('./store/settings.js');
+const { getSettings, setRaw, updateSettings } = await import('./store/settings.js');
 const { createPerson } = await import('./store/people.js');
 const {
   createChore,
@@ -35,6 +35,7 @@ const {
   setChoreDone,
   CompletionOutOfRange,
 } = await import('./store/chores.js');
+const { streakFor } = await import('./store/streaks.js');
 const { peopleRoutes } = await import('./routes/people.js');
 const { choreRoutes } = await import('./routes/chores.js');
 const { settingsRoutes } = await import('./routes/settings.js');
@@ -262,6 +263,41 @@ describe('HTTP validation', () => {
   });
 });
 
+describe('avatar selection', () => {
+  test('picking a face needs no parent session, unlike every other person edit', async () => {
+    const person = createPerson({ name: 'Kid' });
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/people/${person.id}/avatar`,
+      payload: { avatarKey: 'panda' },
+    });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().avatarKey, 'panda');
+
+    const cleared = await app.inject({ method: 'PATCH', url: `/api/people/${person.id}/avatar`, payload: { avatarKey: null } });
+    assert.equal(cleared.statusCode, 200);
+    assert.equal(cleared.json().avatarKey, null);
+  });
+
+  test('rejects a face outside the known pack, and cannot touch any other field', async () => {
+    const person = createPerson({ name: 'Kid' });
+    const badKey = await app.inject({ method: 'PATCH', url: `/api/people/${person.id}/avatar`, payload: { avatarKey: 'dragon' } });
+    assert.equal(badKey.statusCode, 400);
+
+    // Fastify's schema validator drops unrecognized fields rather than
+    // rejecting the request (`additionalProperties: false` strips, it
+    // doesn't 400 by default) — so the real guarantee to check is that a
+    // smuggled `role` never reaches the store, not the status code.
+    const smuggled = await app.inject({
+      method: 'PATCH',
+      url: `/api/people/${person.id}/avatar`,
+      payload: { avatarKey: 'panda', role: 'parent' },
+    });
+    assert.equal(smuggled.statusCode, 200);
+    assert.equal(smuggled.json().role, 'kid', 'the unguarded route only ever accepts avatarKey');
+  });
+});
+
 describe('recurrence boundaries', () => {
   test('normalization repairs empty weekly days and a zero interval', () => {
     const rule = normalizeRecurrence({ freq: 'weekly', interval: 0, byDay: [], startsOn: '2026-08-09' });
@@ -427,5 +463,49 @@ describe('who tagging', () => {
     const tagged = upsertWhoTag('Bring a snack', ['Everly']);
     assert.equal(upsertWhoTag(tagged, []), 'Bring a snack');
     assert.equal(upsertWhoTag('Who: Everly', []), null, 'nothing but a tag leaves nothing at all');
+  });
+});
+
+describe('streak bonus', () => {
+  test('pays once per milestone and never double-pays the same one', () => {
+    const person = createPerson({ name: 'Kid' });
+    const chore = createChore({ title: 'Dishes', personIds: [person.id], recurrence: everyDay('2020-01-01') });
+    updateSettings({ streakBonusEnabled: true, streakBonusPoints: 10, streakBonusDays: 3 });
+
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const twoDaysAgo = new Date(today);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+    setChoreDone(chore.id, person.id, true, twoDaysAgo, { force: true });
+    assert.equal(pointsFor(person.id), 0, 'no bonus until the third day completes the milestone');
+    setChoreDone(chore.id, person.id, true, yesterday, { force: true });
+    assert.equal(pointsFor(person.id), 0);
+    setChoreDone(chore.id, person.id, true, today);
+
+    assert.equal(streakFor(person.id).length, 3);
+    assert.equal(pointsFor(person.id), 10);
+    assert.deepEqual(
+      listPointEvents(person.id).map((e) => [e.refType, e.delta]),
+      [['streak', 10]],
+    );
+
+    // Un-ticking and re-ticking today recomputes the same milestone, which the
+    // ref_id keys against — so it must not pay a second time.
+    setChoreDone(chore.id, person.id, false, today);
+    setChoreDone(chore.id, person.id, true, today);
+    assert.equal(pointsFor(person.id), 10);
+
+    updateSettings({ streakBonusEnabled: false });
+  });
+
+  test('no bonus is paid while the setting is off', () => {
+    const person = createPerson({ name: 'Kid' });
+    const chore = createChore({ title: 'Dishes', personIds: [person.id], recurrence: everyDay('2020-01-01') });
+    updateSettings({ streakBonusEnabled: false, streakBonusDays: 1 });
+    setChoreDone(chore.id, person.id, true, new Date());
+    assert.equal(streakFor(person.id).length, 1);
+    assert.equal(pointsFor(person.id), 0);
   });
 });

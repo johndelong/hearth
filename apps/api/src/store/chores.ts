@@ -18,6 +18,7 @@ import {
 import { db, fromBool, id, nowIso, toBool } from '../db/index.js';
 import { getSettings } from './settings.js';
 import { MAX_DAYS_AHEAD, daysAhead, isDue, localDate, periodEnd, periodKey } from './period.js';
+import { evaluateStreakBonus } from './streaks.js';
 
 // ---------- chores ----------
 
@@ -321,6 +322,9 @@ export function setChoreDone(
   // Finishing (or un-finishing) a chore is what opens and closes the gate on
   // any extra jobs already done today.
   releaseClaimPoints(personId);
+  // Only finishing a chore can extend a streak into a new milestone; a bonus
+  // already paid is never clawed back by un-checking one afterward.
+  if (done) evaluateStreakBonus(personId);
 
   const completedAt = db
     .prepare<[string, string, string], { completed_at: string }>(

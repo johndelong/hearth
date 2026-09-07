@@ -11,7 +11,7 @@ import {
 } from '@dashboard/shared';
 import { useState } from 'react';
 import { Field, GhostButton, Modal, PrimaryButton, fieldStyle } from './Modal';
-import { AVATAR_PACK, AvatarArt, avatarLabel, isAvatarKey } from './AvatarArt';
+import { AvatarPicker, avatarLabel, isAvatarKey } from './AvatarArt';
 import { EmojiField } from './EmojiPicker';
 import { PeoplePicker } from './pickers';
 import { RepeatPicker } from './RepeatPicker';
@@ -55,19 +55,6 @@ export function formatBday(person: Person | null): string {
   const m = /^(\d{1,2})-(\d{1,2})$/.exec(person.bday);
   if (!m) return '';
   return `${MONTHS[Number(m[1]) - 1]} ${m[2]}${person.byear ? ` ${person.byear}` : ''}`;
-}
-
-/** A 52px avatar choice tile — selected reads as a ring in the person's colour. */
-function avatarChoiceStyle(on: boolean, hue: number, night: boolean) {
-  return {
-    width: 52,
-    height: 52,
-    padding: 0,
-    borderRadius: '50%',
-    overflow: 'hidden',
-    background: 'var(--chip)',
-    boxShadow: on ? `0 0 0 3px ${col(hue, night)}` : 'inset 0 0 0 1px var(--line)',
-  } as const;
 }
 
 export function PersonEditor({
@@ -149,34 +136,7 @@ export function PersonEditor({
       </Field>
 
       <Field label="Avatar" sub="Pick a face, or leave it off and use the initial">
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {/* Off first, so clearing a choice is where you'd reach for it. */}
-          <TapButton
-            title="No avatar"
-            onClick={() => setAvatarKey(null)}
-            style={{
-              ...avatarChoiceStyle(avatarKey === null, hue, night),
-              display: 'grid',
-              placeItems: 'center',
-              fontSize: 19,
-              fontWeight: 800,
-              color: 'var(--ink2)',
-            }}
-          >
-            {(name || '?').trim().charAt(0).toUpperCase()}
-          </TapButton>
-
-          {AVATAR_PACK.map((key) => (
-            <TapButton
-              key={key}
-              title={avatarLabel(key)}
-              onClick={() => setAvatarKey(key)}
-              style={avatarChoiceStyle(avatarKey === key, hue, night)}
-            >
-              <AvatarArt id={key} size={52} ground={col(hue, night)} />
-            </TapButton>
-          ))}
-        </div>
+        <AvatarPicker value={isAvatarKey(avatarKey) ? avatarKey : null} name={name} hue={hue} night={night} onChange={setAvatarKey} />
       </Field>
 
       {avatarUrl.trim() && avatarKey && (

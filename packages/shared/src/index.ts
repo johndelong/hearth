@@ -176,7 +176,7 @@ export interface PointEvent {
   personId: string;
   delta: number;
   reason: string;
-  refType: 'claim' | 'redemption' | 'manual';
+  refType: 'claim' | 'redemption' | 'manual' | 'streak';
   refId: string | null;
   createdAt: string;
 }
@@ -332,6 +332,10 @@ export interface Settings {
   choreReset: ChoreReset;
   claimExtras: boolean;
   choreConfetti: boolean;
+  streakBonusEnabled: boolean;
+  /** Points awarded when a streak reaches a multiple of {@link streakBonusDays}. */
+  streakBonusPoints: number;
+  streakBonusDays: number;
   // Display
   theme: ThemeMode;
   interfaceSize: 'Compact' | 'Standard' | 'Large';
@@ -470,6 +474,9 @@ export const DEFAULT_SETTINGS: Settings = {
   choreReset: 'Every night',
   claimExtras: true,
   choreConfetti: true,
+  streakBonusEnabled: false,
+  streakBonusPoints: 10,
+  streakBonusDays: 7,
   theme: 'Auto',
   interfaceSize: 'Standard',
   idleMin: 5,
@@ -496,6 +503,57 @@ export const SWATCHES: ReadonlyArray<readonly [string, number]> = [
 ];
 
 export const ROLES: readonly Role[] = ['kid', 'parent'];
+
+/**
+ * The built-in avatar pack's keys — the domain-level list of valid faces,
+ * shared so the API can validate an incoming `avatarKey` the same way it
+ * validates any other enum, without duplicating the list by hand. The art,
+ * labels, and rendering stay client-side (see `components/AvatarArt.tsx`).
+ */
+export const AVATAR_PACK = [
+  'axolotl',
+  'bat',
+  'bee',
+  'bluebird',
+  'cat',
+  'chick',
+  'chicken',
+  'cow',
+  'crab',
+  'dino',
+  'dog',
+  'elephant',
+  'fox',
+  'frog',
+  'garden-snail',
+  'giraffe',
+  'hamster',
+  'hatchling',
+  'hedgehog',
+  'jellyfish',
+  'koala',
+  'lamb',
+  'llama',
+  'narwhal',
+  'newt',
+  'octopus',
+  'panda',
+  'panda-cub',
+  'penguin',
+  'pig',
+  'platypus',
+  'seal',
+  'sheep',
+  'sloth',
+  'snail',
+  'turtle',
+] as const;
+
+export type AvatarKey = (typeof AVATAR_PACK)[number];
+
+export function isAvatarKey(value: unknown): value is AvatarKey {
+  return typeof value === 'string' && (AVATAR_PACK as readonly string[]).includes(value);
+}
 export const MONTHS: readonly string[] = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
